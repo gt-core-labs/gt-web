@@ -32,6 +32,20 @@ export type LoginBody = Schemas['LoginRequest'];
 /** POST /auth/users body. */
 export type CreateUserBody = Schemas['CreateUserRequest'];
 
+/**
+ * An enabled OAuth/OIDC login provider (GET /auth/providers).
+ *
+ * Public, secret-free row: `kind` is the preset family (google/github/microsoft)
+ * or `oidc` for a generic provider; `authorize_url` is the relative path that
+ * starts the full-page OAuth redirect (e.g. `/auth/providers/{id}/authorize`).
+ */
+export interface Provider {
+	id: string;
+	kind: string;
+	display_name: string;
+	authorize_url: string;
+}
+
 function f(fetch?: Fetch): Fetch {
 	return fetch ?? globalThis.fetch;
 }
@@ -46,6 +60,23 @@ export async function login(body: LoginBody, fetch?: Fetch): Promise<Response> {
 		credentials: 'same-origin',
 		body: JSON.stringify(body)
 	});
+}
+
+/**
+ * GET /auth/providers — PUBLIC (no auth): the enabled OAuth/OIDC providers.
+ *
+ * Secret-free, so it is safe to call from the unauthenticated login page (SSR
+ * via `event.fetch`). Returns `[]` on any non-2xx so the page degrades to the
+ * password form when no provider is configured / the backend is unreachable.
+ */
+export async function listProviders(fetch?: Fetch): Promise<Provider[]> {
+	try {
+		const res = await f(fetch)('/auth/providers', { credentials: 'same-origin' });
+		if (!res.ok) return [];
+		return (await res.json()) as Provider[];
+	} catch {
+		return [];
+	}
 }
 
 /** POST /auth/refresh — reads gt_refresh cookie (body fallback). Rotates cookies. */

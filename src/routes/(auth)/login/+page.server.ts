@@ -1,11 +1,26 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { backendFetch } from '$lib/server/backend';
 import { relaySetCookies } from '$lib/server/cookies';
+import type { Provider } from '$lib/api/auth';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = ({ locals, url }) => {
+/** Fetch the enabled OAuth/OIDC providers; `[]` on any error (degrade to password). */
+async function loadProviders(): Promise<Provider[]> {
+	try {
+		const res = await backendFetch('/auth/providers', '');
+		if (!res.ok) return [];
+		return (await res.json()) as Provider[];
+	} catch {
+		return [];
+	}
+}
+
+export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) throw redirect(302, '/');
-	return { next: url.searchParams.get('next') ?? '/' };
+	return {
+		next: url.searchParams.get('next') ?? '/',
+		providers: await loadProviders()
+	};
 };
 
 export const actions: Actions = {
