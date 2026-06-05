@@ -5,6 +5,7 @@ import { documents } from '$lib/api/documents';
 import { admin } from '$lib/api/admin';
 import { skills, feed } from '$lib/api/knowledge';
 import { stats } from '$lib/api/stats';
+import { meta } from '$lib/api/meta';
 import { backendFetch } from './backend';
 
 /**
@@ -50,4 +51,10 @@ export function serverFeed(event: RequestEvent) {
 export function serverStats(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return stats((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side meta client (help catalog + report-gap) bound to the backend + cookie. */
+export function serverMeta(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return meta((path, init) => backendFetch(path, cookie, init));
 }
