@@ -4,8 +4,9 @@
  * Like the tracker + orch clients, the OpenAPI spec carries no request/response
  * *bodies* for these routes (thin utoipa annotations), so the shapes below are
  * hand-typed against the live backend (gt-workspace / gt-rig / gt-quota). The
- * list/create routes are mounted at the module prefix root, so they DO carry a
- * trailing slash (`/api/v1/workspace/`, not `/api/v1/workspace`).
+ * list/create routes are the bare module prefix with NO trailing slash
+ * (`/api/v1/workspace`, not `/api/v1/workspace/` — the latter 404s, exactly like
+ * the tracker `/api/v1/issues` surface; a 404 here surfaces as an SSR 500).
  *
  * `admin(fetcher)` is transport-agnostic: pass a browser fetcher (relative,
  * same-origin cookies) or a server one (absolute backend + forwarded cookie).
@@ -76,11 +77,11 @@ export function admin(doFetch: Fetcher) {
 	return {
 		// --- workspaces -----------------------------------------------------------
 		async workspaces(): Promise<Workspace[]> {
-			const j = await unwrap<{ workspaces: Workspace[] }>(await doFetch('/api/v1/workspace/'));
+			const j = await unwrap<{ workspaces: Workspace[] }>(await doFetch('/api/v1/workspace'));
 			return j.workspaces ?? [];
 		},
 		async createWorkspace(body: CreateWorkspaceBody): Promise<void> {
-			await unwrap(await doFetch('/api/v1/workspace/', { ...JSON_POST, body: JSON.stringify(body) }));
+			await unwrap(await doFetch('/api/v1/workspace', { ...JSON_POST, body: JSON.stringify(body) }));
 		},
 		async suspendWorkspace(id: string): Promise<void> {
 			await unwrap(await doFetch(`${wsPath(id)}/suspend`, { ...JSON_POST, body: '{}' }));
@@ -94,11 +95,11 @@ export function admin(doFetch: Fetcher) {
 
 		// --- rigs -----------------------------------------------------------------
 		async rigs(): Promise<Rig[]> {
-			const j = await unwrap<{ rigs: Rig[] }>(await doFetch('/api/v1/rig/'));
+			const j = await unwrap<{ rigs: Rig[] }>(await doFetch('/api/v1/rig'));
 			return j.rigs ?? [];
 		},
 		async addRig(body: AddRigBody): Promise<void> {
-			await unwrap(await doFetch('/api/v1/rig/', { ...JSON_POST, body: JSON.stringify(body) }));
+			await unwrap(await doFetch('/api/v1/rig', { ...JSON_POST, body: JSON.stringify(body) }));
 		},
 		async removeRig(name: string): Promise<void> {
 			await unwrap(await doFetch(rigPath(name), { method: 'DELETE' }));
@@ -106,7 +107,7 @@ export function admin(doFetch: Fetcher) {
 
 		// --- quota ----------------------------------------------------------------
 		async quotas(): Promise<QuotaAccount[]> {
-			const j = await unwrap<{ accounts: QuotaAccount[] }>(await doFetch('/api/v1/quota/'));
+			const j = await unwrap<{ accounts: QuotaAccount[] }>(await doFetch('/api/v1/quota'));
 			return j.accounts ?? [];
 		},
 		async rotateQuota(account: string): Promise<void> {
