@@ -1,0 +1,1779 @@
+{
+  "components": {
+    "schemas": {
+      "GroupDim": {
+        "description": "One grouping dimension the `?group_by=` querystring accepts. Parsed case-insensitively from a\ncomma-separated list; unknown tokens are a client error (surfaced as `422` by the handler).",
+        "enum": [
+          "epic",
+          "rig",
+          "status",
+          "domain",
+          "assignee",
+          "owner"
+        ],
+        "type": "string"
+      },
+      "LeadTime": {
+        "description": "Lead-time summary for the **closed** rows in a bucket, in whole seconds between `created_at` and\n`closed_at`. `count` is how many closed rows had both timestamps parse (the sample size); the\nstats are `None` when that sample is empty so the FE renders \"n/a\" rather than a misleading `0`.",
+        "properties": {
+          "count": {
+            "description": "Number of closed rows that contributed (both timestamps present + parseable).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_secs": {
+            "description": "Maximum lead time in seconds; `None` when `count == 0`.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "mean_secs": {
+            "description": "Mean lead time in seconds, rounded to the nearest second; `None` when `count == 0`.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "median_secs": {
+            "description": "Median lead time in seconds; `None` when `count == 0`.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "min_secs": {
+            "description": "Minimum lead time in seconds; `None` when `count == 0`.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "type": "object"
+      },
+      "StatBucket": {
+        "description": "One aggregated bucket: the `key` names the group (one entry per requested dimension), and the\nbody carries the counts, progress, and lead-time roll-up over the rows that fell into it.",
+        "properties": {
+          "closed": {
+            "description": "Count of rows with `status == \"closed\"`.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "key": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The group key: `{ \"<dim>\": \"<value>\", ... }`, one entry per requested dimension in the\nrequested order. For `group_by=assignee,rig` this is `{\"assignee\":\"alice\",\"rig\":\"hq\"}`.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "lead_time": {
+            "$ref": "#/components/schemas/LeadTime",
+            "description": "Lead-time summary over the bucket's closed rows."
+          },
+          "open": {
+            "description": "Count of rows with `status == \"open\"`.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "other": {
+            "description": "Count of rows whose status is none of the above (defensive; usually 0).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "progress_pct": {
+            "description": "Progress as `closed / total * 100`, rounded to one decimal (0.0..=100.0). `0.0` when the\nbucket is empty (cannot happen — empty buckets aren't emitted — but defined for safety).",
+            "format": "double",
+            "type": "number"
+          },
+          "total": {
+            "description": "Total rows in the bucket (`open + working + closed + other`).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "working": {
+            "description": "Count of rows with `status == \"working\"`.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "open",
+          "working",
+          "closed",
+          "other",
+          "total",
+          "progress_pct",
+          "lead_time"
+        ],
+        "type": "object"
+      },
+      "StatsResponse": {
+        "description": "The full statistics response: which dimensions were grouped on, the buckets, and a `totals`\nroll-up across **all** rows (ungrouped) so the FE has a denominator without re-summing.",
+        "properties": {
+          "buckets": {
+            "description": "One bucket per distinct group key, sorted by key for a stable render order.",
+            "items": {
+              "$ref": "#/components/schemas/StatBucket"
+            },
+            "type": "array"
+          },
+          "group_by": {
+            "description": "The dimensions requested, in order (echoes `?group_by=`).",
+            "items": {
+              "$ref": "#/components/schemas/GroupDim"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StatBucket",
+            "description": "Counts/progress/lead-time over every row, independent of grouping. Its `key` is empty."
+          }
+        },
+        "required": [
+          "group_by",
+          "buckets",
+          "totals"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "gt-core",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/agent/": {
+      "get": {
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "description": "Every agent session in the workspace"
+          }
+        },
+        "summary": "`GET /` — every agent session in the workspace (`agent.list`).",
+        "tags": []
+      },
+      "post": {
+        "operationId": "spawn_session",
+        "responses": {
+          "201": {
+            "description": "Session spawned"
+          },
+          "422": {
+            "description": "A session with that id already exists"
+          }
+        },
+        "summary": "`POST /` — record a new agent session (`agent.spawn`). Emits `agent.spawned.v1`. A re-spawn of\nan id already in the registry is a `422` (mirrors the MCP duplicate check). `201` on success.",
+        "tags": []
+      }
+    },
+    "/api/v1/agent/{id}": {
+      "get": {
+        "operationId": "get_session",
+        "parameters": [
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session's state"
+          },
+          "404": {
+            "description": "No session with that id"
+          }
+        },
+        "summary": "`GET /:id` — one session's state (`agent.info`); `404` when no session matches.",
+        "tags": []
+      }
+    },
+    "/api/v1/agent/{id}/end": {
+      "post": {
+        "operationId": "end_session",
+        "parameters": [
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session ended"
+          },
+          "404": {
+            "description": "No session with that id"
+          }
+        },
+        "summary": "`POST /:id/end` — record a session's normal end (`agent.end`). Emits `agent.session-end.v1`,\nfolding the session to `done`. `404` on an unknown id.",
+        "tags": []
+      }
+    },
+    "/api/v1/agent/{id}/heartbeat": {
+      "post": {
+        "operationId": "heartbeat_session",
+        "parameters": [
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Heartbeat recorded"
+          },
+          "404": {
+            "description": "No session with that id"
+          }
+        },
+        "summary": "`POST /:id/heartbeat` — record a liveness heartbeat (`agent.heartbeat`). Emits\n`agent.heartbeat.v1`; a no-op on the registry but accepted + logged. `404` on an unknown id.",
+        "tags": []
+      }
+    },
+    "/api/v1/agent/{id}/kill": {
+      "post": {
+        "operationId": "kill_session",
+        "parameters": [
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session killed"
+          },
+          "404": {
+            "description": "No session with that id"
+          },
+          "422": {
+            "description": "Missing kill reason"
+          }
+        },
+        "summary": "`POST /:id/kill` — record a session forcibly killed with a reason (`agent.kill`). Emits\n`agent.killed.v1`, folding the session to `killed`. `404` on an unknown id; a missing `reason`\nis a `422`.",
+        "tags": []
+      }
+    },
+    "/api/v1/convoy/": {
+      "get": {
+        "operationId": "list_convoys",
+        "responses": {
+          "200": {
+            "description": "Every convoy with its state + members"
+          }
+        },
+        "summary": "`GET /` — every convoy in the workspace with its state + members (`convoy.list`). Reuses the\nreplayed board so the projection matches the MCP read exactly.",
+        "tags": []
+      },
+      "post": {
+        "operationId": "launch_convoy",
+        "responses": {
+          "200": {
+            "description": "Convoy launched; echoes the emitted event kinds"
+          },
+          "422": {
+            "description": "Validation failed (empty members / duplicate convoy)"
+          }
+        },
+        "summary": "`POST /` — launch a convoy over an ordered member list (`convoy.launch`). The convoy id lives\nin the body (it names the *new* resource, not an existing path), and dispatches the first\nmember. Emits convoy.created + convoy.launched + the first convoy.member-dispatched.",
+        "tags": []
+      }
+    },
+    "/api/v1/convoy/{convoy}": {
+      "get": {
+        "operationId": "get_convoy",
+        "parameters": [
+          {
+            "description": "Convoy id",
+            "in": "path",
+            "name": "convoy",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The convoy's state + members"
+          },
+          "404": {
+            "description": "No convoy with that id"
+          }
+        },
+        "summary": "`GET /:convoy` — one convoy's state + members (`convoy.info`); `404` when no convoy matches.",
+        "tags": []
+      }
+    },
+    "/api/v1/convoy/{convoy}/complete-member": {
+      "post": {
+        "operationId": "complete_member",
+        "parameters": [
+          {
+            "description": "Convoy id",
+            "in": "path",
+            "name": "convoy",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member completed; echoes the emitted event kinds"
+          },
+          "422": {
+            "description": "Validation failed (not the active member / not launched)"
+          }
+        },
+        "summary": "`POST /:convoy/complete-member` — mark the active member done and hand off to the next, closing\nthe convoy when it was the last (`convoy.complete-member`). The convoy always comes from the\npath and overwrites any `convoy` in the body (docs/03 Rule 6); the member is the body.",
+        "tags": []
+      }
+    },
+    "/api/v1/convoy/{convoy}/fail-member": {
+      "post": {
+        "operationId": "fail_member",
+        "parameters": [
+          {
+            "description": "Convoy id",
+            "in": "path",
+            "name": "convoy",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member failed; echoes the emitted event kinds"
+          },
+          "422": {
+            "description": "Validation failed (not the active member / not launched)"
+          }
+        },
+        "summary": "`POST /:convoy/fail-member` — fail the active member and halt the convoy (`convoy.fail-member`).\nThe convoy comes from the path; `member` + `reason` are the body. Emits convoy.member-failed +\nconvoy.failed.",
+        "tags": []
+      }
+    },
+    "/api/v1/documents/": {
+      "get": {
+        "description": "Owner is optional: with both `owner_type`+`owner_id` it filters to one bead (back-compat);\nwith neither it browses the whole workspace. `content_type` narrows by MIME. The response is\nthe paged envelope `{ documents, offset, limit, has_more, next_offset }` (the `gt://issues`\nshape) — `next_offset` is `null` on the last page.",
+        "operationId": "list_documents",
+        "parameters": [
+          {
+            "description": "Optional owner narrowing (paired with owner_id)",
+            "in": "query",
+            "name": "owner_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional owner narrowing (paired with owner_type)",
+            "in": "query",
+            "name": "owner_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional MIME-type filter",
+            "in": "query",
+            "name": "content_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Zero-based page offset (default 0)",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Max rows per page (default 50)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of workspace documents (paged envelope)"
+          }
+        },
+        "summary": "`GET /?owner_type&owner_id&content_type&offset&limit` — a flat, paged browse of the\nworkspace's live documents, newest first (`documents.list.execute`, hq-web-extras.11).",
+        "tags": []
+      },
+      "post": {
+        "operationId": "attach_document",
+        "responses": {
+          "201": {
+            "description": "Document attached"
+          },
+          "422": {
+            "description": "Validation failed (shape / bad base64)"
+          },
+          "500": {
+            "description": "No object store configured for a blob attach, or a store error"
+          }
+        },
+        "summary": "`POST /` — attach a document to a bead (`documents.attach.execute`). The id is minted\nserver-side (a ULID); `created_by` rides in the body (the agent's attribution, as on the MCP\npath). `201` on success with the stored document.",
+        "tags": []
+      }
+    },
+    "/api/v1/documents/search": {
+      "get": {
+        "operationId": "search_documents",
+        "parameters": [
+          {
+            "description": "Free-text query (websearch syntax)",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional owner narrowing (paired with owner_id)",
+            "in": "query",
+            "name": "owner_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional owner narrowing (paired with owner_type)",
+            "in": "query",
+            "name": "owner_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max hits (default 20)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranked document hits"
+          }
+        },
+        "summary": "`GET /search?query&owner_type&owner_id&limit` — hybrid (text + vector) search when an embedder\nis wired, else phase-1 full-text (`documents.search.execute`). An embed failure degrades to\nfull-text rather than erroring, exactly as the MCP path does.",
+        "tags": []
+      }
+    },
+    "/api/v1/documents/shares": {
+      "get": {
+        "operationId": "list_shares",
+        "responses": {
+          "200": {
+            "description": "The workspace's shares with derived state"
+          }
+        },
+        "summary": "`GET /shares` — list the workspace's shares whose document is still live, with each share's\nderived state (`active|expired|revoked`) computed now (`documents.read`).",
+        "tags": []
+      }
+    },
+    "/api/v1/documents/shares/{hash}": {
+      "delete": {
+        "operationId": "revoke_share",
+        "parameters": [
+          {
+            "description": "Share capability hash",
+            "in": "path",
+            "name": "hash",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share revoked (idempotent)"
+          }
+        },
+        "summary": "`DELETE /shares/:hash` — revoke a share (`documents.write`). Idempotent: a missing or\nalready-revoked share is still a `200`, so a double-DELETE is safe.",
+        "tags": []
+      },
+      "patch": {
+        "operationId": "patch_share",
+        "parameters": [
+          {
+            "description": "Share capability hash",
+            "in": "path",
+            "name": "hash",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share limit reset; returns the share"
+          },
+          "404": {
+            "description": "No share with that hash"
+          },
+          "422": {
+            "description": "Validation failed (both forms set / bad timestamp)"
+          }
+        },
+        "summary": "`PATCH /shares/:hash` — dynamically reset a share's limit: extend/shorten via `expires_in`\n(seconds from now) or `expires_at` (RFC3339), or lift it entirely by sending neither\n(`documents.write`). Returns the post-update share. `404` when the hash is unknown.",
+        "tags": []
+      }
+    },
+    "/api/v1/documents/{id}": {
+      "delete": {
+        "operationId": "remove_document",
+        "parameters": [
+          {
+            "description": "Document id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version the caller last read",
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document soft-deleted"
+          },
+          "404": {
+            "description": "No document with that id"
+          },
+          "409": {
+            "description": "Version conflict (stale expected_version)"
+          },
+          "422": {
+            "description": "Validation failed"
+          }
+        },
+        "summary": "`DELETE /:id?expected_version` — soft-delete a document under its version guard\n(`documents.remove.execute`). The id is the path; `expected_version` is the querystring (a\nDELETE carries no body). `200` echoes the removed id.",
+        "tags": []
+      },
+      "get": {
+        "operationId": "get_document",
+        "parameters": [
+          {
+            "description": "Document id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document"
+          },
+          "404": {
+            "description": "No document with that id"
+          }
+        },
+        "summary": "`GET /:id` — one document with its body/extracted text + `version`; `404` when no live row\nmatches (`gt://doc/{id}` read).",
+        "tags": []
+      },
+      "patch": {
+        "operationId": "update_document",
+        "parameters": [
+          {
+            "description": "Document id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Patched; returns the post-bump document"
+          },
+          "404": {
+            "description": "No document with that id"
+          },
+          "409": {
+            "description": "Version conflict (stale expected_version)"
+          },
+          "422": {
+            "description": "Validation failed"
+          }
+        },
+        "summary": "`PATCH /:id` — edit a document under its optimistic version guard (`documents.update.execute`).\nThe id always comes from the path and overwrites any `id` in the body (docs/03 Rule 6).\nReturns the post-bump document so a follow-up edit can chain `expected_version`.",
+        "tags": []
+      }
+    },
+    "/api/v1/documents/{id}/share": {
+      "post": {
+        "operationId": "create_share",
+        "parameters": [
+          {
+            "description": "Document id to share",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Share minted"
+          },
+          "404": {
+            "description": "No live document with that id"
+          },
+          "422": {
+            "description": "Validation failed (non-positive TTL)"
+          }
+        },
+        "summary": "`POST /:id/share` — mint a public capability URL onto a document (`documents.write`). The doc\nid rides on the path. `expires_in` (seconds, optional) sets the TTL; omit it for no limit.\n`201` with the share `{ hash, url, state, expires_at, ... }`. Several shares per document are\nallowed, each with its own TTL.",
+        "tags": []
+      }
+    },
+    "/api/v1/feed/": {
+      "get": {
+        "operationId": "get_feed",
+        "parameters": [
+          {
+            "description": "Event-kind namespace filter (e.g. merge)",
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "0-based page offset from the newest end (default 0)",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Max items per page (default 50)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of the activity feed for the caller's workspace, newest-first"
+          }
+        },
+        "summary": "`GET /?channel=&offset=&limit=` — a page of the caller's workspace activity feed, newest-first.",
+        "tags": []
+      }
+    },
+    "/api/v1/issues/": {
+      "get": {
+        "operationId": "list_issues",
+        "parameters": [
+          {
+            "description": "Comma-separated status filter",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Keep priority <= this",
+            "in": "query",
+            "name": "priority_max",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Exact assignee match",
+            "in": "query",
+            "name": "assignee",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact external_ref (epic) match",
+            "in": "query",
+            "name": "external_ref",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact issue_type match",
+            "in": "query",
+            "name": "issue_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Zero-based row offset",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Inline heavy text bodies",
+            "in": "query",
+            "name": "full",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of issues"
+          }
+        },
+        "summary": "`GET /` — a paged snapshot of the tracker (`gt://issues`). Reuses\n[`read_issues_page`](crate::resources::read_issues_page) so the page semantics match the MCP\nresource exactly.",
+        "tags": []
+      },
+      "post": {
+        "operationId": "create_issue",
+        "responses": {
+          "201": {
+            "description": "Issue created"
+          },
+          "422": {
+            "description": "Validation failed (shape / NN-16 taxonomy)"
+          }
+        },
+        "summary": "`POST /` — create a bead (`issues.create.execute`). The id lives in the body (it names the\nnew resource, not an existing path), uniqueness is enforced by the store. `201` on success.",
+        "tags": []
+      }
+    },
+    "/api/v1/issues/stats": {
+      "get": {
+        "description": "Returns counts `{open,working,closed,other,total}` + `progress_pct` (`closed/total`) +\n`lead_time` (from `created_at`/`closed_at` on closed beads) for each bucket of the requested\n`group_by` dimensions, plus an ungrouped `totals` roll-up. The aggregation runs over the\ntracker rows of the active workspace (the same auth-scoped store the other handlers use —\ntenant resolution is upstream, never a route param); the math itself lives in transport-free\n[`crate::stats`]. Scope: `issues.read` (the GET verb-class the builder guards).\n\nAn unknown or empty `group_by` is a `422` (client error), matching the MCP parse path. The\nrows are pulled with a high page limit (clamped by `GT_ISSUES_MAX_LIMIT`) so the aggregate\ncovers the whole workspace tracker in one pass.",
+        "operationId": "issue_stats",
+        "parameters": [
+          {
+            "description": "Comma-separated dimensions: epic|rig|status|domain|assignee|owner (combinable)",
+            "in": "query",
+            "name": "group_by",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated status pre-filter",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Keep priority <= this",
+            "in": "query",
+            "name": "priority_max",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Exact assignee pre-filter",
+            "in": "query",
+            "name": "assignee",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact external_ref (epic) pre-filter",
+            "in": "query",
+            "name": "external_ref",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact issue_type pre-filter",
+            "in": "query",
+            "name": "issue_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            },
+            "description": "Per-bucket counts + progress% + lead_time, plus ungrouped totals"
+          },
+          "422": {
+            "description": "Missing/unknown group_by dimension"
+          }
+        },
+        "summary": "`GET /stats` — per-workspace aggregation for the statistics view (`gt-web.5`, `hq-web-extras.12`).",
+        "tags": []
+      }
+    },
+    "/api/v1/issues/{id}": {
+      "get": {
+        "operationId": "get_issue",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The issue with heavy bodies + version"
+          },
+          "404": {
+            "description": "No issue with that id"
+          }
+        },
+        "summary": "`GET /:id` — one issue with its heavy bodies + `version` (`gt://issue/{id}`); `404` when no\nrow matches.",
+        "tags": []
+      },
+      "patch": {
+        "operationId": "update_issue",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Patched; returns the post-bump version"
+          },
+          "422": {
+            "description": "Validation failed (incl. version conflict)"
+          }
+        },
+        "summary": "`PATCH /:id` — patch editable fields (`issues.update.execute`). The id always comes from the\npath and overwrites any `id` in the body (docs/03 Rule 6: identity is never trusted from the\npayload). Returns the post-bump `version` so a follow-up edit can chain `expected_version`.",
+        "tags": []
+      }
+    },
+    "/api/v1/issues/{id}/claim": {
+      "post": {
+        "operationId": "claim_issue",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Claim won; echoes version + S5 fields"
+          },
+          "404": {
+            "description": "No issue with that id"
+          },
+          "409": {
+            "description": "Already claimed by another holder"
+          }
+        },
+        "summary": "`POST /:id/claim` — atomically claim an open, unowned bead for the server actor\n(`issues.claim.execute`). A lost claim is a `409 Conflict` naming the current holder, so the\ncaller cannot proceed as if it owns the bead; a win echoes the post-bump `version` and the\nS5 prose/phase fields.",
+        "tags": []
+      }
+    },
+    "/api/v1/issues/{id}/close": {
+      "post": {
+        "operationId": "close_issue",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issue closed"
+          },
+          "404": {
+            "description": "No issue with that id"
+          },
+          "422": {
+            "description": "Validation failed (e.g. missing commit_sha for a code surface)"
+          }
+        },
+        "summary": "`POST /:id/close` — close the bead (`issues.close.execute`). The attribution actor is the\nserver identity in [`IssuesApiState`], never the body. A bead with a non-planned code\nsurface still requires `commit_sha` (delivered-code proof), enforced by the shared handler;\nthe git delivery verification (S2) is skipped on the REST path (see the module docs).",
+        "tags": []
+      }
+    },
+    "/api/v1/issues/{id}/transition": {
+      "post": {
+        "operationId": "transition_issue",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status transitioned"
+          },
+          "422": {
+            "description": "Illegal or invalid transition"
+          }
+        },
+        "summary": "`POST /:id/transition` — move the status across the open/working/closed machine\n(`issues.transition.execute`). Illegal moves are rejected by the store's status-guarded\nupdate and surface as `422`.",
+        "tags": []
+      }
+    },
+    "/api/v1/merge/": {
+      "get": {
+        "operationId": "list_merges",
+        "responses": {
+          "200": {
+            "description": "Every slot on the workspace merge board"
+          }
+        },
+        "summary": "`GET /` — every slot on the caller's merge board (`merge.list`).",
+        "tags": []
+      },
+      "post": {
+        "operationId": "submit_merge",
+        "responses": {
+          "201": {
+            "description": "Merge slot registered in Ready"
+          },
+          "422": {
+            "description": "Validation failed (empty fields or already submitted)"
+          }
+        },
+        "summary": "`POST /` — submit a bead's branch into the queue (`merge.submit`). The bead lives in the body\n(it names the new slot, like the issues `create` / rig `add`); a duplicate submit is rejected\nagainst the rehydrated board. `201` on success.",
+        "tags": []
+      }
+    },
+    "/api/v1/merge/{bead}": {
+      "get": {
+        "operationId": "get_merge",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "bead",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bead's merge slot"
+          },
+          "404": {
+            "description": "No merge slot for that bead"
+          }
+        },
+        "summary": "`GET /:bead` — one bead's merge slot (`merge.info`); `404` when no slot matches.",
+        "tags": []
+      }
+    },
+    "/api/v1/merge/{bead}/complete": {
+      "post": {
+        "operationId": "complete_merge",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "bead",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slot moved to Merged"
+          },
+          "404": {
+            "description": "No merge slot for that bead"
+          },
+          "409": {
+            "description": "Illegal transition (not in Merging)"
+          },
+          "422": {
+            "description": "Validation failed (missing sha)"
+          }
+        },
+        "summary": "`POST /:bead/complete` — the edge reports a landed merge, `Merging → Merged` (`merge.complete`).\nThe bead comes from the path; the landed `sha` lives in the body.",
+        "tags": []
+      }
+    },
+    "/api/v1/merge/{bead}/fail": {
+      "post": {
+        "operationId": "fail_merge",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "bead",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slot moved to Failed"
+          },
+          "404": {
+            "description": "No merge slot for that bead"
+          },
+          "409": {
+            "description": "Illegal transition (not in Merging)"
+          },
+          "422": {
+            "description": "Validation failed (missing reason)"
+          }
+        },
+        "summary": "`POST /:bead/fail` — the edge reports a failed merge, `Merging → Failed` (`merge.fail`). The\nbead comes from the path; the `reason` lives in the body.",
+        "tags": []
+      }
+    },
+    "/api/v1/merge/{bead}/start": {
+      "post": {
+        "operationId": "start_merge",
+        "parameters": [
+          {
+            "description": "Bead id",
+            "in": "path",
+            "name": "bead",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slot moved to Merging"
+          },
+          "404": {
+            "description": "No merge slot for that bead"
+          },
+          "409": {
+            "description": "Illegal transition (not in Ready)"
+          }
+        },
+        "summary": "`POST /:bead/start` — take a queued slot to the physical merge, `Ready → Merging`\n(`merge.start`). The bead always comes from the path (docs/03 Rule 6).",
+        "tags": []
+      }
+    },
+    "/api/v1/meta/help": {
+      "get": {
+        "operationId": "help",
+        "responses": {
+          "200": {
+            "description": "The full tools/list (names, descriptions, input schemas)"
+          }
+        },
+        "summary": "`GET /help` — the server's `tools/list` payload (`meta.help.execute`): every\ndispatchable tool with its description + input schema. A pure read, no state\nchange. The shape matches the MCP `meta.help` result exactly.",
+        "tags": []
+      }
+    },
+    "/api/v1/meta/report-gap": {
+      "post": {
+        "operationId": "report_gap",
+        "responses": {
+          "201": {
+            "description": "Gap bead minted; echoes { bead, operation, priority, external_ref }"
+          },
+          "422": {
+            "description": "Validation failed (e.g. empty operation)"
+          }
+        },
+        "summary": "`POST /report-gap` — surface a missing operation (`meta.report-gap.execute`):\nthe server mints a `hq-gap-<slug>-<ts>` bead so the gap enters the routine\ncatalog. The attribution actor is the server identity in [`MetaApiState`], never\nthe body. `201` on success, echoing the minted bead summary.",
+        "tags": []
+      }
+    },
+    "/api/v1/quota/": {
+      "get": {
+        "operationId": "list_accounts",
+        "responses": {
+          "200": {
+            "description": "Every tracked account with its usage + window"
+          }
+        },
+        "summary": "`GET /` — every tracked account with its usage (`quota.list`). Reuses the replayed registry\nso the projection matches the MCP read exactly.",
+        "tags": []
+      }
+    },
+    "/api/v1/quota/{account}": {
+      "get": {
+        "operationId": "get_account",
+        "parameters": [
+          {
+            "description": "Account id",
+            "in": "path",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's usage + window"
+          },
+          "404": {
+            "description": "No account with that id"
+          }
+        },
+        "summary": "`GET /:account` — one account's usage + window (`quota.info`); `404` when no account matches.",
+        "tags": []
+      }
+    },
+    "/api/v1/quota/{account}/probe": {
+      "post": {
+        "operationId": "probe_account",
+        "parameters": [
+          {
+            "description": "Account id",
+            "in": "path",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Window reconciled; echoes the emitted event kind"
+          },
+          "422": {
+            "description": "Validation failed"
+          }
+        },
+        "summary": "`POST /:account/probe` — reconcile the live window against provider remaining/reset\n(`quota.probe`). The account comes from the path. Emits `quota.usage_probed.v1`.",
+        "tags": []
+      }
+    },
+    "/api/v1/quota/{account}/rotate": {
+      "post": {
+        "operationId": "rotate_account",
+        "parameters": [
+          {
+            "description": "Account rotated away from (from_account)",
+            "in": "path",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rotated; echoes the emitted event kind"
+          },
+          "422": {
+            "description": "Validation failed (empty or self-rotation)"
+          }
+        },
+        "summary": "`POST /:account/rotate` — rotate active usage off this account onto another (`quota.rotate`),\nparking the source in cooldown. The path account is the `from_account` (the one rotated away\nfrom, docs/03 Rule 6); `to_account` is the healthy target in the body. A rotation onto itself\nis a `422`. Emits `quota.rotated.v1`.",
+        "tags": []
+      }
+    },
+    "/api/v1/quota/{account}/sample": {
+      "post": {
+        "operationId": "sample_account",
+        "parameters": [
+          {
+            "description": "Account id",
+            "in": "path",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sample recorded; echoes the emitted event kind"
+          },
+          "422": {
+            "description": "Validation failed (empty session/model)"
+          }
+        },
+        "summary": "`POST /:account/sample` — record a token-usage sample (`quota.sample`). The account always\ncomes from the path and overwrites any `account` in the body (docs/03 Rule 6); the rest of\nthe body (`session`/`model`/usage counters) is the sample. Emits `quota.tokens_sampled.v1`.",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/": {
+      "get": {
+        "operationId": "list_rigs",
+        "responses": {
+          "200": {
+            "description": "Every rig in the workspace catalog"
+          }
+        },
+        "summary": "`GET /` — every rig in the caller's catalog (`rig.list`).",
+        "tags": []
+      },
+      "post": {
+        "operationId": "add_rig",
+        "responses": {
+          "201": {
+            "description": "Rig registered"
+          },
+          "422": {
+            "description": "Validation failed (name/prefix grammar or collision)"
+          }
+        },
+        "summary": "`POST /` — register a new rig (`rig.add`). The name lives in the body (it names the new\nresource, like the issues `create`), uniqueness enforced by the catalog. `201` on success.",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/adopt": {
+      "post": {
+        "operationId": "adopt_rig",
+        "responses": {
+          "201": {
+            "description": "Rig adopted"
+          },
+          "422": {
+            "description": "Validation failed (name/prefix grammar or collision)"
+          }
+        },
+        "summary": "`POST /adopt` — adopt an existing on-disk rig into the catalog (`rig.adopt`). Same shape as\n`POST /`; emits the distinct `rig.adopted` kind. `201` on success.",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/lookup": {
+      "get": {
+        "description": "A static segment, so it never shadows `GET /:name` (axum routes static before dynamic). `404`\nwhen no rig in the workspace owns the prefix.",
+        "operationId": "lookup_by_prefix",
+        "parameters": [
+          {
+            "description": "Bead-id prefix to resolve",
+            "in": "query",
+            "name": "prefix",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rig owning the prefix"
+          },
+          "404": {
+            "description": "No rig owns that prefix in this workspace"
+          }
+        },
+        "summary": "`GET /lookup?prefix=` — resolve the rig owning a given bead-id prefix (`rig.lookup-by-prefix`).",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/{name}": {
+      "delete": {
+        "operationId": "remove_rig",
+        "parameters": [
+          {
+            "description": "Rig name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rig removed"
+          },
+          "404": {
+            "description": "No rig with that name"
+          }
+        },
+        "summary": "`DELETE /:name` — drop a rig from the catalog (`rig.remove`). The name comes from the path;\nthe command decides against the live catalog (rejecting an absent rig as `404`) before the\nrow is deleted.",
+        "tags": []
+      },
+      "get": {
+        "operationId": "get_rig",
+        "parameters": [
+          {
+            "description": "Rig name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rig's catalog entry"
+          },
+          "404": {
+            "description": "No rig with that name"
+          }
+        },
+        "summary": "`GET /:name` — one rig's catalog entry (`rig.info`); `404` when no rig matches.",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/{name}/set-default-branch": {
+      "post": {
+        "operationId": "set_default_branch",
+        "parameters": [
+          {
+            "description": "Rig name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default branch changed"
+          },
+          "404": {
+            "description": "No rig with that name"
+          },
+          "422": {
+            "description": "Validation failed (empty or no-op)"
+          }
+        },
+        "summary": "`POST /:name/set-default-branch` — change a rig's default branch (`rig.set-default-branch`).",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/{name}/set-prefix": {
+      "post": {
+        "operationId": "set_prefix",
+        "parameters": [
+          {
+            "description": "Rig name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prefix changed"
+          },
+          "404": {
+            "description": "No rig with that name"
+          },
+          "422": {
+            "description": "Validation failed (grammar, collision, or no-op)"
+          }
+        },
+        "summary": "`POST /:name/set-prefix` — change a rig's bead-id prefix (`rig.set-prefix`). The name always\ncomes from the path and overwrites any `name` in the body (docs/03 Rule 6).",
+        "tags": []
+      }
+    },
+    "/api/v1/rig/{name}/set-worktree-root": {
+      "post": {
+        "operationId": "set_worktree_root",
+        "parameters": [
+          {
+            "description": "Rig name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worktree root pinned"
+          },
+          "404": {
+            "description": "No rig with that name"
+          },
+          "422": {
+            "description": "Validation failed (relative path, `..`, too long, or no-op)"
+          }
+        },
+        "summary": "`POST /:name/set-worktree-root` — pin a rig's worktree-root override (`rig.set-worktree-root`).",
+        "tags": []
+      }
+    },
+    "/api/v1/skills/": {
+      "get": {
+        "operationId": "list_skills",
+        "responses": {
+          "200": {
+            "description": "Every registered skill + per-role bindings for the caller's workspace"
+          }
+        },
+        "summary": "`GET /` — every registered skill in the caller's workspace, in sorted order, with the per-role\nbindings the dashboard hydrates from.",
+        "tags": []
+      }
+    },
+    "/api/v1/skills/{id}": {
+      "get": {
+        "operationId": "get_skill",
+        "parameters": [
+          {
+            "description": "Skill id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skill + the roles that have it enabled"
+          },
+          "404": {
+            "description": "No skill registered under that id"
+          }
+        },
+        "summary": "`GET /:id` — one skill by id (`404` when the workspace has no skill registered under that id).",
+        "tags": []
+      }
+    },
+    "/api/v1/workspace/": {
+      "get": {
+        "operationId": "list_workspaces",
+        "responses": {
+          "200": {
+            "description": "Every workspace in the catalog"
+          }
+        },
+        "summary": "`GET /` — every workspace in the catalog (`workspace.list`). A pure read straight\noff the repository; the envelope matches the MCP tool's `{ \"workspaces\": [...] }`.",
+        "tags": []
+      },
+      "post": {
+        "operationId": "create_workspace",
+        "responses": {
+          "201": {
+            "description": "Workspace created"
+          },
+          "409": {
+            "description": "A workspace with that id already exists"
+          },
+          "422": {
+            "description": "Invalid id or blank name"
+          }
+        },
+        "summary": "`POST /` — provision a new active workspace in the catalog (`workspace.create`).\nThe id lives in the body (it names the new resource), uniqueness is enforced by\nthe decide layer (`409` on a duplicate). Runs the full [`WorkspaceActor`] cycle so\nthe change is a replayable event. `201` on success.",
+        "tags": []
+      }
+    },
+    "/api/v1/workspace/{id}": {
+      "get": {
+        "operationId": "get_workspace",
+        "parameters": [
+          {
+            "description": "Workspace slug",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's id, name + status"
+          },
+          "404": {
+            "description": "No workspace with that id"
+          }
+        },
+        "summary": "`GET /:id` — one workspace's id, name + status (`workspace.info`); `404` when the\ncatalog holds no such id.",
+        "tags": []
+      }
+    },
+    "/api/v1/workspace/{id}/archive": {
+      "post": {
+        "operationId": "archive_workspace",
+        "parameters": [
+          {
+            "description": "Workspace slug",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace archived"
+          },
+          "404": {
+            "description": "No workspace with that id"
+          },
+          "409": {
+            "description": "Already archived (illegal transition)"
+          }
+        },
+        "summary": "`POST /:id/archive` — archive a workspace (`workspace.archive`, terminal). The\ndecide layer rejects an already-archived workspace as an illegal transition (`409`).",
+        "tags": []
+      }
+    },
+    "/api/v1/workspace/{id}/resume": {
+      "post": {
+        "operationId": "resume_workspace",
+        "parameters": [
+          {
+            "description": "Workspace slug",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace resumed"
+          },
+          "404": {
+            "description": "No workspace with that id"
+          },
+          "409": {
+            "description": "Not suspended (illegal transition)"
+          }
+        },
+        "summary": "`POST /:id/resume` — restore a suspended workspace to active (`workspace.resume`).\nThe decide layer rejects a non-suspended source as an illegal transition (`409`).",
+        "tags": []
+      }
+    },
+    "/api/v1/workspace/{id}/suspend": {
+      "post": {
+        "operationId": "suspend_workspace",
+        "parameters": [
+          {
+            "description": "Workspace slug",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace suspended"
+          },
+          "404": {
+            "description": "No workspace with that id"
+          },
+          "409": {
+            "description": "Not active (illegal transition)"
+          }
+        },
+        "summary": "`POST /:id/suspend` — reversibly disable an active workspace (`workspace.suspend`).\nThe decide layer rejects a non-active source as an illegal transition (`409`).",
+        "tags": []
+      }
+    },
+    "/share/{hash}": {
+      "get": {
+        "operationId": "read_public_share",
+        "parameters": [
+          {
+            "description": "Share capability hash (the public credential)",
+            "in": "path",
+            "name": "hash",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The live document behind an active share"
+          },
+          "404": {
+            "description": "Unknown / revoked share, or the document is gone"
+          },
+          "410": {
+            "description": "The share has expired"
+          }
+        },
+        "summary": "`GET /share/:hash` — PUBLIC, unauthenticated read of the LIVE document behind an *active*\nshare (hq-web-extras.9). Served outside the `/api/v1` auth chain. Lazy expiry: the state is\ncomputed at read time. `active` ⇒ `200` with the document (markdown + metadata); `revoked` ⇒\n`404`; `expired` ⇒ `410 Gone`; unknown hash / vanished doc ⇒ `404`. Never leaks session data.",
+        "tags": []
+      }
+    }
+  }
+}

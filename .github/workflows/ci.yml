@@ -1,7 +1,14 @@
-# gt-web CI — type check + production build.
+# gt-web CI — schema drift gate + type check + production build.
 #
-# schema.d.ts is committed, so `npm run gen` (which needs a live backend) is NOT
-# run here; CI builds against the checked-in types. Gates docker-publish.
+# `src/lib/api/schema.d.ts` is the generated FE<->backend contract. It is
+# committed, but it must stay in sync with the OpenAPI spec it was generated
+# from. The `schema` job regenerates the types from the committed
+# `openapi.json` fixture and fails if the result differs from what is checked
+# in — so a hand-edited schema, or a fixture bumped without regenerating, turns
+# the build red. Refreshing the fixture against the live backend is handled
+# out-of-band by schema-upstream.yml.
+#
+# Gates docker-publish (a red run here blocks the image).
 name: CI
 
 on:
@@ -10,6 +17,25 @@ on:
   pull_request:
 
 jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Regenerate API types from committed openapi.json fixture
+        run: npm run gen:ci
+      - name: Fail if schema.d.ts drifted from the fixture
+        run: |
+          if ! git diff --exit-code src/lib/api/schema.d.ts; then
+            echo "::error::src/lib/api/schema.d.ts is out of sync with openapi.json." \
+              "Run 'npm run gen:ci' and commit the result (or refresh the fixture via 'npm run gen')."
+            exit 1
+          fi
+
   build:
     runs-on: ubuntu-latest
     steps:

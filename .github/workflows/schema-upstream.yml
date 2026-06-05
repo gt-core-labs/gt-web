@@ -1,0 +1,35 @@
+# Out-of-band check: does the committed openapi.json fixture still match the
+# live backend?
+#
+# CI (ci.yml) only proves schema.d.ts == gen(openapi.json) — it never touches
+# the network, so it cannot notice the backend evolving past the fixture. This
+# workflow fetches the live spec on a schedule and fails (which emails the repo
+# watchers) when the fixture has fallen behind. It never runs on push/PR, so it
+# can never block a merge or a deploy.
+#
+# To resolve a failure: run `npm run gen` against the live backend, then commit
+# the refreshed openapi.json + src/lib/api/schema.d.ts.
+name: schema-upstream-drift
+
+on:
+  schedule:
+    # Mondays, 06:23 UTC — off the :00 mark on purpose.
+    - cron: "23 6 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch live OpenAPI spec
+        run: |
+          curl -fsSL "${GT_OPENAPI_URL:-https://gt.codecsrayo.com/openapi.json}" \
+            | jq -S . > openapi.live.json
+      - name: Warn if committed fixture is stale
+        run: |
+          if ! diff -u openapi.json openapi.live.json; then
+            echo "::warning::Committed openapi.json differs from the live backend." \
+              "Run 'npm run gen' against the live backend and commit openapi.json + schema.d.ts."
+            exit 1
+          fi

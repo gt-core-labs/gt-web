@@ -103,6 +103,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/convoy/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /` — every convoy in the workspace with its state + members (`convoy.list`). Reuses the
+         *     replayed board so the projection matches the MCP read exactly.
+         */
+        get: operations["list_convoys"];
+        put?: never;
+        /**
+         * `POST /` — launch a convoy over an ordered member list (`convoy.launch`). The convoy id lives
+         *     in the body (it names the *new* resource, not an existing path), and dispatches the first
+         *     member. Emits convoy.created + convoy.launched + the first convoy.member-dispatched.
+         */
+        post: operations["launch_convoy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/convoy/{convoy}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /:convoy` — one convoy's state + members (`convoy.info`); `404` when no convoy matches. */
+        get: operations["get_convoy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/convoy/{convoy}/complete-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /:convoy/complete-member` — mark the active member done and hand off to the next, closing
+         *     the convoy when it was the last (`convoy.complete-member`). The convoy always comes from the
+         *     path and overwrites any `convoy` in the body (docs/03 Rule 6); the member is the body.
+         */
+        post: operations["complete_member"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/convoy/{convoy}/fail-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /:convoy/fail-member` — fail the active member and halt the convoy (`convoy.fail-member`).
+         *     The convoy comes from the path; `member` + `reason` are the body. Emits convoy.member-failed +
+         *     convoy.failed.
+         */
+        post: operations["fail_member"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/": {
         parameters: {
             query?: never;
@@ -111,8 +195,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * `GET /?owner_type&owner_id` — the live documents attached to an owner bead, newest first
-         *     (`documents.list.execute`).
+         * `GET /?owner_type&owner_id&content_type&offset&limit` — a flat, paged browse of the
+         *     workspace's live documents, newest first (`documents.list.execute`, hq-web-extras.11).
+         * @description Owner is optional: with both `owner_type`+`owner_id` it filters to one bead (back-compat);
+         *     with neither it browses the whole workspace. `content_type` narrows by MIME. The response is
+         *     the paged envelope `{ documents, offset, limit, has_more, next_offset }` (the `gt://issues`
+         *     shape) — `next_offset` is `null` on the last page.
          */
         get: operations["list_documents"];
         put?: never;
@@ -149,6 +237,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /shares` — list the workspace's shares whose document is still live, with each share's
+         *     derived state (`active|expired|revoked`) computed now (`documents.read`).
+         */
+        get: operations["list_shares"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/shares/{hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /shares/:hash` — revoke a share (`documents.write`). Idempotent: a missing or
+         *     already-revoked share is still a `200`, so a double-DELETE is safe.
+         */
+        delete: operations["revoke_share"];
+        options?: never;
+        head?: never;
+        /**
+         * `PATCH /shares/:hash` — dynamically reset a share's limit: extend/shorten via `expires_in`
+         *     (seconds from now) or `expires_at` (RFC3339), or lift it entirely by sending neither
+         *     (`documents.write`). Returns the post-update share. `404` when the hash is unknown.
+         */
+        patch: operations["patch_share"];
+        trace?: never;
+    };
     "/api/v1/documents/{id}": {
         parameters: {
             query?: never;
@@ -179,6 +312,45 @@ export interface paths {
         patch: operations["update_document"];
         trace?: never;
     };
+    "/api/v1/documents/{id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /:id/share` — mint a public capability URL onto a document (`documents.write`). The doc
+         *     id rides on the path. `expires_in` (seconds, optional) sets the TTL; omit it for no limit.
+         *     `201` with the share `{ hash, url, state, expires_at, ... }`. Several shares per document are
+         *     allowed, each with its own TTL.
+         */
+        post: operations["create_share"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feed/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /?channel=&offset=&limit=` — a page of the caller's workspace activity feed, newest-first. */
+        get: operations["get_feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/issues/": {
         parameters: {
             query?: never;
@@ -198,6 +370,35 @@ export interface paths {
          *     new resource, not an existing path), uniqueness is enforced by the store. `201` on success.
          */
         post: operations["create_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /stats` — per-workspace aggregation for the statistics view (`gt-web.5`, `hq-web-extras.12`).
+         * @description Returns counts `{open,working,closed,other,total}` + `progress_pct` (`closed/total`) +
+         *     `lead_time` (from `created_at`/`closed_at` on closed beads) for each bucket of the requested
+         *     `group_by` dimensions, plus an ungrouped `totals` roll-up. The aggregation runs over the
+         *     tracker rows of the active workspace (the same auth-scoped store the other handlers use —
+         *     tenant resolution is upstream, never a route param); the math itself lives in transport-free
+         *     [`crate::stats`]. Scope: `issues.read` (the GET verb-class the builder guards).
+         *
+         *     An unknown or empty `group_by` is a `422` (client error), matching the MCP parse path. The
+         *     rows are pulled with a high page limit (clamped by `GT_ISSUES_MAX_LIMIT`) so the aggregate
+         *     covers the whole workspace tracker in one pass.
+         */
+        get: operations["issue_stats"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -674,6 +875,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/skills/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /` — every registered skill in the caller's workspace, in sorted order, with the per-role
+         *     bindings the dashboard hydrates from.
+         */
+        get: operations["list_skills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /:id` — one skill by id (`404` when the workspace has no skill registered under that id). */
+        get: operations["get_skill"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspace/": {
         parameters: {
             query?: never;
@@ -780,10 +1018,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/share/{hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /share/:hash` — PUBLIC, unauthenticated read of the LIVE document behind an *active*
+         *     share (hq-web-extras.9). Served outside the `/api/v1` auth chain. Lazy expiry: the state is
+         *     computed at read time. `active` ⇒ `200` with the document (markdown + metadata); `revoked` ⇒
+         *     `404`; `expired` ⇒ `410 Gone`; unknown hash / vanished doc ⇒ `404`. Never leaks session data.
+         */
+        get: operations["read_public_share"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        /**
+         * @description One grouping dimension the `?group_by=` querystring accepts. Parsed case-insensitively from a
+         *     comma-separated list; unknown tokens are a client error (surfaced as `422` by the handler).
+         * @enum {string}
+         */
+        GroupDim: "epic" | "rig" | "status" | "domain" | "assignee" | "owner";
+        /**
+         * @description Lead-time summary for the **closed** rows in a bucket, in whole seconds between `created_at` and
+         *     `closed_at`. `count` is how many closed rows had both timestamps parse (the sample size); the
+         *     stats are `None` when that sample is empty so the FE renders "n/a" rather than a misleading `0`.
+         */
+        LeadTime: {
+            /**
+             * Format: int64
+             * @description Number of closed rows that contributed (both timestamps present + parseable).
+             */
+            count: number;
+            /**
+             * Format: int64
+             * @description Maximum lead time in seconds; `None` when `count == 0`.
+             */
+            max_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Mean lead time in seconds, rounded to the nearest second; `None` when `count == 0`.
+             */
+            mean_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Median lead time in seconds; `None` when `count == 0`.
+             */
+            median_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Minimum lead time in seconds; `None` when `count == 0`.
+             */
+            min_secs?: number | null;
+        };
+        /**
+         * @description One aggregated bucket: the `key` names the group (one entry per requested dimension), and the
+         *     body carries the counts, progress, and lead-time roll-up over the rows that fell into it.
+         */
+        StatBucket: {
+            /**
+             * Format: int64
+             * @description Count of rows with `status == "closed"`.
+             */
+            closed: number;
+            /**
+             * @description The group key: `{ "<dim>": "<value>", ... }`, one entry per requested dimension in the
+             *     requested order. For `group_by=assignee,rig` this is `{"assignee":"alice","rig":"hq"}`.
+             */
+            key: {
+                [key: string]: string;
+            };
+            /** @description Lead-time summary over the bucket's closed rows. */
+            lead_time: components["schemas"]["LeadTime"];
+            /**
+             * Format: int64
+             * @description Count of rows with `status == "open"`.
+             */
+            open: number;
+            /**
+             * Format: int64
+             * @description Count of rows whose status is none of the above (defensive; usually 0).
+             */
+            other: number;
+            /**
+             * Format: double
+             * @description Progress as `closed / total * 100`, rounded to one decimal (0.0..=100.0). `0.0` when the
+             *     bucket is empty (cannot happen — empty buckets aren't emitted — but defined for safety).
+             */
+            progress_pct: number;
+            /**
+             * Format: int64
+             * @description Total rows in the bucket (`open + working + closed + other`).
+             */
+            total: number;
+            /**
+             * Format: int64
+             * @description Count of rows with `status == "working"`.
+             */
+            working: number;
+        };
+        /**
+         * @description The full statistics response: which dimensions were grouped on, the buckets, and a `totals`
+         *     roll-up across **all** rows (ungrouped) so the FE has a denominator without re-summing.
+         */
+        StatsResponse: {
+            /** @description One bucket per distinct group key, sorted by key for a stable render order. */
+            buckets: components["schemas"]["StatBucket"][];
+            /** @description The dimensions requested, in order (echoes `?group_by=`). */
+            group_by: components["schemas"]["GroupDim"][];
+            /** @description Counts/progress/lead-time over every row, independent of grouping. Its `key` is empty. */
+            totals: components["schemas"]["StatBucket"];
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -954,13 +1311,146 @@ export interface operations {
             };
         };
     };
+    list_convoys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every convoy with its state + members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    launch_convoy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Convoy launched; echoes the emitted event kinds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failed (empty members / duplicate convoy) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_convoy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Convoy id */
+                convoy: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The convoy's state + members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No convoy with that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    complete_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Convoy id */
+                convoy: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member completed; echoes the emitted event kinds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failed (not the active member / not launched) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    fail_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Convoy id */
+                convoy: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member failed; echoes the emitted event kinds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failed (not the active member / not launched) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_documents: {
         parameters: {
-            query: {
-                /** @description Owning bead class (epic|skill|spec) */
-                owner_type: string;
-                /** @description Owning bead id */
-                owner_id: string;
+            query?: {
+                /** @description Optional owner narrowing (paired with owner_id) */
+                owner_type?: string;
+                /** @description Optional owner narrowing (paired with owner_type) */
+                owner_id?: string;
+                /** @description Optional MIME-type filter */
+                content_type?: string;
+                /** @description Zero-based page offset (default 0) */
+                offset?: number;
+                /** @description Max rows per page (default 50) */
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -968,7 +1458,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Documents for the owner */
+            /** @description A page of workspace documents (paged envelope) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1029,6 +1519,80 @@ export interface operations {
         responses: {
             /** @description Ranked document hits */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_shares: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workspace's shares with derived state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revoke_share: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Share capability hash */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Share revoked (idempotent) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patch_share: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Share capability hash */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Share limit reset; returns the share */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No share with that hash */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failed (both forms set / bad timestamp) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1151,6 +1715,66 @@ export interface operations {
             };
         };
     };
+    create_share: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document id to share */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Share minted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No live document with that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation failed (non-positive TTL) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_feed: {
+        parameters: {
+            query?: {
+                /** @description Event-kind namespace filter (e.g. merge) */
+                channel?: string;
+                /** @description 0-based page offset from the newest end (default 0) */
+                offset?: number;
+                /** @description Max items per page (default 50) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the activity feed for the caller's workspace, newest-first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_issues: {
         parameters: {
             query?: {
@@ -1203,6 +1827,46 @@ export interface operations {
                 content?: never;
             };
             /** @description Validation failed (shape / NN-16 taxonomy) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issue_stats: {
+        parameters: {
+            query: {
+                /** @description Comma-separated dimensions: epic|rig|status|domain|assignee|owner (combinable) */
+                group_by: string;
+                /** @description Comma-separated status pre-filter */
+                status?: string;
+                /** @description Keep priority <= this */
+                priority_max?: number;
+                /** @description Exact assignee pre-filter */
+                assignee?: string;
+                /** @description Exact external_ref (epic) pre-filter */
+                external_ref?: string;
+                /** @description Exact issue_type pre-filter */
+                issue_type?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-bucket counts + progress% + lead_time, plus ungrouped totals */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsResponse"];
+                };
+            };
+            /** @description Missing/unknown group_by dimension */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1985,6 +2649,52 @@ export interface operations {
             };
         };
     };
+    list_skills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every registered skill + per-role bindings for the caller's workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_skill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Skill id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The skill + the roles that have it enabled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No skill registered under that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_workspaces: {
         parameters: {
             query?: never;
@@ -2161,6 +2871,41 @@ export interface operations {
             };
             /** @description Not active (illegal transition) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_public_share: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Share capability hash (the public credential) */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The live document behind an active share */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown / revoked share, or the document is gone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The share has expired */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
