@@ -16,7 +16,8 @@
 		{ href: '/admin/users', label: 'Users', scope: 'users.read' },
 		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read' },
 		{ href: '/admin/rigs', label: 'Rigs', scope: 'rig.read' },
-		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read' }
+		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read' },
+		{ href: '/admin/providers', label: 'Providers', scope: '*' }
 	];
 
 	const items = $derived(NAV.filter((i) => !i.scope || hasScope(data.user?.scopes, i.scope)));

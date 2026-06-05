@@ -46,6 +46,69 @@ export interface Provider {
 	authorize_url: string;
 }
 
+/**
+ * Stored login-provider kind. Presets bake their endpoints server-side (the form
+ * only needs id/display_name/client_id/client_secret); `generic` is a raw OIDC
+ * provider whose endpoints the admin supplies in full. Wire spelling matches the
+ * backend `ProviderKind` (crates/.../gt-auth/src/provider_repo.rs).
+ */
+export type ProviderKind = 'google' | 'github' | 'microsoft' | 'generic';
+
+/** The kinds whose endpoints the backend bakes — the form hides the endpoint fields. */
+export const PRESET_KINDS: ProviderKind[] = ['google', 'github', 'microsoft'];
+
+/**
+ * Full admin view of a provider (GET /auth/providers/all and /auth/providers/{id}).
+ * Secret-free: the API never returns `client_secret`. Includes disabled providers.
+ */
+export interface ProviderAdmin {
+	id: string;
+	kind: ProviderKind;
+	display_name: string;
+	client_id: string;
+	issuer: string;
+	authorize_endpoint: string;
+	token_endpoint: string;
+	userinfo_endpoint: string;
+	scopes: string;
+	enabled: boolean;
+}
+
+/**
+ * Create body (POST /auth/providers). For a preset kind the endpoints auto-fill
+ * server-side; for `generic` the issuer/endpoints/scopes are required.
+ */
+export interface CreateProviderBody {
+	id: string;
+	kind: ProviderKind;
+	display_name: string;
+	client_id: string;
+	client_secret: string;
+	issuer?: string;
+	authorize_endpoint?: string;
+	token_endpoint?: string;
+	userinfo_endpoint?: string;
+	scopes?: string;
+	enabled?: boolean;
+}
+
+/**
+ * Update body (PATCH /auth/providers/{id}). Every field optional — only the keys
+ * present are changed. `client_secret` is WRITE-ONLY: send it only to rotate, omit
+ * it to keep the stored secret untouched.
+ */
+export interface UpdateProviderBody {
+	display_name?: string;
+	client_id?: string;
+	client_secret?: string;
+	issuer?: string;
+	authorize_endpoint?: string;
+	token_endpoint?: string;
+	userinfo_endpoint?: string;
+	scopes?: string;
+	enabled?: boolean;
+}
+
 function f(fetch?: Fetch): Fetch {
 	return fetch ?? globalThis.fetch;
 }
@@ -115,6 +178,51 @@ export async function createUser(body: CreateUserBody, fetch?: Fetch): Promise<R
 		headers: JSON_HEADERS,
 		credentials: 'same-origin',
 		body: JSON.stringify(body)
+	});
+}
+
+/**
+ * GET /auth/providers/all — every provider incl `enabled=false`, secret-free.
+ * System-admin only (scope `*`). Pass `event.fetch` in SSR.
+ */
+export async function listAllProviders(fetch?: Fetch): Promise<ProviderAdmin[]> {
+	const res = await f(fetch)('/auth/providers/all', { credentials: 'same-origin' });
+	if (!res.ok) throw new Error(`listAllProviders: ${res.status}`);
+	return (await res.json()) as ProviderAdmin[];
+}
+
+/** GET /auth/providers/{id} — single provider (incl disabled), secret-free. */
+export async function getProvider(id: string, fetch?: Fetch): Promise<ProviderAdmin> {
+	const res = await f(fetch)(`/auth/providers/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+	if (!res.ok) throw new Error(`getProvider: ${res.status}`);
+	return (await res.json()) as ProviderAdmin;
+}
+
+/** POST /auth/providers — create. Echoes a secret-free `ProviderAdmin`. */
+export async function createProvider(body: CreateProviderBody, fetch?: Fetch): Promise<Response> {
+	return f(fetch)('/auth/providers', {
+		method: 'POST',
+		headers: JSON_HEADERS,
+		credentials: 'same-origin',
+		body: JSON.stringify(body)
+	});
+}
+
+/** PATCH /auth/providers/{id} — partial update (omit `client_secret` to keep it). */
+export async function updateProvider(id: string, body: UpdateProviderBody, fetch?: Fetch): Promise<Response> {
+	return f(fetch)(`/auth/providers/${encodeURIComponent(id)}`, {
+		method: 'PATCH',
+		headers: JSON_HEADERS,
+		credentials: 'same-origin',
+		body: JSON.stringify(body)
+	});
+}
+
+/** DELETE /auth/providers/{id} — 204 on success. */
+export async function deleteProvider(id: string, fetch?: Fetch): Promise<Response> {
+	return f(fetch)(`/auth/providers/${encodeURIComponent(id)}`, {
+		method: 'DELETE',
+		credentials: 'same-origin'
 	});
 }
 
