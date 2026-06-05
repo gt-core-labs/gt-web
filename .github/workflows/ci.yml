@@ -1,0 +1,23 @@
+# gt-web CI — type check + production build.
+#
+# schema.d.ts is committed, so `npm run gen` (which needs a live backend) is NOT
+# run here; CI builds against the checked-in types. Gates docker-publish.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run check
+      - run: npm run build
