@@ -9,8 +9,8 @@
 #   - :sha-<7>        immutable per-commit tag for rollback / pinning
 #
 # Requires two repo secrets (Settings -> Secrets and variables -> Actions):
-#   DOCKERHUB_USERNAME  e.g. codecsrayo
-#   DOCKERHUB_TOKEN     a DockerHub PAT with Read & Write scope
+#   DOCKERHUB_USERNAME                      e.g. codecsrayo
+#   DCKR_PAT_EKN6JEIUPNVMDCQH2OED9Z4FZKU    a DockerHub PAT with Read & Write scope
 name: docker-publish
 
 on:
@@ -45,7 +45,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DCKR_PAT_EKN6JEIUPNVMDCQH2OED9Z4FZKU }}
 
       - name: Docker metadata
         id: meta
