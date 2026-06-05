@@ -47,11 +47,10 @@
 
 		{#if data.docError}<p class="text-sm text-error-500">{data.docError}</p>{/if}
 
-		{#if !data.q}
-			<p class="opacity-60">Enter a query to search the knowledge base.</p>
-		{:else if data.results.length === 0}
-			<p class="opacity-60">No documents match “{data.q}”.</p>
+		{#if data.results.length === 0}
+			<p class="opacity-60">{data.q ? `No documents match “${data.q}”.` : 'No documents yet.'}</p>
 		{:else}
+			{#if !data.q}<p class="text-sm opacity-50">Recent documents</p>{/if}
 			<ul class="space-y-2">
 				{#each data.results as doc (doc.id)}
 					<li>

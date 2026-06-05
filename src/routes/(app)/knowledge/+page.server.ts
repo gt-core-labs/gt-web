@@ -10,7 +10,11 @@ export const load: PageServerLoad = async (event) => {
 	const q = (event.url.searchParams.get('q') ?? '').trim();
 
 	const [docs, sk, fd] = await Promise.allSettled([
-		q ? serverDocs(event).search({ query: q, limit: 50 }) : Promise.resolve([] as DocumentRow[]),
+		q
+			? serverDocs(event).search({ query: q, limit: 50 })
+			: serverDocs(event)
+					.browse({ limit: 50 })
+					.then((p) => p.documents),
 		serverSkills(event).list(),
 		serverFeed(event).page({ limit: 50 })
 	]);

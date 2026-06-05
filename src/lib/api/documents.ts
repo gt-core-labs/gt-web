@@ -54,6 +54,36 @@ export interface UpdateDocBody {
 	body_md?: string;
 }
 
+export type ShareState = 'active' | 'expired' | 'revoked';
+
+export interface Share {
+	hash: string;
+	document_id: string;
+	url: string;
+	state: ShareState;
+	created_by: string | null;
+	created_at: string;
+	expires_at: string | null;
+	revoked: boolean;
+	last_accessed_at: string | null;
+}
+
+export interface BrowseQuery {
+	owner_type?: string;
+	owner_id?: string;
+	content_type?: string;
+	offset?: number;
+	limit?: number;
+}
+
+export interface DocPage {
+	documents: DocumentRow[];
+	offset: number;
+	limit: number;
+	has_more: boolean;
+	next_offset: number | null;
+}
+
 const JSON_HEADERS = { 'content-type': 'application/json' } as const;
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -108,6 +138,43 @@ export function documents(doFetch: Fetcher) {
 		async remove(id: string, expectedVersion: number): Promise<void> {
 			await unwrap(
 				await doFetch(`${path(id)}?expected_version=${expectedVersion}`, { method: 'DELETE' })
+			);
+		},
+		/** Flat/paged browse (hq-web-extras.11): no owner ⇒ whole workspace, newest-first. */
+		async browse(q: BrowseQuery = {}): Promise<DocPage> {
+			const qs = new URLSearchParams();
+			for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '') qs.set(k, String(v));
+			const s = qs.toString();
+			return unwrap(await doFetch(`/api/v1/documents${s ? `?${s}` : ''}`));
+		},
+		async createShare(
+			id: string,
+			body: { expires_in?: number; created_by?: string } = {}
+		): Promise<Share> {
+			return unwrap(
+				await doFetch(`${path(id)}/share`, {
+					method: 'POST',
+					headers: JSON_HEADERS,
+					body: JSON.stringify(body)
+				})
+			);
+		},
+		async listShares(): Promise<Share[]> {
+			const j = await unwrap<{ shares: Share[] }>(await doFetch('/api/v1/documents/shares'));
+			return j.shares ?? [];
+		},
+		async patchShare(hash: string, body: { expires_in?: number; expires_at?: string }): Promise<Share> {
+			return unwrap(
+				await doFetch(`/api/v1/documents/shares/${encodeURIComponent(hash)}`, {
+					method: 'PATCH',
+					headers: JSON_HEADERS,
+					body: JSON.stringify(body)
+				})
+			);
+		},
+		async revokeShare(hash: string): Promise<void> {
+			await unwrap(
+				await doFetch(`/api/v1/documents/shares/${encodeURIComponent(hash)}`, { method: 'DELETE' })
 			);
 		}
 	};

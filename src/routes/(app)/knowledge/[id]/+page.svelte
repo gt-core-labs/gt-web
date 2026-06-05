@@ -54,6 +54,45 @@
 			busy = false;
 		}
 	}
+
+	// --- shares ---
+	let shareTtlDays = $state(7);
+	let copied = $state('');
+
+	const DAY = 86400;
+	async function shareRun(fn: () => Promise<unknown>) {
+		busy = true;
+		error = '';
+		try {
+			await fn();
+			await invalidateAll();
+		} catch (err) {
+			error = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	function createShare() {
+		const expires_in = shareTtlDays > 0 ? shareTtlDays * DAY : undefined;
+		return shareRun(() => browserDocs().createShare(doc.id, { expires_in, created_by: data.user?.sub }));
+	}
+	const extendShare = (hash: string) => shareRun(() => browserDocs().patchShare(hash, { expires_in: 7 * DAY }));
+	const liftShare = (hash: string) => shareRun(() => browserDocs().patchShare(hash, {}));
+	const revokeShare = (hash: string) => shareRun(() => browserDocs().revokeShare(hash));
+
+	async function copyUrl(url: string) {
+		try {
+			await navigator.clipboard.writeText(location.origin + url);
+			copied = url;
+			setTimeout(() => (copied = ''), 1500);
+		} catch {
+			/* clipboard blocked; ignore */
+		}
+	}
+
+	const shareVariant = (s: string) =>
+		s === 'active' ? 'success' : s === 'expired' ? 'warning' : 'error';
 </script>
 
 <div class="mx-auto max-w-3xl space-y-4">
@@ -108,5 +147,50 @@
 		</section>
 	{:else}
 		<p class="opacity-60">No inline content (binary stored at {doc.bucket}/{doc.key}).</p>
+	{/if}
+
+	{#if canWrite}
+		<section class="card preset-tonal-surface space-y-3 p-4">
+			<header class="flex items-center justify-between">
+				<h2 class="font-semibold">Shares</h2>
+				<div class="flex items-end gap-2">
+					<label class="label">
+						<span class="label-text text-xs">TTL days (0 = no limit)</span>
+						<input class="input w-28" type="number" min="0" bind:value={shareTtlDays} />
+					</label>
+					<Button disabled={busy} onclick={createShare}>Create share</Button>
+				</div>
+			</header>
+
+			{#if data.shares.length === 0}
+				<p class="text-sm opacity-60">No shares for this document.</p>
+			{:else}
+				<table class="table">
+					<thead>
+						<tr><th>Link</th><th>State</th><th>Expires</th><th></th></tr>
+					</thead>
+					<tbody>
+						{#each data.shares as sh (sh.hash)}
+							<tr>
+								<td>
+									<button class="font-mono text-xs hover:underline" onclick={() => copyUrl(sh.url)}>
+										{sh.url}{copied === sh.url ? ' ✓ copied' : ''}
+									</button>
+								</td>
+								<td><Badge variant={shareVariant(sh.state)}>{sh.state}</Badge></td>
+								<td class="text-xs">{sh.expires_at ? new Date(sh.expires_at).toLocaleString() : '—'}</td>
+								<td class="text-right">
+									{#if sh.state !== 'revoked'}
+										<Button variant="tonal" disabled={busy} onclick={() => extendShare(sh.hash)}>+7d</Button>
+										<Button variant="tonal" disabled={busy} onclick={() => liftShare(sh.hash)}>No limit</Button>
+										<Button variant="tonal" disabled={busy} onclick={() => revokeShare(sh.hash)}>Revoke</Button>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
+		</section>
 	{/if}
 </div>
