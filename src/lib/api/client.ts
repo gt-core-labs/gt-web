@@ -11,9 +11,9 @@ import type { paths } from './schema';
  *   `const client = api(event.fetch);`
  * Browser: import the default `client` (uses window.fetch + credentials).
  */
-export function api(fetch?: typeof globalThis.fetch): Client<paths> {
+export function api(fetch?: typeof globalThis.fetch, baseUrl = '/'): Client<paths> {
 	return createClient<paths>({
-		baseUrl: '/',
+		baseUrl,
 		credentials: 'same-origin',
 		...(fetch ? { fetch } : {})
 	});
