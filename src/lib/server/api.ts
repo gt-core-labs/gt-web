@@ -1,6 +1,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { tracker } from '$lib/api/tracker';
 import { orch } from '$lib/api/orch';
+import { documents } from '$lib/api/documents';
 import { backendFetch } from './backend';
 
 /**
@@ -16,4 +17,10 @@ export function serverTracker(event: RequestEvent) {
 export function serverOrch(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return orch((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side documents client bound to the backend + cookie. */
+export function serverDocs(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return documents((path, init) => backendFetch(path, cookie, init));
 }
