@@ -4,6 +4,7 @@ import { orch } from '$lib/api/orch';
 import { documents } from '$lib/api/documents';
 import { admin } from '$lib/api/admin';
 import { skills, feed } from '$lib/api/knowledge';
+import { stats } from '$lib/api/stats';
 import { backendFetch } from './backend';
 
 /**
@@ -43,4 +44,10 @@ export function serverSkills(event: RequestEvent) {
 export function serverFeed(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return feed((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side statistics client bound to the backend + cookie. */
+export function serverStats(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return stats((path, init) => backendFetch(path, cookie, init));
 }
