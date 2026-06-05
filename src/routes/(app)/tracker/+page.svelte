@@ -1,6 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { browserTracker, TrackerError, type IssueRow, type IssueStatus } from '$lib/api/tracker';
+	import {
+		browserTracker,
+		ISSUE_EVENT_KINDS,
+		TrackerError,
+		type IssueRow,
+		type IssueStatus
+	} from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
 	import IssueCard from '$lib/components/tracker/IssueCard.svelte';
@@ -28,6 +35,26 @@
 	];
 
 	const byStatus = (s: IssueStatus) => issues.filter((i) => i.status === s);
+
+	// Live refresh: every issue mutation (any session, REST or MCP) publishes an
+	// `issues.*.v1` event onto `/stream?channel=issues`. Re-pull the SSR list on each,
+	// debounced so a burst (e.g. an epic + its beads) collapses to one refetch. The
+	// EventSource carries the gt_web_token cookie (Path=/) for auth — it cannot set an
+	// Authorization header. `?channel=issues` keeps the merge/convoy/quota feed out.
+	onMount(() => {
+		const es = new EventSource('/stream?channel=issues', { withCredentials: true });
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		const refresh = () => {
+			if (timer) clearTimeout(timer);
+			timer = setTimeout(() => invalidateAll(), 400);
+		};
+		// EventSource needs a listener per named kind — there is no catch-all for named events.
+		for (const k of ISSUE_EVENT_KINDS) es.addEventListener(k, refresh as EventListener);
+		return () => {
+			es.close();
+			if (timer) clearTimeout(timer);
+		};
+	});
 
 	async function drop(target: IssueStatus) {
 		const id = dragged;

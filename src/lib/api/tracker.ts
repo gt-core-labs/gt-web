@@ -13,6 +13,21 @@
 
 export type IssueStatus = 'open' | 'working' | 'closed';
 
+/**
+ * Event kinds the backend emits on `/stream?channel=issues` (the SSE feed every
+ * issue mutation — REST or MCP — publishes into). The names carry the `.v1`
+ * version suffix exactly as the stream frames them, so an `EventSource` listener
+ * must subscribe by these literal names (it never fires `onmessage` for a *named*
+ * event). Mirrors `ORCH_EVENT_KINDS` in `./orch`.
+ */
+export const ISSUE_EVENT_KINDS = [
+	'issues.created.v1',
+	'issues.updated.v1',
+	'issues.transitioned.v1',
+	'issues.closed.v1',
+	'issues.claimed.v1'
+] as const;
+
 /** A tracker row as returned by the list endpoint (no heavy text bodies). */
 export interface IssueRow {
 	id: string;
