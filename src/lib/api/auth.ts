@@ -1,50 +1,36 @@
 /**
- * Hand-written client for the backend `/auth/*` surface.
+ * Client for the backend `/auth/*` surface.
  *
- * `/auth/*` is NOT in /openapi.json (the router carries no utoipa annotations),
- * so codegen does not cover it — these shapes are maintained by hand until
- * hq-web-extras.10 annotates auth. Verified against the live backend.
+ * Since hq-web-extras.10 the auth router is annotated with utoipa, so `/auth/*`
+ * is in /openapi.json and these shapes come straight from the generated schema
+ * (`components['schemas']`) — no hand-maintained types. The thin fetch wrappers
+ * below stay hand-written because they deal in cookies + raw `Response`, which
+ * the openapi-fetch client does not surface.
  *
  * The session lives in httpOnly cookies set by Rust (gt_web_token access,
  * gt_refresh). Browser calls send them automatically; SSR must forward the
  * incoming cookie header — pass `event.fetch`.
  */
+import type { components } from './schema';
+
+type Schemas = components['schemas'];
 
 export type Fetch = typeof globalThis.fetch;
 
 /** Claims of the current session (GET /auth/me). */
-export interface SessionUser {
-	sub: string;
-	workspace: string;
-	scopes: string[];
-}
+export type SessionUser = Schemas['MeResponse'];
 
 /** Admin user listing row (GET /auth/users). */
-export interface AuthUser {
-	sub: string;
-	email: string;
-	scopes: string[];
-	created_at: number;
-}
+export type AuthUser = Schemas['UserSummary'];
 
 /** Token payload (POST /auth/login, /auth/refresh). Cookies are set in parallel. */
-export interface TokenResponse {
-	access_token: string;
-	refresh_token: string;
-	token_type: string;
-	expires_in: number;
-}
+export type TokenResponse = Schemas['TokenResponse'];
 
-export interface LoginBody {
-	email: string;
-	password: string;
-}
+/** POST /auth/login body. */
+export type LoginBody = Schemas['LoginRequest'];
 
-export interface CreateUserBody {
-	email: string;
-	password: string;
-	scopes?: string[];
-}
+/** POST /auth/users body. */
+export type CreateUserBody = Schemas['CreateUserRequest'];
 
 function f(fetch?: Fetch): Fetch {
 	return fetch ?? globalThis.fetch;

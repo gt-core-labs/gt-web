@@ -1,6 +1,64 @@
 {
   "components": {
     "schemas": {
+      "AssignRolesRequest": {
+        "description": "`POST /auth/users/{email}/roles` body — set a user's assigned roles (admin only, hq-rbac.4).",
+        "properties": {
+          "roles": {
+            "description": "The role names to assign, replacing the user's current set.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CreateRoleRequest": {
+        "description": "`POST /auth/roles` body — create or replace a role (admin only, hq-rbac.4).",
+        "properties": {
+          "name": {
+            "description": "The role name (referenced by a user's assigned roles).",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "The scope bundle the role grants. Each entry is validated against the closed scope\nvocabulary ([`gt_rbac::validate_scope`]) before write — a typo is a `400`.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateUserRequest": {
+        "description": "`POST /auth/users` body — create a user (admin only, `hq-web-extras.5`).",
+        "properties": {
+          "email": {
+            "description": "Login email (unique within the workspace).",
+            "type": "string"
+          },
+          "password": {
+            "description": "Plaintext password — argon2-hashed server-side, never stored or echoed.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Granted authorization scopes. Empty ⇒ a user that can authenticate but reach nothing.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
       "GroupDim": {
         "description": "One grouping dimension the `?group_by=` querystring accepts. Parsed case-insensitively from a\ncomma-separated list; unknown tokens are a client error (surfaced as `422` by the handler).",
         "enum": [
@@ -12,6 +70,62 @@
           "owner"
         ],
         "type": "string"
+      },
+      "Jwk": {
+        "description": "One RSA public key in [JWK](https://www.rfc-editor.org/rfc/rfc7517) form, signature use.\n\nThis is the *public* half only — never the signing secret. `n`/`e` are the base64url (no pad)\nbig-endian modulus and exponent a client feeds to e.g.\n[`DecodingKey::from_rsa_components`] to verify a token offline.",
+        "properties": {
+          "alg": {
+            "description": "Algorithm — always `\"RS256\"`.",
+            "type": "string"
+          },
+          "e": {
+            "description": "Base64url (no pad) big-endian RSA public exponent.",
+            "type": "string"
+          },
+          "kid": {
+            "description": "Key id matching the JWT header `kid`; absent for the un-keyed default key.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kty": {
+            "description": "Key type — always `\"RSA\"`.",
+            "type": "string"
+          },
+          "n": {
+            "description": "Base64url (no pad) big-endian RSA modulus.",
+            "type": "string"
+          },
+          "use": {
+            "description": "Public-key use — always `\"sig\"` (signature verification).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kty",
+          "use",
+          "alg",
+          "n",
+          "e"
+        ],
+        "type": "object"
+      },
+      "JwkSet": {
+        "description": "A [JWK Set](https://www.rfc-editor.org/rfc/rfc7517#section-5) — the public half of a\nverifier's keyset, as served by `GET /auth/jwks`. An empty `keys` is valid (no keys loaded).",
+        "properties": {
+          "keys": {
+            "description": "One entry per published public key.",
+            "items": {
+              "$ref": "#/components/schemas/Jwk"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "type": "object"
       },
       "LeadTime": {
         "description": "Lead-time summary for the **closed** rows in a bucket, in whole seconds between `created_at` and\n`closed_at`. `count` is how many closed rows had both timestamps parse (the sample size); the\nstats are `None` when that sample is empty so the FE renders \"n/a\" rather than a misleading `0`.",
@@ -57,6 +171,90 @@
         },
         "required": [
           "count"
+        ],
+        "type": "object"
+      },
+      "LoginRequest": {
+        "description": "`POST /auth/login` body.",
+        "properties": {
+          "email": {
+            "description": "The principal's email address.",
+            "type": "string"
+          },
+          "password": {
+            "description": "The plaintext password presented this request.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "MeResponse": {
+        "description": "`GET /auth/me` body — the verified identity behind the bearer token.",
+        "properties": {
+          "scopes": {
+            "description": "Granted authorization scopes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sub": {
+            "description": "Authenticated principal.",
+            "type": "string"
+          },
+          "workspace": {
+            "description": "Tenant the token is scoped to.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sub",
+          "workspace",
+          "scopes"
+        ],
+        "type": "object"
+      },
+      "RefreshRequest": {
+        "description": "`POST /auth/refresh` / `POST /auth/logout` body. Optional: a browser supplies the refresh\ntoken through the `gt_refresh` httpOnly cookie instead, so the JSON body may be absent.",
+        "properties": {
+          "refresh_token": {
+            "description": "The opaque refresh token previously issued. Absent ⇒ read from the cookie.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "RoleSummary": {
+        "description": "A role as returned by `GET`/`POST /auth/roles`.",
+        "properties": {
+          "created_at": {
+            "description": "Creation time (epoch seconds).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "description": "The role name.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "The scope bundle the role grants.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "scopes",
+          "created_at"
         ],
         "type": "object"
       },
@@ -151,6 +349,99 @@
           "group_by",
           "buckets",
           "totals"
+        ],
+        "type": "object"
+      },
+      "SwitchRequest": {
+        "description": "`POST /auth/switch` body — the workspace to make active (hq-identity.3).",
+        "properties": {
+          "workspace": {
+            "description": "The slug of a workspace the caller is a member of. Validated against their memberships\nserver-side; an unheld workspace is a `403`, never an honoured switch.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace"
+        ],
+        "type": "object"
+      },
+      "TokenResponse": {
+        "description": "A minted token pair, returned by login and refresh.",
+        "properties": {
+          "access_token": {
+            "description": "The short-lived RS256 access JWT (sent as `Authorization: Bearer`).",
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "Access-token lifetime in seconds.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh_token": {
+            "description": "The long-lived opaque refresh token (exchanged at `/auth/refresh`).",
+            "type": "string"
+          },
+          "token_type": {
+            "description": "Always `\"Bearer\"`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token",
+          "token_type",
+          "expires_in"
+        ],
+        "type": "object"
+      },
+      "UserSummary": {
+        "description": "A user as returned by `GET /auth/users` / `POST /auth/users` — never any password material.",
+        "properties": {
+          "created_at": {
+            "description": "Creation time (epoch seconds).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "email": {
+            "description": "Login email.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Granted authorization scopes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sub": {
+            "description": "The subject id (`sub`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sub",
+          "email",
+          "scopes",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "WorkspaceMembership": {
+        "description": "One membership row as returned by `GET /auth/workspaces`: the workspace slug and the role the\nuser holds there (the gt-web shell consumes this to render + drive the workspace selector).",
+        "properties": {
+          "role": {
+            "description": "The role the user holds in that workspace.",
+            "type": "string"
+          },
+          "workspace": {
+            "description": "The workspace slug the user can switch into.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace",
+          "role"
         ],
         "type": "object"
       }
@@ -1744,6 +2035,422 @@
         },
         "summary": "`POST /:id/suspend` — reversibly disable an active workspace (`workspace.suspend`).\nThe decide layer rejects a non-active source as an illegal transition (`409`).",
         "tags": []
+      }
+    },
+    "/auth/jwks": {
+      "get": {
+        "operationId": "jwks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JwkSet"
+                }
+              }
+            },
+            "description": "The verifier's public RS256 keys (RFC 7517 JWK Set; empty keys is valid)"
+          }
+        },
+        "summary": "`GET /auth/jwks` — the verifier's public RS256 keys as an RFC 7517 JWK Set. A client matches a\ntoken's header `kid` to a key here and verifies the signature offline. Returns `200` with\n`{\"keys\":[]}` when no keys are configured (a valid, empty set — simpler for clients than a 404).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Authenticated — access + refresh pair (also set as httpOnly cookies)"
+          },
+          "401": {
+            "description": "Bad credentials"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "description": "Optional — token may instead ride the gt_refresh httpOnly cookie",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Logged out (idempotent — revoking an absent token is a no-op); cookies cleared"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "The verified identity behind the bearer token"
+          },
+          "401": {
+            "description": "No verified claims (absent or invalid bearer)"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "description": "Optional — the refresh token may instead ride the gt_refresh httpOnly cookie",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Rotated — a fresh access + refresh pair"
+          },
+          "401": {
+            "description": "Missing, unknown, or already-rotated refresh token"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/roles": {
+      "get": {
+        "operationId": "list_roles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoleSummary"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Every role + its scope bundle"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller lacks the roles.read scope"
+          }
+        },
+        "summary": "`GET /auth/roles` — list roles (admin only). Requires `roles.read` (or `*`).",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "create_role",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSummary"
+                }
+              }
+            },
+            "description": "Created or replaced — the role"
+          },
+          "400": {
+            "description": "A scope is outside the closed vocabulary"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller lacks the roles.write scope"
+          }
+        },
+        "summary": "`POST /auth/roles` — create or replace a role (admin only). Requires `roles.write` (or `*`).\nEvery scope in the bundle is validated against the closed vocabulary first, so a typo is a\n`400` rather than a silently dead grant.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/roles/{name}": {
+      "delete": {
+        "operationId": "delete_role",
+        "parameters": [
+          {
+            "description": "The role name to delete",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller lacks the roles.write scope"
+          },
+          "404": {
+            "description": "No role with that name"
+          }
+        },
+        "summary": "`DELETE /auth/roles/{name}` — delete a role (admin only). Requires `roles.write` (or `*`).\nIdempotent: deleting an absent role is `404`, deleting a present one is `204`.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/switch": {
+      "post": {
+        "operationId": "switch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Re-targeted — a fresh access + refresh pair scoped to the new workspace"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller is not a member of the requested workspace"
+          },
+          "501": {
+            "description": "No membership directory configured"
+          }
+        },
+        "summary": "`POST /auth/switch` `{workspace}` — re-target the session to another of the user's workspaces\n(hq-identity.3). Re-mints the access + refresh pair (and cookies) with that workspace active and\nits role-expanded scopes. `403` when the user is not a member of the requested workspace —\nthe active tenant is resolved server-side from membership, never granted on request. `401`\nwithout claims; `501` when no directory is configured.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/users": {
+      "get": {
+        "operationId": "list_users",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserSummary"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Every user (no password material)"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller lacks the users.read scope"
+          }
+        },
+        "summary": "`GET /auth/users` — list users (admin only). Requires a `users.read` (or `*`) scope.",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSummary"
+                }
+              }
+            },
+            "description": "Created — the new user (never any password material)"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller lacks the users.write scope"
+          }
+        },
+        "summary": "`POST /auth/users` — create a user (admin only). Requires a `users.write` (or `*`) scope in\nthe caller's verified claims; the password is argon2-hashed before storage.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/users/{email}/roles": {
+      "post": {
+        "operationId": "assign_roles",
+        "parameters": [
+          {
+            "description": "The user whose roles are being set",
+            "in": "path",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRolesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Roles set (replaces the user's current set)"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "403": {
+            "description": "Caller lacks the users.write scope"
+          },
+          "404": {
+            "description": "No user with that email"
+          }
+        },
+        "summary": "`POST /auth/users/{email}/roles` — set a user's assigned roles (admin only). Requires\n`users.write` (or `*`): assignment is a write to the user record. `404` for an unknown email.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/workspaces": {
+      "get": {
+        "operationId": "workspaces",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceMembership"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The caller's workspace memberships (slug + role)"
+          },
+          "401": {
+            "description": "No verified claims"
+          },
+          "501": {
+            "description": "No membership directory configured"
+          }
+        },
+        "summary": "`GET /auth/workspaces` — the authenticated user's workspace memberships (slug + role), for the\ngt-web workspace selector (hq-identity.3). `401` without verified claims; `501` when no\nmembership directory is configured. The list is keyed by the token's `sub`, so a caller only\never sees their own memberships.",
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/share/{hash}": {

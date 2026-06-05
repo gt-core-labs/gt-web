@@ -1018,6 +1018,219 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/jwks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /auth/jwks` — the verifier's public RS256 keys as an RFC 7517 JWK Set. A client matches a
+         *     token's header `kid` to a key here and verifies the signature offline. Returns `200` with
+         *     `{"keys":[]}` when no keys are configured (a valid, empty set — simpler for clients than a 404).
+         */
+        get: operations["jwks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /auth/roles` — list roles (admin only). Requires `roles.read` (or `*`). */
+        get: operations["list_roles"];
+        put?: never;
+        /**
+         * `POST /auth/roles` — create or replace a role (admin only). Requires `roles.write` (or `*`).
+         *     Every scope in the bundle is validated against the closed vocabulary first, so a typo is a
+         *     `400` rather than a silently dead grant.
+         */
+        post: operations["create_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/roles/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /auth/roles/{name}` — delete a role (admin only). Requires `roles.write` (or `*`).
+         *     Idempotent: deleting an absent role is `404`, deleting a present one is `204`.
+         */
+        delete: operations["delete_role"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /auth/switch` `{workspace}` — re-target the session to another of the user's workspaces
+         *     (hq-identity.3). Re-mints the access + refresh pair (and cookies) with that workspace active and
+         *     its role-expanded scopes. `403` when the user is not a member of the requested workspace —
+         *     the active tenant is resolved server-side from membership, never granted on request. `401`
+         *     without claims; `501` when no directory is configured.
+         */
+        post: operations["switch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /auth/users` — list users (admin only). Requires a `users.read` (or `*`) scope. */
+        get: operations["list_users"];
+        put?: never;
+        /**
+         * `POST /auth/users` — create a user (admin only). Requires a `users.write` (or `*`) scope in
+         *     the caller's verified claims; the password is argon2-hashed before storage.
+         */
+        post: operations["create_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/users/{email}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /auth/users/{email}/roles` — set a user's assigned roles (admin only). Requires
+         *     `users.write` (or `*`): assignment is a write to the user record. `404` for an unknown email.
+         */
+        post: operations["assign_roles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /auth/workspaces` — the authenticated user's workspace memberships (slug + role), for the
+         *     gt-web workspace selector (hq-identity.3). `401` without verified claims; `501` when no
+         *     membership directory is configured. The list is keyed by the token's `sub`, so a caller only
+         *     ever sees their own memberships.
+         */
+        get: operations["workspaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/share/{hash}": {
         parameters: {
             query?: never;
@@ -1044,12 +1257,65 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description `POST /auth/users/{email}/roles` body — set a user's assigned roles (admin only, hq-rbac.4). */
+        AssignRolesRequest: {
+            /** @description The role names to assign, replacing the user's current set. */
+            roles?: string[];
+        };
+        /** @description `POST /auth/roles` body — create or replace a role (admin only, hq-rbac.4). */
+        CreateRoleRequest: {
+            /** @description The role name (referenced by a user's assigned roles). */
+            name: string;
+            /**
+             * @description The scope bundle the role grants. Each entry is validated against the closed scope
+             *     vocabulary ([`gt_rbac::validate_scope`]) before write — a typo is a `400`.
+             */
+            scopes?: string[];
+        };
+        /** @description `POST /auth/users` body — create a user (admin only, `hq-web-extras.5`). */
+        CreateUserRequest: {
+            /** @description Login email (unique within the workspace). */
+            email: string;
+            /** @description Plaintext password — argon2-hashed server-side, never stored or echoed. */
+            password: string;
+            /** @description Granted authorization scopes. Empty ⇒ a user that can authenticate but reach nothing. */
+            scopes?: string[];
+        };
         /**
          * @description One grouping dimension the `?group_by=` querystring accepts. Parsed case-insensitively from a
          *     comma-separated list; unknown tokens are a client error (surfaced as `422` by the handler).
          * @enum {string}
          */
         GroupDim: "epic" | "rig" | "status" | "domain" | "assignee" | "owner";
+        /**
+         * @description One RSA public key in [JWK](https://www.rfc-editor.org/rfc/rfc7517) form, signature use.
+         *
+         *     This is the *public* half only — never the signing secret. `n`/`e` are the base64url (no pad)
+         *     big-endian modulus and exponent a client feeds to e.g.
+         *     [`DecodingKey::from_rsa_components`] to verify a token offline.
+         */
+        Jwk: {
+            /** @description Algorithm — always `"RS256"`. */
+            alg: string;
+            /** @description Base64url (no pad) big-endian RSA public exponent. */
+            e: string;
+            /** @description Key id matching the JWT header `kid`; absent for the un-keyed default key. */
+            kid?: string | null;
+            /** @description Key type — always `"RSA"`. */
+            kty: string;
+            /** @description Base64url (no pad) big-endian RSA modulus. */
+            n: string;
+            /** @description Public-key use — always `"sig"` (signature verification). */
+            use: string;
+        };
+        /**
+         * @description A [JWK Set](https://www.rfc-editor.org/rfc/rfc7517#section-5) — the public half of a
+         *     verifier's keyset, as served by `GET /auth/jwks`. An empty `keys` is valid (no keys loaded).
+         */
+        JwkSet: {
+            /** @description One entry per published public key. */
+            keys: components["schemas"]["Jwk"][];
+        };
         /**
          * @description Lead-time summary for the **closed** rows in a bucket, in whole seconds between `created_at` and
          *     `closed_at`. `count` is how many closed rows had both timestamps parse (the sample size); the
@@ -1081,6 +1347,42 @@ export interface components {
              * @description Minimum lead time in seconds; `None` when `count == 0`.
              */
             min_secs?: number | null;
+        };
+        /** @description `POST /auth/login` body. */
+        LoginRequest: {
+            /** @description The principal's email address. */
+            email: string;
+            /** @description The plaintext password presented this request. */
+            password: string;
+        };
+        /** @description `GET /auth/me` body — the verified identity behind the bearer token. */
+        MeResponse: {
+            /** @description Granted authorization scopes. */
+            scopes: string[];
+            /** @description Authenticated principal. */
+            sub: string;
+            /** @description Tenant the token is scoped to. */
+            workspace: string;
+        };
+        /**
+         * @description `POST /auth/refresh` / `POST /auth/logout` body. Optional: a browser supplies the refresh
+         *     token through the `gt_refresh` httpOnly cookie instead, so the JSON body may be absent.
+         */
+        RefreshRequest: {
+            /** @description The opaque refresh token previously issued. Absent ⇒ read from the cookie. */
+            refresh_token?: string | null;
+        };
+        /** @description A role as returned by `GET`/`POST /auth/roles`. */
+        RoleSummary: {
+            /**
+             * Format: int64
+             * @description Creation time (epoch seconds).
+             */
+            created_at: number;
+            /** @description The role name. */
+            name: string;
+            /** @description The scope bundle the role grants. */
+            scopes: string[];
         };
         /**
          * @description One aggregated bucket: the `key` names the group (one entry per requested dimension), and the
@@ -1139,6 +1441,52 @@ export interface components {
             group_by: components["schemas"]["GroupDim"][];
             /** @description Counts/progress/lead-time over every row, independent of grouping. Its `key` is empty. */
             totals: components["schemas"]["StatBucket"];
+        };
+        /** @description `POST /auth/switch` body — the workspace to make active (hq-identity.3). */
+        SwitchRequest: {
+            /**
+             * @description The slug of a workspace the caller is a member of. Validated against their memberships
+             *     server-side; an unheld workspace is a `403`, never an honoured switch.
+             */
+            workspace: string;
+        };
+        /** @description A minted token pair, returned by login and refresh. */
+        TokenResponse: {
+            /** @description The short-lived RS256 access JWT (sent as `Authorization: Bearer`). */
+            access_token: string;
+            /**
+             * Format: int64
+             * @description Access-token lifetime in seconds.
+             */
+            expires_in: number;
+            /** @description The long-lived opaque refresh token (exchanged at `/auth/refresh`). */
+            refresh_token: string;
+            /** @description Always `"Bearer"`. */
+            token_type: string;
+        };
+        /** @description A user as returned by `GET /auth/users` / `POST /auth/users` — never any password material. */
+        UserSummary: {
+            /**
+             * Format: int64
+             * @description Creation time (epoch seconds).
+             */
+            created_at: number;
+            /** @description Login email. */
+            email: string;
+            /** @description Granted authorization scopes. */
+            scopes: string[];
+            /** @description The subject id (`sub`). */
+            sub: string;
+        };
+        /**
+         * @description One membership row as returned by `GET /auth/workspaces`: the workspace slug and the role the
+         *     user holds there (the gt-web shell consumes this to render + drive the workspace selector).
+         */
+        WorkspaceMembership: {
+            /** @description The role the user holds in that workspace. */
+            role: string;
+            /** @description The workspace slug the user can switch into. */
+            workspace: string;
         };
     };
     responses: never;
@@ -2871,6 +3219,457 @@ export interface operations {
             };
             /** @description Not active (illegal transition) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    jwks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verifier's public RS256 keys (RFC 7517 JWK Set; empty keys is valid) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JwkSet"];
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Authenticated — access + refresh pair (also set as httpOnly cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Bad credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Optional — token may instead ride the gt_refresh httpOnly cookie */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Logged out (idempotent — revoking an absent token is a no-op); cookies cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verified identity behind the bearer token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description No verified claims (absent or invalid bearer) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Optional — the refresh token may instead ride the gt_refresh httpOnly cookie */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Rotated — a fresh access + refresh pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Missing, unknown, or already-rotated refresh token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every role + its scope bundle */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSummary"][];
+                };
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller lacks the roles.read scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Created or replaced — the role */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSummary"];
+                };
+            };
+            /** @description A scope is outside the closed vocabulary */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller lacks the roles.write scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The role name to delete */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller lacks the roles.write scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No role with that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    switch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwitchRequest"];
+            };
+        };
+        responses: {
+            /** @description Re-targeted — a fresh access + refresh pair scoped to the new workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller is not a member of the requested workspace */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No membership directory configured */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_users: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every user (no password material) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSummary"][];
+                };
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller lacks the users.read scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Created — the new user (never any password material) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSummary"];
+                };
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller lacks the users.write scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assign_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user whose roles are being set */
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignRolesRequest"];
+            };
+        };
+        responses: {
+            /** @description Roles set (replaces the user's current set) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller lacks the users.write scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No user with that email */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    workspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's workspace memberships (slug + role) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceMembership"][];
+                };
+            };
+            /** @description No verified claims */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No membership directory configured */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };
