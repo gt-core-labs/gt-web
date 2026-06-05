@@ -9,17 +9,19 @@
 
 	let { data }: { data: PageData } = $props();
 
-	type Tab = 'sessions' | 'merge' | 'quota';
+	type Tab = 'sessions' | 'merge' | 'convoy' | 'quota';
 	let tab = $state<Tab>('sessions');
 	let error = $state('');
 	let busy = $state(false);
 
 	const canAgent = $derived(hasScope(data.user?.scopes, 'agent.write'));
 	const canMerge = $derived(hasScope(data.user?.scopes, 'merge.write'));
+	const canConvoy = $derived(hasScope(data.user?.scopes, 'convoy.write'));
 
 	const TABS: { id: Tab; label: string; count: number }[] = $derived([
 		{ id: 'sessions', label: 'Sessions', count: data.agents.length },
 		{ id: 'merge', label: 'Merge', count: data.merges.length },
+		{ id: 'convoy', label: 'Convoy', count: data.convoys.length },
 		{ id: 'quota', label: 'Quota', count: data.quotas.length }
 	]);
 
@@ -134,6 +136,38 @@
 						{/each}
 					</tbody>
 				</table>
+			{/if}
+		{:else if tab === 'convoy'}
+			{#if data.errors.convoys}<p class="text-sm text-error-500">{data.errors.convoys}</p>{/if}
+			{#if data.convoys.length === 0}
+				<p class="opacity-60">No convoys.</p>
+			{:else}
+				<div class="space-y-3">
+					{#each data.convoys as c (c.id)}
+						<div class="card preset-filled-surface-100-900 p-3">
+							<header class="mb-2 flex items-center gap-2">
+								<span class="font-mono text-sm">{c.id}</span>
+								<Badge variant={stateVariant(c.state)}>{c.state}</Badge>
+							</header>
+							<table class="table">
+								<tbody>
+									{#each c.members as m (m.bead)}
+										<tr>
+											<td class="font-mono text-xs">{m.bead}</td>
+											<td><Badge variant={stateVariant(m.state)}>{m.state}</Badge></td>
+											<td class="text-right">
+												{#if canConvoy && m.state.toLowerCase() === 'active'}
+													<Button variant="tonal" disabled={busy} onclick={() => run(() => o.completeMember(c.id, m.bead))}>Complete</Button>
+													<Button variant="tonal" disabled={busy} onclick={() => run(() => o.failMember(c.id, m.bead, 'failed via gt-web'))}>Fail</Button>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/each}
+				</div>
 			{/if}
 		{:else}
 			{#if data.errors.quotas}<p class="text-sm text-error-500">{data.errors.quotas}</p>{/if}

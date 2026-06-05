@@ -26,6 +26,17 @@ export interface MergeSlot {
 	state: MergeState;
 }
 
+export interface ConvoyMember {
+	bead: string;
+	state: string; // pending|active|done|failed
+}
+
+export interface Convoy {
+	id: string;
+	state: string; // staged|launched|closed|failed
+	members: ConvoyMember[];
+}
+
 export interface QuotaWindow {
 	kind: string;
 	limit: number;
@@ -75,6 +86,14 @@ export function orch(doFetch: Fetcher) {
 			const j = await unwrap<{ accounts: QuotaAccount[] }>(await doFetch('/api/v1/quota'));
 			return j.accounts ?? [];
 		},
+		async convoys(): Promise<Convoy[]> {
+			const j = await unwrap<{ convoys: Convoy[] }>(await doFetch('/api/v1/convoy'));
+			return j.convoys ?? [];
+		},
+		completeMember: (convoy: string, member: string) =>
+			postBody(doFetch, `/api/v1/convoy/${encodeURIComponent(convoy)}/complete-member`, { member }),
+		failMember: (convoy: string, member: string, reason: string) =>
+			postBody(doFetch, `/api/v1/convoy/${encodeURIComponent(convoy)}/fail-member`, { member, reason }),
 		endAgent: (id: string) => post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/end`),
 		killAgent: (id: string) => post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/kill`),
 		startMerge: (bead: string) => post(doFetch, `/api/v1/merge/${encodeURIComponent(bead)}/start`),
@@ -85,6 +104,10 @@ export function orch(doFetch: Fetcher) {
 
 async function post(doFetch: Fetcher, path: string): Promise<void> {
 	await unwrap(await doFetch(path, { ...JSON_POST, body: '{}' }));
+}
+
+async function postBody(doFetch: Fetcher, path: string, body: unknown): Promise<void> {
+	await unwrap(await doFetch(path, { ...JSON_POST, body: JSON.stringify(body) }));
 }
 
 export function browserOrch() {
