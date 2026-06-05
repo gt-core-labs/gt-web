@@ -2,6 +2,7 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { tracker } from '$lib/api/tracker';
 import { orch } from '$lib/api/orch';
 import { documents } from '$lib/api/documents';
+import { admin } from '$lib/api/admin';
 import { backendFetch } from './backend';
 
 /**
@@ -23,4 +24,10 @@ export function serverOrch(event: RequestEvent) {
 export function serverDocs(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return documents((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side admin client (workspace/rig/quota) bound to the backend + cookie. */
+export function serverAdmin(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return admin((path, init) => backendFetch(path, cookie, init));
 }
