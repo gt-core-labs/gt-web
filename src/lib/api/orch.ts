@@ -28,6 +28,14 @@ export interface Session {
 	crew: string | null;
 }
 
+/** Body for agent.spawn (POST /api/v1/agent). The UI only offers the flat-string roles. */
+export interface SpawnArgs {
+	session: string;
+	rig: string;
+	role?: 'mayor' | 'polecat';
+	crew?: string;
+}
+
 export type MergeState = 'Ready' | 'Merging' | 'Merged' | 'Failed';
 
 export interface MergeSlot {
@@ -104,6 +112,9 @@ export function orch(doFetch: Fetcher) {
 			postBody(doFetch, `/api/v1/convoy/${encodeURIComponent(convoy)}/complete-member`, { member }),
 		failMember: (convoy: string, member: string, reason: string) =>
 			postBody(doFetch, `/api/v1/convoy/${encodeURIComponent(convoy)}/fail-member`, { member, reason }),
+		// agent.spawn — names the new session in the body (id, not path). role/crew optional;
+		// gt-agent only takes a flat string role for mayor|polecat (dog-kinds need a {dog:..} shape).
+		spawnAgent: (body: SpawnArgs) => postBody(doFetch, '/api/v1/agent', body),
 		heartbeatAgent: (id: string) =>
 			post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/heartbeat`),
 		endAgent: (id: string) => post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/end`),

@@ -46,6 +46,31 @@
 		run(() => o.killAgent(id, reason || 'killed from console'));
 	}
 
+	let spawn = $state<{ session: string; rig: string; role: 'mayor' | 'polecat'; crew: string }>({
+		session: '',
+		rig: '',
+		role: 'polecat',
+		crew: ''
+	});
+
+	function submitSpawn(e: SubmitEvent) {
+		e.preventDefault();
+		if (!spawn.session.trim() || !spawn.rig.trim()) {
+			error = 'session and rig are required';
+			return;
+		}
+		run(async () => {
+			await o.spawnAgent({
+				session: spawn.session.trim(),
+				rig: spawn.rig.trim(),
+				role: spawn.role,
+				// crew only meaningful for a polecat; omit otherwise so the backend default stands.
+				crew: spawn.role === 'polecat' && spawn.crew.trim() ? spawn.crew.trim() : undefined
+			});
+			spawn = { session: '', rig: '', role: 'polecat', crew: '' };
+		});
+	}
+
 	const stateVariant = (s: string) => {
 		switch (s.toLowerCase()) {
 			case 'working':
@@ -88,6 +113,32 @@
 
 		{#if tab === 'sessions'}
 			{#if data.errors.agents}<p class="text-sm text-error-500">{data.errors.agents}</p>{/if}
+			{#if canAgent}
+				<form class="flex flex-wrap items-end gap-2" onsubmit={submitSpawn}>
+					<label class="flex flex-col text-xs">
+						<span class="opacity-60">Session id</span>
+						<input class="input w-40" type="text" bind:value={spawn.session} placeholder="p1" required />
+					</label>
+					<label class="flex flex-col text-xs">
+						<span class="opacity-60">Rig</span>
+						<input class="input w-40" type="text" bind:value={spawn.rig} placeholder="granite" required />
+					</label>
+					<label class="flex flex-col text-xs">
+						<span class="opacity-60">Role</span>
+						<select class="select w-32" bind:value={spawn.role}>
+							<option value="polecat">polecat</option>
+							<option value="mayor">mayor</option>
+						</select>
+					</label>
+					{#if spawn.role === 'polecat'}
+						<label class="flex flex-col text-xs">
+							<span class="opacity-60">Crew (optional)</span>
+							<input class="input w-40" type="text" bind:value={spawn.crew} placeholder="ada" />
+						</label>
+					{/if}
+					<Button type="submit" disabled={busy}>Spawn</Button>
+				</form>
+			{/if}
 			{#if data.agents.length === 0}
 				<p class="opacity-60">No active sessions.</p>
 			{:else}
