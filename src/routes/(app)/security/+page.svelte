@@ -1,13 +1,29 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { hasScope } from '$lib/api/auth';
-	import type { CreatedPat } from '$lib/api/security';
+	import { SCOPE_CATALOG, type CreatedPat } from '$lib/api/security';
 	import { Badge, Button, Card } from '$lib/ui';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	const canWrite = $derived(hasScope(data.user?.scopes, 'tokens.write'));
 	let saving = $state(false);
+
+	// Only offer the scopes the caller actually holds — they cannot grant more than they have
+	// (the backend clamps too, but showing the rest would just be silently dropped).
+	const grantable = $derived(SCOPE_CATALOG.filter((o) => hasScope(data.user?.scopes, o.scope)));
+	// "All my permissions" → send an EMPTY scope set; the backend reads that as everything the
+	// caller holds (`*` for an admin, their own scopes otherwise). Checking it ignores the boxes.
+	let grantAll = $state(true);
+	let picked = $state(new Set<string>());
+	function toggle(scope: string, on: boolean) {
+		const next = new Set(picked);
+		if (on) next.add(scope);
+		else next.delete(scope);
+		picked = next;
+	}
+	// The value the form submits in the `scopes` field: empty for "all", else the picked scopes.
+	const scopesValue = $derived(grantAll ? '' : [...picked].join(' '));
 
 	// The action's return is a union; the echoed `name` lives only on the failure branches.
 	const fv = $derived((form ?? {}) as Record<string, string | undefined>);
@@ -72,20 +88,48 @@
 						saving = false;
 					};
 				}}
-				class="grid gap-3 sm:grid-cols-[2fr_2fr_1fr_auto] sm:items-end"
+				class="space-y-4"
 			>
-				<label class="label">
-					<span class="label-text">Name</span>
-					<input class="input" type="text" name="name" required value={fv.name ?? ''} placeholder="ci-deploy" />
-				</label>
-				<label class="label">
-					<span class="label-text">Scopes <span class="opacity-60">(space/comma, blank = all yours)</span></span>
-					<input class="input" type="text" name="scopes" placeholder="issues.read tokens.read" />
-				</label>
-				<label class="label">
-					<span class="label-text">Expires <span class="opacity-60">(days, blank = never)</span></span>
-					<input class="input" type="number" name="expires_in_days" min="1" placeholder="90" />
-				</label>
+				<!-- The scopes the form computes from the checkboxes / "all" toggle below. -->
+				<input type="hidden" name="scopes" value={scopesValue} />
+
+				<div class="grid gap-3 sm:grid-cols-[2fr_1fr] sm:items-end">
+					<label class="label">
+						<span class="label-text">Name</span>
+						<input class="input" type="text" name="name" required value={fv.name ?? ''} placeholder="ci-deploy" />
+					</label>
+					<label class="label">
+						<span class="label-text">Expires <span class="opacity-60">(days, blank = never)</span></span>
+						<input class="input" type="number" name="expires_in_days" min="1" placeholder="90" />
+					</label>
+				</div>
+
+				<fieldset class="space-y-2">
+					<span class="label-text">Permissions</span>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" class="checkbox" bind:checked={grantAll} />
+						<span>All my permissions <span class="opacity-60">(everything you can grant)</span></span>
+					</label>
+					{#if !grantAll}
+						<div class="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+							{#each grantable as o (o.scope)}
+								<label class="flex items-center gap-2 text-sm">
+									<input
+										type="checkbox"
+										class="checkbox"
+										checked={picked.has(o.scope)}
+										onchange={(e) => toggle(o.scope, e.currentTarget.checked)}
+									/>
+									<span>{o.label} <code class="opacity-60">{o.scope}</code></span>
+								</label>
+							{/each}
+							{#if grantable.length === 0}
+								<p class="text-sm opacity-60">You hold no grantable scopes.</p>
+							{/if}
+						</div>
+					{/if}
+				</fieldset>
+
 				<Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create token'}</Button>
 			</form>
 			{#if form?.error}<p class="mt-2 text-sm text-error-500">{form.error}</p>{/if}
