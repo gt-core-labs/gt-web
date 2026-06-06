@@ -13,6 +13,7 @@
 		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read' },
 		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read' },
 		{ href: '/stats', label: 'Statistics', scope: 'issues.read' },
+		{ href: '/security', label: 'Security', scope: 'tokens.read' },
 		{ href: '/admin/users', label: 'Users', scope: 'users.read' },
 		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read' },
 		{ href: '/admin/rigs', label: 'Rigs', scope: 'rig.read' },
