@@ -12,9 +12,8 @@
 	// Only offer the scopes the caller actually holds — they cannot grant more than they have
 	// (the backend clamps too, but showing the rest would just be silently dropped).
 	const grantable = $derived(SCOPE_CATALOG.filter((o) => hasScope(data.user?.scopes, o.scope)));
-	// "All my permissions" → send an EMPTY scope set; the backend reads that as everything the
-	// caller holds (`*` for an admin, their own scopes otherwise). Checking it ignores the boxes.
-	let grantAll = $state(true);
+	// The permission list is ALWAYS visible: the user ticks the scopes the token gets. The
+	// "select all" master checkbox is pure convenience — it ticks/clears every grantable box.
 	let picked = $state(new Set<string>());
 	function toggle(scope: string, on: boolean) {
 		const next = new Set(picked);
@@ -22,8 +21,12 @@
 		else next.delete(scope);
 		picked = next;
 	}
-	// The value the form submits in the `scopes` field: empty for "all", else the picked scopes.
-	const scopesValue = $derived(grantAll ? '' : [...picked].join(' '));
+	const allPicked = $derived(grantable.length > 0 && grantable.every((o) => picked.has(o.scope)));
+	function toggleAll(on: boolean) {
+		picked = on ? new Set(grantable.map((o) => o.scope)) : new Set();
+	}
+	// The token gets exactly the ticked scopes (the field the form submits).
+	const scopesValue = $derived([...picked].join(' '));
 
 	// The action's return is a union; the echoed `name` lives only on the failure branches.
 	const fv = $derived((form ?? {}) as Record<string, string | undefined>);
@@ -105,32 +108,41 @@
 				</div>
 
 				<fieldset class="space-y-2">
-					<span class="label-text">Permissions</span>
-					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" class="checkbox" bind:checked={grantAll} />
-						<span>All my permissions <span class="opacity-60">(everything you can grant)</span></span>
-					</label>
-					{#if !grantAll}
-						<div class="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-							{#each grantable as o (o.scope)}
-								<label class="flex items-center gap-2 text-sm">
-									<input
-										type="checkbox"
-										class="checkbox"
-										checked={picked.has(o.scope)}
-										onchange={(e) => toggle(o.scope, e.currentTarget.checked)}
-									/>
-									<span>{o.label} <code class="opacity-60">{o.scope}</code></span>
-								</label>
-							{/each}
-							{#if grantable.length === 0}
-								<p class="text-sm opacity-60">You hold no grantable scopes.</p>
-							{/if}
-						</div>
-					{/if}
+					<div class="flex items-center justify-between">
+						<span class="label-text">Permissions <span class="opacity-60">({picked.size} selected)</span></span>
+						{#if grantable.length > 0}
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									class="checkbox"
+									checked={allPicked}
+									onchange={(e) => toggleAll(e.currentTarget.checked)}
+								/>
+								<span>Select all</span>
+							</label>
+						{/if}
+					</div>
+					<div class="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+						{#each grantable as o (o.scope)}
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									class="checkbox"
+									checked={picked.has(o.scope)}
+									onchange={(e) => toggle(o.scope, e.currentTarget.checked)}
+								/>
+								<span>{o.label} <code class="opacity-60">{o.scope}</code></span>
+							</label>
+						{/each}
+						{#if grantable.length === 0}
+							<p class="text-sm opacity-60">You hold no grantable scopes.</p>
+						{/if}
+					</div>
 				</fieldset>
 
-				<Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create token'}</Button>
+				<Button type="submit" disabled={saving || picked.size === 0}>
+					{saving ? 'Creating…' : 'Create token'}
+				</Button>
 			</form>
 			{#if form?.error}<p class="mt-2 text-sm text-error-500">{form.error}</p>{/if}
 		{/if}
