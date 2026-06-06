@@ -3,12 +3,22 @@
  *
  * Like the tracker client, the OpenAPI spec carries no bodies for these routes,
  * so shapes are hand-typed against the gt-agent / gt-merge / gt-quota domains.
- * Routes have NO trailing slash. convoy + sessions REST are NOT mounted yet
- * (404) — sessions live under /api/v1/agent; convoy is an MCP-only gap.
+ * Routes have NO trailing slash. Sessions REST is mounted under /api/v1/agent
+ * (list/spawn/heartbeat/end/kill); convoy is an MCP-only gap.
  */
 import { TrackerError, type Fetcher } from './tracker';
 
-export type SessionState = 'Spawned' | 'Working' | 'Done' | 'Killed';
+// gt-agent serialises state/role as flat lowercase strings (state_str / SessionRole::as_str).
+export type SessionState = 'spawned' | 'working' | 'done' | 'killed';
+export type SessionRole =
+	| 'mayor'
+	| 'polecat'
+	| 'witness'
+	| 'refinery'
+	| 'deacon'
+	| 'overseer'
+	| 'sheriff'
+	| 'dog';
 
 export interface Session {
 	id: string;
@@ -94,8 +104,12 @@ export function orch(doFetch: Fetcher) {
 			postBody(doFetch, `/api/v1/convoy/${encodeURIComponent(convoy)}/complete-member`, { member }),
 		failMember: (convoy: string, member: string, reason: string) =>
 			postBody(doFetch, `/api/v1/convoy/${encodeURIComponent(convoy)}/fail-member`, { member, reason }),
+		heartbeatAgent: (id: string) =>
+			post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/heartbeat`),
 		endAgent: (id: string) => post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/end`),
-		killAgent: (id: string) => post(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/kill`),
+		// gt-agent's KillArgs requires a reason — a bare {} body is a 422.
+		killAgent: (id: string, reason: string) =>
+			postBody(doFetch, `/api/v1/agent/${encodeURIComponent(id)}/kill`, { reason }),
 		startMerge: (bead: string) => post(doFetch, `/api/v1/merge/${encodeURIComponent(bead)}/start`),
 		completeMerge: (bead: string) => post(doFetch, `/api/v1/merge/${encodeURIComponent(bead)}/complete`),
 		failMerge: (bead: string) => post(doFetch, `/api/v1/merge/${encodeURIComponent(bead)}/fail`)

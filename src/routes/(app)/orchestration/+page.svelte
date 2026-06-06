@@ -39,6 +39,13 @@
 	}
 
 	const o = browserOrch();
+
+	function killSession(id: string) {
+		const reason = prompt(`Kill session ${id} — reason?`, 'killed from console');
+		if (reason === null) return; // cancelled
+		run(() => o.killAgent(id, reason || 'killed from console'));
+	}
+
 	const stateVariant = (s: string) => {
 		switch (s.toLowerCase()) {
 			case 'working':
@@ -98,8 +105,9 @@
 								<td><Badge variant={stateVariant(s.state)}>{s.state}</Badge></td>
 								<td class="text-right">
 									{#if canAgent}
+										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.heartbeatAgent(s.id))}>Heartbeat</Button>
 										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.endAgent(s.id))}>End</Button>
-										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.killAgent(s.id))}>Kill</Button>
+										<Button variant="tonal" disabled={busy} onclick={() => killSession(s.id)}>Kill</Button>
 									{/if}
 								</td>
 							</tr>
