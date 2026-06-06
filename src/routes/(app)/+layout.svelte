@@ -11,6 +11,7 @@
 		{ href: '/', label: 'Home', scope: null },
 		{ href: '/tracker', label: 'Tracker', scope: 'issues.read' },
 		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read' },
+		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec' },
 		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read' },
 		{ href: '/stats', label: 'Statistics', scope: 'issues.read' },
 		{ href: '/security', label: 'Security', scope: 'tokens.read' },
