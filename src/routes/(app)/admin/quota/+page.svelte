@@ -19,16 +19,19 @@
 		};
 	};
 
-	// --- Web onboarding (hq-quota-onboard-web.3) ---
-	// The browser drives the daemon's /api/v1/quota/onboard/* directly (Traefik → host daemon): start
-	// returns the login URL the human visits, then complete hands back the OOB code they paste. No
-	// manual account id / CLAUDE_CONFIG_DIR — the daemon captures the email from the handshake.
+	// --- Web onboarding (hq-quota-onboard-web.3/.4) ---
+	// The browser calls /api/v1/quota/onboard/* (served by the backend, which runs `claude auth
+	// login` in-container): start returns the login URL the human visits, then complete hands back
+	// the OOB code they paste. No manual account id / CLAUDE_CONFIG_DIR — the backend captures the
+	// email from the handshake. NOTE: claude.ai authorizes whichever account the browser is signed
+	// into and offers no account chooser, so adding a DIFFERENT account needs an incognito window.
 	type Step = 'idle' | 'starting' | 'await' | 'completing';
 	let step = $state<Step>('idle');
 	let loginUrl = $state('');
 	let sessionId = $state('');
 	let code = $state('');
 	let onboardErr = $state('');
+	let copied = $state(false);
 	const api = browserAdmin();
 
 	const errText = (e: unknown) =>
@@ -71,6 +74,17 @@
 		sessionId = '';
 		code = '';
 		onboardErr = '';
+		copied = false;
+	}
+
+	async function copyLink() {
+		try {
+			await navigator.clipboard.writeText(loginUrl);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			onboardErr = 'Could not copy — select the link and copy manually.';
+		}
 	}
 
 	const pct = (w: { consumed: number; limit: number }) =>
@@ -104,10 +118,18 @@
 			{/if}
 
 			{#if step === 'await' || step === 'completing'}
+				<p class="rounded bg-warning-500/10 p-2 text-xs text-warning-700 dark:text-warning-300">
+					⚠️ This authorizes whichever account is currently signed in to claude.ai. To add a
+					<strong>different</strong> account, open the link in an <strong>incognito / private window</strong>
+					(or sign out of claude.ai first) — claude.ai offers no account chooser.
+				</p>
 				<ol class="list-inside list-decimal space-y-2 text-sm">
 					<li>
 						Open the login page and authenticate with the account to add:
-						<a href={loginUrl} target="_blank" rel="noopener noreferrer" class="anchor break-all">{loginUrl}</a>
+						<span class="mt-1 flex flex-wrap items-center gap-2">
+							<a href={loginUrl} target="_blank" rel="noopener noreferrer" class="anchor break-all">{loginUrl}</a>
+							<Button variant="tonal" class="btn-sm" onclick={copyLink}>{copied ? 'Copied ✓' : 'Copy link'}</Button>
+						</span>
 					</li>
 					<li>
 						Paste the code it shows you here:
