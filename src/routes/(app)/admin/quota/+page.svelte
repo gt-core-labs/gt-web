@@ -27,6 +27,29 @@
 	</header>
 
 	{#if form?.error}<p class="text-sm text-error-500">{form.error}</p>{/if}
+	{#if form?.ok}<p class="text-sm text-success-500">Done.</p>{/if}
+
+	{#if canWrite}
+		<!-- Onboard a claude account for predictive rotation (hq-quota-accounts.5). The account is
+		     logged in host-side first (CLAUDE_CONFIG_DIR=<dir> claude auth login); this registers it. -->
+		<form
+			method="POST"
+			action="?/register"
+			use:enhance={enhancer}
+			class="flex flex-wrap items-end gap-2 rounded border border-surface-500/30 p-3"
+		>
+			<label class="flex flex-col text-sm">
+				<span class="opacity-70">Account id</span>
+				<input name="account" required placeholder="acctB" class="input" />
+			</label>
+			<label class="flex flex-col text-sm">
+				<span class="opacity-70">CLAUDE_CONFIG_DIR</span>
+				<input name="config_dir" required placeholder="/home/nixos/.claude-acctB" class="input min-w-72" />
+			</label>
+			<Button type="submit" variant="filled" class="btn-sm" disabled={saving}>Add account</Button>
+			<span class="text-xs opacity-60">Log the account in host-side first: <code>CLAUDE_CONFIG_DIR=&lt;dir&gt; claude auth login</code></span>
+		</form>
+	{/if}
 
 	<div class="table-wrap">
 		<table class="table">
@@ -68,6 +91,17 @@
 									>
 										<input type="hidden" name="account" value={acct.id} />
 										<Button type="submit" variant="outlined" class="btn-sm" disabled={saving}>Rotate</Button>
+									</form>
+									<form
+										method="POST"
+										action="?/retire"
+										use:enhance={enhancer}
+										onsubmit={(e) => {
+											if (!confirm(`Retire ${acct.id} from the rotation pool?`)) e.preventDefault();
+										}}
+									>
+										<input type="hidden" name="account" value={acct.id} />
+										<Button type="submit" variant="outlined" class="btn-sm text-error-500" disabled={saving}>Retire</Button>
 									</form>
 								{/if}
 							</span>

@@ -115,6 +115,20 @@ export function admin(doFetch: Fetcher) {
 		},
 		async probeQuota(account: string): Promise<void> {
 			await unwrap(await doFetch(`${quotaPath(account)}/probe`, { ...JSON_POST, body: '{}' }));
+		},
+		// Onboard a claude account for predictive rotation (hq-quota-accounts.4/.5): the id rides the
+		// body (the account does not exist yet) with its CLAUDE_CONFIG_DIR. Emits AccountRegistered.
+		async registerQuota(account: string, configDir: string): Promise<void> {
+			await unwrap(
+				await doFetch('/api/v1/quota/account', {
+					...JSON_POST,
+					body: JSON.stringify({ account, config_dir: configDir })
+				})
+			);
+		},
+		// Retire an account from the rotation pool. Emits AccountDeregistered; idempotent.
+		async retireQuota(account: string): Promise<void> {
+			await unwrap(await doFetch(quotaPath(account), { method: 'DELETE' }));
 		}
 	};
 }
