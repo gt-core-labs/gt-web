@@ -1,11 +1,23 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { PRESET_KINDS, type ProviderKind } from '$lib/api/auth';
 	import { Badge, Button, Card } from '$lib/ui';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let saving = $state(false);
+
+	// The callback (redirect URI) the backend echoes on every token exchange is the
+	// app's own `/auth/callback` on this origin. The admin must register this exact
+	// URL in the IdP console (Google/GitHub/…); a mismatch fails the OAuth exchange.
+	const callbackUrl = $derived(`${page.url.origin}/auth/callback`);
+	let copied = $state(false);
+	const copyCallback = async () => {
+		await navigator.clipboard.writeText(callbackUrl);
+		copied = true;
+		setTimeout(() => (copied = false), 1500);
+	};
 
 	const KINDS: ProviderKind[] = ['google', 'github', 'microsoft', 'generic'];
 	const isPreset = (k: ProviderKind) => PRESET_KINDS.includes(k);
@@ -31,6 +43,17 @@
 	<header class="flex items-center justify-between">
 		<h1 class="h2">OAuth providers <span class="text-base opacity-60">({data.providers.length})</span></h1>
 	</header>
+
+	<Card>
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<div>
+				<h2 class="h5">Redirect URI (callback)</h2>
+				<p class="text-sm opacity-70">Register this exact URL in the IdP console. It must match for the OAuth exchange to succeed.</p>
+				<code class="mt-1 inline-block font-mono text-sm">{callbackUrl}</code>
+			</div>
+			<Button type="button" variant="tonal" class="btn-sm" onclick={copyCallback}>{copied ? 'Copied' : 'Copy'}</Button>
+		</div>
+	</Card>
 
 	{#if form?.error}<p class="text-sm text-error-500">{form.error}</p>{/if}
 	{#if form?.ok}<p class="text-sm text-success-500">Saved.</p>{/if}
