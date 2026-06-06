@@ -60,6 +60,18 @@ export interface AddRigBody {
 	now_secs: number;
 }
 
+/** `POST /api/v1/quota/onboard/start` response — the login URL + the session to resume. */
+export interface OnboardStart {
+	session_id: string;
+	url: string;
+}
+
+/** `POST /api/v1/quota/onboard/complete` response — the captured account + its credentials dir. */
+export interface OnboardComplete {
+	account: string;
+	config_dir: string;
+}
+
 const JSON_POST = { method: 'POST', headers: { 'content-type': 'application/json' } } as const;
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -113,16 +125,19 @@ export function admin(doFetch: Fetcher) {
 		async rotateQuota(account: string): Promise<void> {
 			await unwrap(await doFetch(`${quotaPath(account)}/rotate`, { ...JSON_POST, body: '{}' }));
 		},
-		async probeQuota(account: string): Promise<void> {
-			await unwrap(await doFetch(`${quotaPath(account)}/probe`, { ...JSON_POST, body: '{}' }));
+		// Web onboarding (hq-quota-onboard-web): drive the real `claude auth login` lifecycle on the
+		// gt-orch-server daemon (a HOST process behind Traefik at /api/v1/quota/onboard/*). `start`
+		// spawns the login and returns the URL the human visits; `complete` hands back the OOB code,
+		// and the daemon captures the account email + registers it. Use the BROWSER fetcher: the SSR
+		// client targets gt-mcp-server, which does not carry these daemon routes.
+		async onboardStart(): Promise<OnboardStart> {
+			return unwrap<OnboardStart>(await doFetch('/api/v1/quota/onboard/start', JSON_POST));
 		},
-		// Onboard a claude account for predictive rotation (hq-quota-accounts.4/.5): the id rides the
-		// body (the account does not exist yet) with its CLAUDE_CONFIG_DIR. Emits AccountRegistered.
-		async registerQuota(account: string, configDir: string): Promise<void> {
-			await unwrap(
-				await doFetch('/api/v1/quota/account', {
+		async onboardComplete(sessionId: string, code: string): Promise<OnboardComplete> {
+			return unwrap<OnboardComplete>(
+				await doFetch('/api/v1/quota/onboard/complete', {
 					...JSON_POST,
-					body: JSON.stringify({ account, config_dir: configDir })
+					body: JSON.stringify({ session_id: sessionId, code })
 				})
 			);
 		},
