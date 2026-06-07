@@ -194,6 +194,7 @@
 			{#if sessions.length === 0}
 				<p class="opacity-60">No active sessions.</p>
 			{:else}
+				<div class="overflow-x-auto">
 				<table class="table">
 					<thead>
 						<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>Skills</th><th>Hooks</th><th>State</th><th></th></tr>
@@ -234,12 +235,12 @@
 								<td>
 									<div class="flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
 										{#if canTerminal}
-											<Button variant="tonal" onclick={() => openTerminal(s.id)}>Terminal</Button>
+											<Button variant="tonal" class="btn-sm" onclick={() => openTerminal(s.id)}>Terminal</Button>
 										{/if}
 										{#if canAgent}
-											<Button variant="tonal" disabled={busy} onclick={() => run(() => o.heartbeatAgent(s.id))}>Heartbeat</Button>
-											<Button variant="tonal" disabled={busy} onclick={() => run(() => o.endAgent(s.id))}>End</Button>
-											<Button variant="tonal" disabled={busy} onclick={() => killSession(s.id)}>Kill</Button>
+											<Button variant="tonal" class="btn-sm" disabled={busy} onclick={() => run(() => o.heartbeatAgent(s.id))}>Heartbeat</Button>
+											<Button variant="tonal" class="btn-sm" disabled={busy} onclick={() => run(() => o.endAgent(s.id))}>End</Button>
+											<Button variant="tonal" class="btn-sm" disabled={busy} onclick={() => killSession(s.id)}>Kill</Button>
 										{/if}
 									</div>
 								</td>
@@ -247,6 +248,7 @@
 						{/each}
 					</tbody>
 				</table>
+				</div>
 			{/if}
 		{:else if tab === 'merge'}
 			{#if data.errors.merges}<p class="text-sm text-error-500">{data.errors.merges}</p>{/if}
