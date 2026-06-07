@@ -12,11 +12,15 @@ export interface SkillEntry {
 	description: string;
 	default_scopes: string[];
 	registered_at_secs: number;
+	/** The SKILL.md body (hq-role-skills-term.1); the terminal materialises it for the role. */
+	body?: string;
 }
 
 export interface SkillBinding {
 	role: string;
 	enabled_skills: string[];
+	/** The role's system prompt (hq-role-skills-term.4); written as the session's CLAUDE.md. */
+	prompt?: string;
 }
 
 export interface SkillsResponse {
@@ -66,6 +70,8 @@ export interface RegisterSkillBody {
 	label: string;
 	description?: string;
 	default_scopes?: string[];
+	/** The SKILL.md body (hq-role-skills-term.1). */
+	body?: string;
 }
 
 export function skills(doFetch: Fetcher) {
@@ -90,6 +96,34 @@ export function skills(doFetch: Fetcher) {
 		async retire(id: string): Promise<void> {
 			await unwrap(
 				await doFetch(`/api/v1/skills/${encodeURIComponent(id)}`, { method: 'DELETE' })
+			);
+		},
+		// Enable a skill for a role (hq-role-skills-term.2) — what defines a role's skill set.
+		async enableForRole(skill: string, role: string): Promise<void> {
+			await unwrap(
+				await doFetch(
+					`/api/v1/skills/${encodeURIComponent(skill)}/roles/${encodeURIComponent(role)}`,
+					{ method: 'POST' }
+				)
+			);
+		},
+		// Disable a skill for a role (hq-role-skills-term.2).
+		async disableForRole(skill: string, role: string): Promise<void> {
+			await unwrap(
+				await doFetch(
+					`/api/v1/skills/${encodeURIComponent(skill)}/roles/${encodeURIComponent(role)}`,
+					{ method: 'DELETE' }
+				)
+			);
+		},
+		// Set (or clear) a role's system prompt (hq-role-skills-term.4) → the session's CLAUDE.md.
+		async setRolePrompt(role: string, prompt: string): Promise<void> {
+			await unwrap(
+				await doFetch(`/api/v1/skills/roles/${encodeURIComponent(role)}/prompt`, {
+					method: 'PUT',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ prompt })
+				})
 			);
 		}
 	};
