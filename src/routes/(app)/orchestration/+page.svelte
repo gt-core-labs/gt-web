@@ -213,11 +213,14 @@
 								<td>{s.crew ?? '—'}</td>
 								<td>
 									{#if cfg.skills.length}
-										<span class="flex flex-wrap gap-1" title={cfg.fromRole ? 'from role config' : 'from spawn manifest'}>
-											{#each cfg.skills as sk (sk)}
-												<Badge variant={cfg.fromRole ? 'surface' : 'success'}>{sk}</Badge>
-											{/each}
-										</span>
+										<Badge
+											variant={cfg.fromRole ? 'surface' : 'success'}
+											class="whitespace-nowrap"
+										>
+											<span title={`${cfg.fromRole ? 'from role config' : 'from spawn manifest'}: ${cfg.skills.join(', ')}`}>
+												{cfg.skills.length} skills
+											</span>
+										</Badge>
 									{:else}—{/if}
 								</td>
 								<td>
@@ -228,15 +231,17 @@
 									{:else}—{/if}
 								</td>
 								<td><Badge variant={stateVariant(s.state)}>{s.state}</Badge></td>
-								<td class="text-right">
-									{#if canTerminal}
-										<Button variant="tonal" onclick={() => openTerminal(s.id)}>Terminal</Button>
-									{/if}
-									{#if canAgent}
-										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.heartbeatAgent(s.id))}>Heartbeat</Button>
-										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.endAgent(s.id))}>End</Button>
-										<Button variant="tonal" disabled={busy} onclick={() => killSession(s.id)}>Kill</Button>
-									{/if}
+								<td>
+									<div class="flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
+										{#if canTerminal}
+											<Button variant="tonal" onclick={() => openTerminal(s.id)}>Terminal</Button>
+										{/if}
+										{#if canAgent}
+											<Button variant="tonal" disabled={busy} onclick={() => run(() => o.heartbeatAgent(s.id))}>Heartbeat</Button>
+											<Button variant="tonal" disabled={busy} onclick={() => run(() => o.endAgent(s.id))}>End</Button>
+											<Button variant="tonal" disabled={busy} onclick={() => killSession(s.id)}>Kill</Button>
+										{/if}
+									</div>
 								</td>
 							</tr>
 						{/each}
