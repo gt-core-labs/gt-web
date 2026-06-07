@@ -214,14 +214,22 @@
 								<td>{s.crew ?? '—'}</td>
 								<td>
 									{#if cfg.skills.length}
-										<Badge
-											variant={cfg.fromRole ? 'surface' : 'success'}
-											class="whitespace-nowrap"
-										>
-											<span title={`${cfg.fromRole ? 'from role config' : 'from spawn manifest'}: ${cfg.skills.join(', ')}`}>
+										<!-- Hover popover with the active skills (hq-sessions-layout-fix.3). -->
+										<span class="group relative inline-block">
+											<Badge variant={cfg.fromRole ? 'surface' : 'success'} class="cursor-default whitespace-nowrap">
 												{cfg.skills.length} skills
+											</Badge>
+											<span
+												class="invisible absolute left-0 top-full z-30 mt-1 w-max max-w-xs rounded border border-surface-500/30 bg-surface-100-900 p-2 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100"
+											>
+												<span class="mb-1 block text-[10px] uppercase opacity-50">
+													{cfg.fromRole ? 'role config' : 'spawn manifest'}
+												</span>
+												<span class="flex flex-wrap gap-1">
+													{#each cfg.skills as sk (sk)}<Badge variant="surface">{sk}</Badge>{/each}
+												</span>
 											</span>
-										</Badge>
+										</span>
 									{:else}—{/if}
 								</td>
 								<td>
