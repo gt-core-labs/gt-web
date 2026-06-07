@@ -33,6 +33,14 @@
 	// surface under gt_core rather than as a phantom rig.
 	const rigOf = (rig: string) => (rig.startsWith('hq') ? 'gt_core' : rig);
 
+	// The agent's configured skills: its own spawn manifest if present, else the skills its ROLE
+	// has in the catalog (hq-sessions-role-info.1). `fromRole` flags the catalog fallback.
+	function agentSkills(s: { skills?: string[]; role: string }): { skills: string[]; fromRole: boolean } {
+		if (s.skills?.length) return { skills: s.skills, fromRole: false };
+		return { skills: data.roleConfig?.[s.role]?.skills ?? [], fromRole: true };
+	}
+	const roleHasPrompt = (role: string) => data.roleConfig?.[role]?.hasPrompt ?? false;
+
 	// Sessions are scoped to the active rig (chosen globally in the header); when no rig is
 	// selected ("all rigs") every session shows.
 	const sessions = $derived(
@@ -192,15 +200,23 @@
 					</thead>
 					<tbody>
 						{#each sessions as s (s.id)}
+							{@const cfg = agentSkills(s)}
 							<tr>
 								<td class="font-mono text-xs">{s.id}</td>
 								<td>{rigOf(s.rig)}</td>
-								<td>{s.role}</td>
+								<td>
+									<span class="flex items-center gap-1">
+										{s.role}
+										{#if roleHasPrompt(s.role)}<Badge variant="primary" class="text-[9px]">prompt</Badge>{/if}
+									</span>
+								</td>
 								<td>{s.crew ?? '—'}</td>
 								<td>
-									{#if s.skills?.length}
-										<span class="flex flex-wrap gap-1">
-											{#each s.skills as sk (sk)}<Badge variant="surface">{sk}</Badge>{/each}
+									{#if cfg.skills.length}
+										<span class="flex flex-wrap gap-1" title={cfg.fromRole ? 'from role config' : 'from spawn manifest'}>
+											{#each cfg.skills as sk (sk)}
+												<Badge variant={cfg.fromRole ? 'surface' : 'success'}>{sk}</Badge>
+											{/each}
 										</span>
 									{:else}—{/if}
 								</td>
