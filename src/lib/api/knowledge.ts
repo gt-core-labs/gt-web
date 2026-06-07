@@ -92,6 +92,19 @@ export function skills(doFetch: Fetcher) {
 				})
 			);
 		},
+		// Edit a skill's label/description/SKILL.md body (skills.write, hq-skills-edit.1). Partial.
+		async update(
+			id: string,
+			patch: { label?: string; description?: string; body?: string }
+		): Promise<void> {
+			await unwrap(
+				await doFetch(`/api/v1/skills/${encodeURIComponent(id)}`, {
+					method: 'PUT',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(patch)
+				})
+			);
+		},
 		// Retire a skill from the catalog (skills.write).
 		async retire(id: string): Promise<void> {
 			await unwrap(

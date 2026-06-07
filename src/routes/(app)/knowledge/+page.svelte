@@ -65,6 +65,25 @@
 
 	const retireSkill = (id: string) => run(() => browserSkills().retire(id));
 
+	// Per-skill expand (show SKILL.md body + roles) and inline edit (hq-skills-edit.2).
+	let expanded = $state<Record<string, boolean>>({});
+	const toggleExpand = (id: string) => (expanded[id] = !expanded[id]);
+	let editing = $state<string | null>(null);
+	let editForm = $state<{ label: string; description: string; body: string }>({
+		label: '',
+		description: '',
+		body: ''
+	});
+	function startEdit(s: { id: string; label: string; description: string; body?: string }) {
+		editing = s.id;
+		editForm = { label: s.label, description: s.description, body: s.body ?? '' };
+	}
+	const saveEdit = (id: string) =>
+		run(async () => {
+			await browserSkills().update(id, editForm);
+			editing = null;
+		});
+
 	const toggleRole = (skill: string, role: string) =>
 		run(() =>
 			hasSkill(role, skill)
@@ -173,48 +192,79 @@
 		{#if data.skills.length === 0}
 			<p class="opacity-60">No skills registered.</p>
 		{:else}
-			<ul class="grid grid-cols-2 gap-2">
+			<ul class="space-y-2">
 				{#each data.skills as s (s.id)}
+					{@const enabledRoles = ROLES.filter((r) => hasSkill(r, s.id)).length}
 					<li>
 						<Card>
-							<div class="flex items-center justify-between gap-2">
-								<span class="font-medium">{s.label}</span>
-								<div class="flex items-center gap-2">
-									{#if s.body}<Badge variant="success">SKILL.md</Badge>{/if}
-									<span class="font-mono text-xs opacity-60">{s.id}</span>
+							<!-- Compact header: label · description · actions. Roles/body collapse under Ver. -->
+							<div class="flex items-start justify-between gap-3">
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<span class="font-medium">{s.label}</span>
+										<span class="font-mono text-xs opacity-50">{s.id}</span>
+										{#if s.body}<Badge variant="success">SKILL.md</Badge>{/if}
+										{#if enabledRoles > 0}<Badge variant="primary">{enabledRoles} roles</Badge>{/if}
+									</div>
+									<p class="mt-0.5 line-clamp-1 text-sm opacity-70">{s.description || '—'}</p>
+								</div>
+								<div class="flex shrink-0 items-center gap-1">
+									<Button variant="tonal" onclick={() => toggleExpand(s.id)}>
+										{expanded[s.id] ? 'Ocultar' : 'Ver'}
+									</Button>
 									{#if canWriteSkills}
+										<Button variant="tonal" onclick={() => startEdit(s)}>Editar</Button>
 										<button
-											class="text-xs text-error-500 hover:underline"
+											class="px-1 text-error-500 hover:underline"
 											title="Retire skill"
-											onclick={() => retireSkill(s.id)}
+											onclick={() => retireSkill(s.id)}>✕</button
 										>
-											✕
-										</button>
 									{/if}
 								</div>
 							</div>
-							<p class="mt-1 text-sm opacity-70">{s.description}</p>
-							<div class="mt-2 flex flex-wrap gap-1">
-								{#each s.default_scopes as sc (sc)}<Badge variant="surface">{sc}</Badge>{/each}
-							</div>
-							{#if canWriteSkills}
-								<!-- Bind this skill to roles (hq-role-skills-term.2): a role = its enabled skills. -->
-								<div class="mt-2 flex flex-wrap items-center gap-1 border-t border-surface-500/10 pt-2">
-									<span class="text-[10px] uppercase opacity-40">roles</span>
-									{#each ROLES as role (role)}
-										<button
-											type="button"
-											class="rounded border px-1.5 py-0.5 text-[10px]"
-											class:preset-tonal-primary={hasSkill(role, s.id)}
-											class:border-primary-500={hasSkill(role, s.id)}
-											class:border-surface-500={!hasSkill(role, s.id)}
-											class:opacity-50={!hasSkill(role, s.id)}
-											disabled={busy}
-											onclick={() => toggleRole(s.id, role)}
-										>
-											{role}
-										</button>
-									{/each}
+
+							{#if editing === s.id}
+								<!-- Inline edit (hq-skills-edit.2): label/description/SKILL.md body. -->
+								<div class="mt-3 space-y-2 border-t border-surface-500/10 pt-3">
+									<input class="input w-full" placeholder="label" bind:value={editForm.label} />
+									<input class="input w-full" placeholder="description" bind:value={editForm.description} />
+									<textarea class="textarea font-mono text-xs" rows="8" placeholder="SKILL.md body" bind:value={editForm.body}></textarea>
+									<div class="flex gap-2">
+										<Button disabled={busy} onclick={() => saveEdit(s.id)}>Save</Button>
+										<Button variant="tonal" onclick={() => (editing = null)}>Cancel</Button>
+									</div>
+								</div>
+							{:else if expanded[s.id]}
+								<div class="mt-3 space-y-2 border-t border-surface-500/10 pt-3">
+									{#if s.default_scopes.length}
+										<div class="flex flex-wrap gap-1">
+											{#each s.default_scopes as sc (sc)}<Badge variant="surface">{sc}</Badge>{/each}
+										</div>
+									{/if}
+									{#if s.body}
+										<pre class="max-h-64 overflow-auto rounded bg-surface-200-800 p-2 text-xs whitespace-pre-wrap">{s.body}</pre>
+									{:else}
+										<p class="text-xs opacity-50">No SKILL.md body.</p>
+									{/if}
+									{#if canWriteSkills}
+										<div class="flex flex-wrap items-center gap-1">
+											<span class="text-[10px] uppercase opacity-40">roles</span>
+											{#each ROLES as role (role)}
+												<button
+													type="button"
+													class="rounded border px-1.5 py-0.5 text-[10px]"
+													class:preset-tonal-primary={hasSkill(role, s.id)}
+													class:border-primary-500={hasSkill(role, s.id)}
+													class:border-surface-500={!hasSkill(role, s.id)}
+													class:opacity-50={!hasSkill(role, s.id)}
+													disabled={busy}
+													onclick={() => toggleRole(s.id, role)}
+												>
+													{role}
+												</button>
+											{/each}
+										</div>
+									{/if}
 								</div>
 							{/if}
 						</Card>
