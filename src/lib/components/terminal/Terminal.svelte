@@ -8,6 +8,13 @@
 	// cookie rides automatically; Traefik routes /api to the backend and upgrades the socket.
 	const WS_PATH = '/api/v1/terminal/ws';
 
+	interface Props {
+		// When set, the backend attaches the pty to this agent's tmux session (read-only) instead
+		// of a fresh shell (hq-agent-observability.6) — so the operator watches what the agent does.
+		session?: string;
+	}
+	let { session }: Props = $props();
+
 	let host = $state<HTMLDivElement>();
 	let status = $state<'connecting' | 'open' | 'closed' | 'error'>('connecting');
 	let detail = $state('');
@@ -26,7 +33,8 @@
 
 	function connect() {
 		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-		ws = new WebSocket(`${proto}://${location.host}${WS_PATH}`);
+		const qs = session ? `?session=${encodeURIComponent(session)}` : '';
+		ws = new WebSocket(`${proto}://${location.host}${WS_PATH}${qs}`);
 		ws.binaryType = 'arraybuffer';
 
 		ws.onopen = () => {
