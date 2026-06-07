@@ -35,26 +35,38 @@
 	{#if canWrite}
 		<Card>
 			<h2 class="h4 mb-3">Create workspace</h2>
-			<form
-				method="POST"
-				action="?/create"
-				use:enhance={enhancer}
-				class="grid gap-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end"
-			>
-				<label class="label">
-					<span class="label-text">Slug</span>
-					<input class="input" type="text" name="id" required placeholder="acme" value={fv.id ?? ''} />
-				</label>
-				<label class="label">
-					<span class="label-text">Display name</span>
-					<input class="input" type="text" name="name" required value={fv.name ?? ''} />
-				</label>
-				<Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create'}</Button>
+			<form method="POST" action="?/create" use:enhance={enhancer} class="space-y-3">
+				<div class="grid gap-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
+					<label class="label">
+						<span class="label-text">Slug</span>
+						<input class="input" type="text" name="id" required placeholder="acme" value={fv.id ?? ''} />
+					</label>
+					<label class="label">
+						<span class="label-text">Display name</span>
+						<input class="input" type="text" name="name" required value={fv.name ?? ''} />
+					</label>
+					<Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create'}</Button>
+				</div>
+				<!-- hq-quota-ws-accounts.4: optional initial accounts seeded into the new tenant. -->
+				{#if data.accountPool.length > 0}
+					<fieldset class="space-y-1">
+						<span class="label-text">Initial accounts <span class="opacity-60">(optional)</span></span>
+						<div class="flex flex-wrap gap-3">
+							{#each data.accountPool as acct (acct)}
+								<label class="flex items-center gap-2 text-sm">
+									<input type="checkbox" class="checkbox" name="accounts" value={acct} />
+									<span class="font-mono text-xs">{acct}</span>
+								</label>
+							{/each}
+						</div>
+					</fieldset>
+				{/if}
 			</form>
 		</Card>
 	{/if}
 
 	{#if form?.error}<p class="text-sm text-error-500">{form.error}</p>{/if}
+	{#if form?.accountWarning}<p class="text-sm text-warning-500">{form.accountWarning}</p>{/if}
 
 	<div class="table-wrap">
 		<table class="table">
