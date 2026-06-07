@@ -29,8 +29,14 @@
 	// accounts the admin can attach here. Assigned ones live in the table below (data.quotas).
 	const unassigned = $derived(data.quotaCatalog.filter((a) => !a.assigned));
 
+	// Sessions are scoped to the active rig (chosen globally in the header); when no rig is
+	// selected ("all rigs") every session shows.
+	const sessions = $derived(
+		data.activeRig ? data.agents.filter((s) => s.rig === data.activeRig) : data.agents
+	);
+
 	const TABS: { id: Tab; label: string; count: number }[] = $derived([
-		{ id: 'sessions', label: 'Sessions', count: data.agents.length },
+		{ id: 'sessions', label: 'Sessions', count: sessions.length },
 		{ id: 'merge', label: 'Merge', count: data.merges.length },
 		{ id: 'convoy', label: 'Convoy', count: data.convoys.length },
 		{ id: 'quota', label: 'Quota', count: data.quotas.length }
@@ -173,7 +179,7 @@
 					<Button type="submit" disabled={busy}>Spawn</Button>
 				</form>
 			{/if}
-			{#if data.agents.length === 0}
+			{#if sessions.length === 0}
 				<p class="opacity-60">No active sessions.</p>
 			{:else}
 				<table class="table">
@@ -181,7 +187,7 @@
 						<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>Skills</th><th>Hooks</th><th>State</th><th></th></tr>
 					</thead>
 					<tbody>
-						{#each data.agents as s (s.id)}
+						{#each sessions as s (s.id)}
 							<tr>
 								<td class="font-mono text-xs">{s.id}</td>
 								<td>{s.rig}</td>
