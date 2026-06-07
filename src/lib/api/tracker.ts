@@ -25,8 +25,29 @@ export const ISSUE_EVENT_KINDS = [
 	'issues.updated.v1',
 	'issues.transitioned.v1',
 	'issues.closed.v1',
-	'issues.claimed.v1'
+	'issues.claimed.v1',
+	// The agent operating a bead started / stopped (hq-agent-observability.2): the polecat
+	// supervisor publishes these onto the same issues channel, so the board refreshes the
+	// `operated_by` overlay live when an agent picks up or finishes a bead.
+	'issues.operated.v1',
+	'issues.operator-cleared.v1'
 ] as const;
+
+/**
+ * The agent currently operating a bead (hq-agent-observability.3), inlined on a row as
+ * `operated_by` by the issues REST read when a polecat is slung for it. Ephemeral runtime state —
+ * absent (the field omitted / null) when no agent is on the bead.
+ */
+export interface IssueOperator {
+	/** The agent session id (its tmux session, `<prefix>-<bead>`). */
+	session: string;
+	/** The session role (`polecat` / `witness` / …). */
+	role: string;
+	/** Skills the agent has loaded (from its worktree `.claude/skills`). */
+	skills: string[];
+	/** Hook kinds loaded into the agent (`SessionStart` / `Stop` / …). */
+	hooks: string[];
+}
 
 /** A tracker row as returned by the list endpoint (no heavy text bodies). */
 export interface IssueRow {
@@ -50,6 +71,8 @@ export interface IssueRow {
 	version: number;
 	phase: string | null;
 	delivered_sha: string | null;
+	/** The agent operating this bead right now (hq-agent-observability.3); absent when none is. */
+	operated_by?: IssueOperator | null;
 }
 
 /** A full issue (list row + the heavy text bodies), from GET /api/v1/issues/{id}. */

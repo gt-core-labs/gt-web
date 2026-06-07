@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from '$lib/ui';
 	import type { IssueRow } from '$lib/api/tracker';
+	import OperatorBadge from './OperatorBadge.svelte';
 
 	interface Props {
 		issue: IssueRow;
@@ -38,4 +39,7 @@
 		{#if issue.assignee}<span>@{issue.assignee}</span>{/if}
 		{#if issue.phase}<span>{issue.phase}</span>{/if}
 	</div>
+	{#if issue.operated_by}
+		<OperatorBadge operator={issue.operated_by} compact />
+	{/if}
 </a>

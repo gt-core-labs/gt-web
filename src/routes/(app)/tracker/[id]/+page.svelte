@@ -3,6 +3,7 @@
 	import { browserTracker, parseJsonArray, TrackerError, type IssueStatus } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
+	import OperatorBadge from '$lib/components/tracker/OperatorBadge.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -58,6 +59,9 @@
 		<div class="flex flex-wrap gap-1">
 			{#each domains as d (d)}<Badge variant="surface">{d}</Badge>{/each}
 		</div>
+		{#if issue.operated_by}
+			<OperatorBadge operator={issue.operated_by} />
+		{/if}
 	</header>
 
 	{#if canWrite}
