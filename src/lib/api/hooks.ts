@@ -39,9 +39,10 @@ export interface Hook {
 	registered_at_secs: number;
 }
 
-/** POST body to register (or replace, by id) a hook. */
+/** POST body to register a hook. `id` is optional — omit it and the server auto-generates one;
+ * supply an existing id only to upsert/replace that hook. */
 export interface RegisterHookBody {
-	id: string;
+	id?: string;
 	event: string;
 	matcher?: string;
 	command: string;

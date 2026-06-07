@@ -14,9 +14,9 @@
 	let error = $state('');
 	let busy = $state(false);
 
-	// A new hook. matcher empty ⇒ every invocation of the event. Target CSV fields: empty ⇒ "all".
+	// A new hook. The id is server-generated (not entered here). matcher empty ⇒ every invocation of
+	// the event. Target CSV fields: empty ⇒ "all".
 	let form = $state({
-		id: '',
 		event: 'PreToolUse' as string,
 		matcher: '',
 		command: '',
@@ -62,7 +62,6 @@
 		e.preventDefault();
 		await run(async () => {
 			await browserHooks().register({
-				id: form.id.trim(),
 				event: form.event,
 				matcher: form.matcher.trim(),
 				command: form.command,
@@ -72,7 +71,6 @@
 					roles: csv(form.roles_csv)
 				}
 			});
-			form.id = '';
 			form.matcher = '';
 			form.command = '';
 			form.workspaces_csv = '';
@@ -114,11 +112,8 @@
 		<Card>
 			<form class="flex flex-col gap-3 p-4" onsubmit={register}>
 				<h2 class="h5">New hook</h2>
-				<div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-					<label class="label">
-						<span class="text-xs opacity-70">Id</span>
-						<input class="input" bind:value={form.id} placeholder="guard-rm-rf-root" required />
-					</label>
+				<p class="text-xs opacity-60">The id is generated automatically.</p>
+				<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
 					<label class="label">
 						<span class="text-xs opacity-70">Event</span>
 						<select class="select" bind:value={form.event}>
