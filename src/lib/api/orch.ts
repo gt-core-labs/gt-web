@@ -88,6 +88,13 @@ export interface QuotaAccount {
 	window: QuotaWindow | null;
 }
 
+/** One account in the deploy-global pool (GET /api/v1/quota/catalog), flagged whether it is
+ * already assigned to the active workspace. `id` is the account email. */
+export interface CatalogAccount {
+	id: string;
+	assigned: boolean;
+}
+
 /** Event kinds emitted on /stream for the orchestration channels. */
 export const ORCH_EVENT_KINDS = [
 	'agent.add',
@@ -122,6 +129,20 @@ export function orch(doFetch: Fetcher) {
 		async quotas(): Promise<QuotaAccount[]> {
 			const j = await unwrap<{ accounts: QuotaAccount[] }>(await doFetch('/api/v1/quota'));
 			return j.accounts ?? [];
+		},
+		// hq-quota-ws-accounts.1: the deploy-global pool, each flagged assigned to the active ws.
+		async quotaCatalog(): Promise<CatalogAccount[]> {
+			const j = await unwrap<{ accounts: CatalogAccount[] }>(
+				await doFetch('/api/v1/quota/catalog')
+			);
+			return j.accounts ?? [];
+		},
+		// hq-quota-ws-accounts.2: attach an onboarded account (catalog id = email) to the active ws.
+		assignAccount: (account: string) =>
+			post(doFetch, `/api/v1/quota/${encodeURIComponent(account)}/assign`),
+		// Detach an account from the active workspace (the per-ws retire — creds stay in the pool).
+		async detachAccount(account: string): Promise<void> {
+			await unwrap(await doFetch(`/api/v1/quota/${encodeURIComponent(account)}`, { method: 'DELETE' }));
 		},
 		async convoys(): Promise<Convoy[]> {
 			const j = await unwrap<{ convoys: Convoy[] }>(await doFetch('/api/v1/convoy'));

@@ -8,17 +8,19 @@ const reason = (r: PromiseSettledResult<unknown>): string | null =>
 export const load: PageServerLoad = async (event) => {
 	const o = serverOrch(event);
 	// Each tab degrades independently — a missing scope on one shouldn't blank the page.
-	const [agents, merges, quotas, convoys] = await Promise.allSettled([
+	const [agents, merges, quotas, convoys, quotaCatalog] = await Promise.allSettled([
 		o.agents(),
 		o.merges(),
 		o.quotas(),
-		o.convoys()
+		o.convoys(),
+		o.quotaCatalog()
 	]);
 	return {
 		agents: value(agents),
 		merges: value(merges),
 		quotas: value(quotas),
 		convoys: value(convoys),
+		quotaCatalog: value(quotaCatalog),
 		errors: {
 			agents: reason(agents),
 			merges: reason(merges),

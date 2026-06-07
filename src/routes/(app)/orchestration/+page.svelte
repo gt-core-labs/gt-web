@@ -23,6 +23,11 @@
 	const openTerminal = (id: string) => terminals.open(id);
 	const canMerge = $derived(hasScope(data.user?.scopes, 'merge.write'));
 	const canConvoy = $derived(hasScope(data.user?.scopes, 'convoy.write'));
+	const canQuota = $derived(hasScope(data.user?.scopes, 'quota.write'));
+
+	// hq-quota-ws-accounts.3: the deploy-global pool not yet assigned to this workspace — the
+	// accounts the admin can attach here. Assigned ones live in the table below (data.quotas).
+	const unassigned = $derived(data.quotaCatalog.filter((a) => !a.assigned));
 
 	const TABS: { id: Tab; label: string; count: number }[] = $derived([
 		{ id: 'sessions', label: 'Sessions', count: data.agents.length },
@@ -289,12 +294,30 @@
 			{/if}
 		{:else}
 			{#if data.errors.quotas}<p class="text-sm text-error-500">{data.errors.quotas}</p>{/if}
+
+			<!-- hq-quota-ws-accounts.3: assign accounts from the deploy-global pool to THIS workspace.
+			     /admin/quota administers the pool itself (onboard/retire). -->
+			{#if canQuota && unassigned.length > 0}
+				<div class="space-y-2">
+					<h2 class="font-semibold">Available accounts <span class="opacity-60">({unassigned.length})</span></h2>
+					<div class="flex flex-wrap gap-2">
+						{#each unassigned as a (a.id)}
+							<span class="flex items-center gap-2 rounded preset-tonal-surface px-2 py-1 text-sm">
+								<span class="font-mono text-xs">{a.id}</span>
+								<Button variant="tonal" disabled={busy} onclick={() => run(() => o.assignAccount(a.id))}>Assign</Button>
+							</span>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<h2 class="font-semibold">Assigned to this workspace <span class="opacity-60">({data.quotas.length})</span></h2>
 			{#if data.quotas.length === 0}
-				<p class="opacity-60">No quota accounts.</p>
+				<p class="opacity-60">No quota accounts. Assign one from the pool above.</p>
 			{:else}
 				<table class="table">
 					<thead>
-						<tr><th>Account</th><th>Status</th><th>Window</th><th>Consumed / Limit</th></tr>
+						<tr><th>Account</th><th>Status</th><th>Window</th><th>Consumed / Limit</th><th></th></tr>
 					</thead>
 					<tbody>
 						{#each data.quotas as a (a.id)}
@@ -303,6 +326,11 @@
 								<td><Badge variant={stateVariant(a.status)}>{a.status}</Badge></td>
 								<td>{a.window?.kind ?? '—'}</td>
 								<td>{a.window ? `${Math.ceil(a.window.consumed)} / ${a.window.limit}` : '—'}</td>
+								<td class="text-right">
+									{#if canQuota}
+										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.detachAccount(a.id))}>Remove</Button>
+									{/if}
+								</td>
 							</tr>
 						{/each}
 					</tbody>
