@@ -15,8 +15,11 @@
 		// Interactive attach-or-create instead of read-only (hq-session-terminal.2): the backend
 		// runs `tmux new-session -A`, so a session with no tmux yet gets a real shell to talk to.
 		write?: boolean;
+		// Fill the parent's height instead of the standalone-page default `70vh` (hq-term-dock.3):
+		// the floating dock sizes the pane, so the xterm host must grow to it and refit.
+		fill?: boolean;
 	}
-	let { session, write = false }: Props = $props();
+	let { session, write = false, fill = false }: Props = $props();
 
 	let host = $state<HTMLDivElement>();
 	let status = $state<'connecting' | 'open' | 'closed' | 'error'>('connecting');
@@ -104,7 +107,7 @@
 	}
 </script>
 
-<div class="flex flex-col gap-2">
+<div class="flex flex-col gap-2" class:h-full={fill}>
 	<div class="flex items-center gap-3 text-sm">
 		<span
 			class="inline-block h-2 w-2 rounded-full"
@@ -117,5 +120,9 @@
 			<button class="btn btn-sm preset-tonal" onclick={reconnect}>Reconnect</button>
 		{/if}
 	</div>
-	<div bind:this={host} class="h-[70vh] w-full rounded border border-surface-500/20 p-2" style="background:#0b0f17"></div>
+	<div
+		bind:this={host}
+		class="w-full rounded border border-surface-500/20 p-2 {fill ? 'min-h-0 flex-1' : 'h-[70vh]'}"
+		style="background:#0b0f17"
+	></div>
 </div>

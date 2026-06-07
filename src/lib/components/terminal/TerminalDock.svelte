@@ -1,23 +1,53 @@
 <script lang="ts">
-	// Floating terminal dock (hq-term-dock.2, design ported from gastown).
+	// Floating terminal dock (hq-term-dock.2/.3, design ported from gastown).
 	//
-	// A fixed bottom-right panel with one tab per open session. Opened on demand from the
-	// Orchestration session row (`terminals.open(id)`), so it floats over any view instead of
-	// navigating to /terminal. Each tab owns its own xterm + WebSocket via the existing
-	// Terminal component, attached interactively (write) to that session's tmux. Hidden entirely
-	// when no tab is open.
+	// A full-width bottom bar with one tab per open session, mounted in the app shell so it hovers
+	// over any view. Resizable: drag the top edge to change its height. Each tab runs the existing
+	// Terminal component attached interactively (write) to that session's tmux. Hidden entirely when
+	// no tab is open.
 	import Terminal from './Terminal.svelte';
 	import { terminals } from '$lib/stores/terminals.svelte';
 
 	let collapsed = $state(false);
+	let height = $state(320); // px body height, drag-resizable
+	const MIN = 140;
+	const max = () => (typeof window !== 'undefined' ? window.innerHeight - 80 : 800);
+
+	// Drag the top edge to resize. Pointer capture so the drag tracks outside the handle; clamp to
+	// [MIN, viewport-80].
+	let dragging = $state(false);
+	function startResize(e: PointerEvent) {
+		dragging = true;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		e.preventDefault();
+	}
+	function onMove(e: PointerEvent) {
+		if (!dragging) return;
+		height = Math.max(MIN, Math.min(max(), window.innerHeight - e.clientY));
+	}
+	function endResize(e: PointerEvent) {
+		dragging = false;
+		(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+	}
 </script>
 
 {#if terminals.ids.length > 0}
 	<section
-		class="card preset-filled-surface-100-900 fixed bottom-0 right-4 z-50 flex w-[42rem] max-w-[calc(100vw-2rem)] flex-col border border-surface-500/30 shadow-xl"
-		style={collapsed ? '' : 'height: 24rem'}
+		class="card preset-filled-surface-100-900 fixed bottom-0 left-0 right-0 z-50 flex flex-col border-t border-surface-500/30 shadow-2xl"
 		aria-label="Terminal dock"
 	>
+		<!-- Resize handle: drag the top edge to change the dock height. -->
+		<div
+			class="h-1.5 w-full shrink-0 cursor-row-resize bg-surface-500/20 hover:bg-primary-500/40"
+			class:bg-primary-500={dragging}
+			role="separator"
+			aria-orientation="horizontal"
+			aria-label="Resize terminal dock"
+			onpointerdown={startResize}
+			onpointermove={onMove}
+			onpointerup={endResize}
+		></div>
+
 		<!-- Tab strip + dock controls -->
 		<header class="flex shrink-0 items-center gap-1 border-b border-surface-500/20 px-2 py-1">
 			<span class="mr-1 font-mono text-[10px] opacity-50">term</span>
@@ -57,12 +87,12 @@
 		</header>
 
 		{#if !collapsed}
-			<div class="min-h-0 flex-1 bg-black">
+			<div class="min-h-0 bg-black" style="height: {height}px">
 				{#if terminals.active}
 					<!-- Remount per active tab: each session owns its own xterm + WebSocket, so the
 						sessionId prop can't be swapped on a live instance. -->
 					{#key terminals.active}
-						<Terminal session={terminals.active} write />
+						<Terminal session={terminals.active} write fill />
 					{/key}
 				{/if}
 			</div>
