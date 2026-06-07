@@ -25,6 +25,12 @@
 		<h1 class="h2">Rigs <span class="text-base opacity-60">({data.rigs.length})</span></h1>
 	</header>
 
+	{#if data.loadError}
+		<aside class="card preset-tonal-warning p-3 text-sm">
+			Could not load rigs for this workspace: {data.loadError}
+		</aside>
+	{/if}
+
 	{#if canWrite}
 		<Card>
 			<h2 class="h4 mb-3">Register rig</h2>

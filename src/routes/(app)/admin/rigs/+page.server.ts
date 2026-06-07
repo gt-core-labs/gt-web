@@ -6,8 +6,15 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
 	if (!hasScope(event.locals.user?.scopes, 'rig.read')) throw error(403, 'Requires rig.read');
-	const rigs = await serverAdmin(event).rigs();
-	return { rigs };
+	// Degrade instead of white-screening: a freshly switched-into tenant whose per-workspace
+	// schema is not yet provisioned makes `GET /api/v1/rig` 500 ("relation rigs does not exist").
+	// Surface that as an empty board + a banner rather than crashing the whole page.
+	try {
+		return { rigs: await serverAdmin(event).rigs() };
+	} catch (err) {
+		const msg = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		return { rigs: [], loadError: msg };
+	}
 };
 
 function failFrom(err: unknown) {
