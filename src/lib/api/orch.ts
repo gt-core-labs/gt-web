@@ -26,13 +26,32 @@ export interface Session {
 	state: SessionState;
 	role: string;
 	crew: string | null;
+	/** Skills the agent has loaded (hq-orch-sessions.2); empty for manual spawns. */
+	skills?: string[];
+	/** Hook kinds loaded into the agent (hq-orch-sessions.2). */
+	hooks?: string[];
 }
 
-/** Body for agent.spawn (POST /api/v1/agent). The UI only offers the flat-string roles. */
+/** The flat role a user picks in the spawn form (hq-orch-sessions.1). */
+export type SpawnRole = 'mayor' | 'polecat' | 'witness' | 'refinery' | 'deacon' | 'overseer' | 'sheriff' | 'dog';
+
+/** The non-dog flat roles the backend takes as a bare string; dogs need the `{dog:kind}` shape. */
+const FLAT_ROLES: SpawnRole[] = ['mayor', 'polecat'];
+
+/**
+ * Map a picked flat role to the backend `SessionRole` wire shape (hq-orch-sessions.1): `mayor`/
+ * `polecat` are bare strings, every dog kind (witness/refinery/deacon/overseer/sheriff/dog) is the
+ * externally-tagged `{ dog: kind }` the gt-agent enum deserialises.
+ */
+export function roleToWire(role: SpawnRole): string | { dog: string } {
+	return FLAT_ROLES.includes(role) ? role : { dog: role };
+}
+
+/** Body for agent.spawn (POST /api/v1/agent). `role` is the wire shape from {@link roleToWire}. */
 export interface SpawnArgs {
 	session: string;
 	rig: string;
-	role?: 'mayor' | 'polecat';
+	role?: string | { dog: string };
 	crew?: string;
 }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { browserOrch } from '$lib/api/orch';
+	import { browserOrch, roleToWire, type SpawnRole } from '$lib/api/orch';
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
@@ -46,12 +46,31 @@
 		run(() => o.killAgent(id, reason || 'killed from console'));
 	}
 
-	let spawn = $state<{ session: string; rig: string; role: 'mayor' | 'polecat'; crew: string }>({
+	// hq-orch-sessions.1: every spawnable role, dogs included. The roles for which `crew` is
+	// meaningful (it runs INSIDE a polecat).
+	const SPAWN_ROLES: SpawnRole[] = [
+		'polecat',
+		'mayor',
+		'witness',
+		'refinery',
+		'deacon',
+		'overseer',
+		'sheriff',
+		'dog'
+	];
+
+	let spawn = $state<{ session: string; rig: string; role: SpawnRole; crew: string }>({
 		session: '',
 		rig: '',
 		role: 'polecat',
 		crew: ''
 	});
+
+	// hq-orch-sessions.4: crews already seen across sessions, offered in the spawn datalist so a
+	// crew can be re-selected as well as typed fresh.
+	const knownCrews = $derived(
+		[...new Set(data.agents.map((s) => s.crew).filter((c): c is string => !!c))].sort()
+	);
 
 	function submitSpawn(e: SubmitEvent) {
 		e.preventDefault();
@@ -63,7 +82,7 @@
 			await o.spawnAgent({
 				session: spawn.session.trim(),
 				rig: spawn.rig.trim(),
-				role: spawn.role,
+				role: roleToWire(spawn.role),
 				// crew only meaningful for a polecat; omit otherwise so the backend default stands.
 				crew: spawn.role === 'polecat' && spawn.crew.trim() ? spawn.crew.trim() : undefined
 			});
@@ -126,14 +145,22 @@
 					<label class="flex flex-col text-xs">
 						<span class="opacity-60">Role</span>
 						<select class="select w-32" bind:value={spawn.role}>
-							<option value="polecat">polecat</option>
-							<option value="mayor">mayor</option>
+							{#each SPAWN_ROLES as r (r)}<option value={r}>{r}</option>{/each}
 						</select>
 					</label>
 					{#if spawn.role === 'polecat'}
 						<label class="flex flex-col text-xs">
 							<span class="opacity-60">Crew (optional)</span>
-							<input class="input w-40" type="text" bind:value={spawn.crew} placeholder="ada" />
+							<input
+								class="input w-40"
+								type="text"
+								list="known-crews"
+								bind:value={spawn.crew}
+								placeholder="ada"
+							/>
+							<datalist id="known-crews">
+								{#each knownCrews as c (c)}<option value={c}></option>{/each}
+							</datalist>
 						</label>
 					{/if}
 					<Button type="submit" disabled={busy}>Spawn</Button>
@@ -144,7 +171,7 @@
 			{:else}
 				<table class="table">
 					<thead>
-						<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>State</th><th></th></tr>
+						<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>Skills</th><th>Hooks</th><th>State</th><th></th></tr>
 					</thead>
 					<tbody>
 						{#each data.agents as s (s.id)}
@@ -153,6 +180,20 @@
 								<td>{s.rig}</td>
 								<td>{s.role}</td>
 								<td>{s.crew ?? '—'}</td>
+								<td>
+									{#if s.skills?.length}
+										<span class="flex flex-wrap gap-1">
+											{#each s.skills as sk (sk)}<Badge variant="surface">{sk}</Badge>{/each}
+										</span>
+									{:else}—{/if}
+								</td>
+								<td>
+									{#if s.hooks?.length}
+										<span class="flex flex-wrap gap-1">
+											{#each s.hooks as hk (hk)}<Badge variant="surface">{hk}</Badge>{/each}
+										</span>
+									{:else}—{/if}
+								</td>
 								<td><Badge variant={stateVariant(s.state)}>{s.state}</Badge></td>
 								<td class="text-right">
 									{#if canAgent}
