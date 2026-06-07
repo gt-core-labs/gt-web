@@ -40,8 +40,15 @@ async function act(event: Parameters<Actions['rotate']>[0], _kind: 'rotate') {
 	if (!hasScope(event.locals.user?.scopes, 'quota.write')) return fail(403, { error: 'Requires quota.write' });
 	const account = String((await event.request.formData()).get('account') ?? '').trim();
 	if (!account) return fail(400, { error: 'Missing account id.' });
+	const admin = serverAdmin(event);
 	try {
-		await serverAdmin(event).rotateQuota(account);
+		// Rotation parks `account` in cooldown and moves usage onto a healthy target. The REST
+		// surface requires an explicit `to_account` (empty/self → 422), so auto-pick the first
+		// other active account from the pool.
+		const accounts = await admin.quotas();
+		const target = accounts.find((a) => a.id !== account && a.status === 'active');
+		if (!target) return fail(409, { error: 'No other active account to rotate onto.' });
+		await admin.rotateQuota(account, target.id);
 		return { ok: true };
 	} catch (err) {
 		return failFrom(err);

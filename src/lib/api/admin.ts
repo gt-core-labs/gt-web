@@ -122,8 +122,13 @@ export function admin(doFetch: Fetcher) {
 			const j = await unwrap<{ accounts: QuotaAccount[] }>(await doFetch('/api/v1/quota'));
 			return j.accounts ?? [];
 		},
-		async rotateQuota(account: string): Promise<void> {
-			await unwrap(await doFetch(`${quotaPath(account)}/rotate`, { ...JSON_POST, body: '{}' }));
+		async rotateQuota(account: string, toAccount: string): Promise<void> {
+			await unwrap(
+				await doFetch(`${quotaPath(account)}/rotate`, {
+					...JSON_POST,
+					body: JSON.stringify({ to_account: toAccount })
+				})
+			);
 		},
 		// Web onboarding (hq-quota-onboard-web): drive the real `claude auth login` lifecycle on the
 		// gt-orch-server daemon (a HOST process behind Traefik at /api/v1/quota/onboard/*). `start`
