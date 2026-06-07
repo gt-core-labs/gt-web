@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidateAll, goto } from '$app/navigation';
 	import { browserOrch, roleToWire, type SpawnRole } from '$lib/api/orch';
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
@@ -15,6 +15,11 @@
 	let busy = $state(false);
 
 	const canAgent = $derived(hasScope(data.user?.scopes, 'agent.write'));
+	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
+
+	// Open an interactive terminal attached-or-created to a session's tmux (hq-session-terminal.2).
+	const openTerminal = (id: string) =>
+		goto(`/terminal?session=${encodeURIComponent(id)}&write=1`);
 	const canMerge = $derived(hasScope(data.user?.scopes, 'merge.write'));
 	const canConvoy = $derived(hasScope(data.user?.scopes, 'convoy.write'));
 
@@ -205,6 +210,9 @@
 								</td>
 								<td><Badge variant={stateVariant(s.state)}>{s.state}</Badge></td>
 								<td class="text-right">
+									{#if canTerminal}
+										<Button variant="tonal" onclick={() => openTerminal(s.id)}>Terminal</Button>
+									{/if}
 									{#if canAgent}
 										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.heartbeatAgent(s.id))}>Heartbeat</Button>
 										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.endAgent(s.id))}>End</Button>

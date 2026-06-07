@@ -12,8 +12,11 @@
 		// When set, the backend attaches the pty to this agent's tmux session (read-only) instead
 		// of a fresh shell (hq-agent-observability.6) — so the operator watches what the agent does.
 		session?: string;
+		// Interactive attach-or-create instead of read-only (hq-session-terminal.2): the backend
+		// runs `tmux new-session -A`, so a session with no tmux yet gets a real shell to talk to.
+		write?: boolean;
 	}
-	let { session }: Props = $props();
+	let { session, write = false }: Props = $props();
 
 	let host = $state<HTMLDivElement>();
 	let status = $state<'connecting' | 'open' | 'closed' | 'error'>('connecting');
@@ -33,7 +36,10 @@
 
 	function connect() {
 		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-		const qs = session ? `?session=${encodeURIComponent(session)}` : '';
+		const params = new URLSearchParams();
+		if (session) params.set('session', session);
+		if (write) params.set('write', '1');
+		const qs = params.toString() ? `?${params}` : '';
 		ws = new WebSocket(`${proto}://${location.host}${WS_PATH}${qs}`);
 		ws.binaryType = 'arraybuffer';
 
