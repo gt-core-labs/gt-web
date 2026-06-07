@@ -36,7 +36,15 @@ export const load: LayoutServerLoad = async (event) => {
 	]);
 
 	const selected = cookies.get(RIG_COOKIE) ?? '';
-	const activeRig = rigs.some((r) => r.name === selected) ? selected : '';
+	// With a single rig there's no meaningful "all rigs" choice — pin it as active so views
+	// filter to it without the user having to pick. Otherwise honor a still-valid cookie, else
+	// fall back to "all rigs".
+	const activeRig =
+		rigs.length === 1
+			? rigs[0].name
+			: rigs.some((r) => r.name === selected)
+				? selected
+				: '';
 
 	return { user: locals.user, workspaces, rigs, activeRig };
 };

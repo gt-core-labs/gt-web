@@ -90,7 +90,9 @@
 					<span class="text-sm opacity-70">{data.user?.workspace ?? ''}</span>
 				{/if}
 
-				{#if data.rigs.length > 0}
+				{#if data.rigs.length === 1}
+					<span class="text-sm opacity-70">{data.rigs[0].name}</span>
+				{:else if data.rigs.length > 1}
 					<select class="select select-sm w-40" aria-label="Rig" value={data.activeRig} onchange={onRig}>
 						<option value="">All rigs</option>
 						{#each data.rigs as rig (rig.name)}

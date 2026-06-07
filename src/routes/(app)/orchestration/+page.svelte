@@ -29,10 +29,14 @@
 	// accounts the admin can attach here. Assigned ones live in the table below (data.quotas).
 	const unassigned = $derived(data.quotaCatalog.filter((a) => !a.assigned));
 
+	// hq-prefixed rigs (the internal "hq" sessions) belong to the gt_core rig — annex them so they
+	// surface under gt_core rather than as a phantom rig.
+	const rigOf = (rig: string) => (rig.startsWith('hq') ? 'gt_core' : rig);
+
 	// Sessions are scoped to the active rig (chosen globally in the header); when no rig is
 	// selected ("all rigs") every session shows.
 	const sessions = $derived(
-		data.activeRig ? data.agents.filter((s) => s.rig === data.activeRig) : data.agents
+		data.activeRig ? data.agents.filter((s) => rigOf(s.rig) === data.activeRig) : data.agents
 	);
 
 	const TABS: { id: Tab; label: string; count: number }[] = $derived([
@@ -190,7 +194,7 @@
 						{#each sessions as s (s.id)}
 							<tr>
 								<td class="font-mono text-xs">{s.id}</td>
-								<td>{s.rig}</td>
+								<td>{rigOf(s.rig)}</td>
 								<td>{s.role}</td>
 								<td>{s.crew ?? '—'}</td>
 								<td>
