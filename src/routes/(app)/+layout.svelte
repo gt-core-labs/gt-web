@@ -40,6 +40,7 @@
 		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read' },
 		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec' },
 		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read' },
+		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write' },
 		{ href: '/stats', label: 'Statistics', scope: 'issues.read' },
 		{ href: '/security', label: 'Security', scope: 'tokens.read' },
 		{ href: '/admin/users', label: 'Users', scope: 'users.read' },
