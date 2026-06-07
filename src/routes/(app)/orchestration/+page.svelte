@@ -70,12 +70,15 @@
 		'dog'
 	];
 
-	let spawn = $state<{ session: string; rig: string; role: SpawnRole; crew: string }>({
-		session: '',
-		rig: data.activeRig, // default to the header's active rig
+	let spawn = $state<{ role: SpawnRole; crew: string }>({
 		role: 'polecat',
 		crew: ''
 	});
+
+	// Session id is auto-generated as a short hash — the user no longer types it, and the rig is
+	// the header's active rig (chosen globally), so neither is a form field anymore.
+	const genSessionId = (role: SpawnRole) =>
+		`${role}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 
 	// hq-orch-sessions.4: crews already seen across sessions, offered in the spawn datalist so a
 	// crew can be re-selected as well as typed fresh.
@@ -85,19 +88,20 @@
 
 	function submitSpawn(e: SubmitEvent) {
 		e.preventDefault();
-		if (!spawn.session.trim() || !spawn.rig.trim()) {
-			error = 'session and rig are required';
+		const rig = data.activeRig?.trim();
+		if (!rig) {
+			error = 'no active rig selected';
 			return;
 		}
 		run(async () => {
 			await o.spawnAgent({
-				session: spawn.session.trim(),
-				rig: spawn.rig.trim(),
+				session: genSessionId(spawn.role),
+				rig,
 				role: roleToWire(spawn.role),
 				// crew only meaningful for a polecat; omit otherwise so the backend default stands.
 				crew: spawn.role === 'polecat' && spawn.crew.trim() ? spawn.crew.trim() : undefined
 			});
-			spawn = { session: '', rig: data.activeRig, role: 'polecat', crew: '' };
+			spawn = { role: 'polecat', crew: '' };
 		});
 	}
 
@@ -145,23 +149,6 @@
 			{#if data.errors.agents}<p class="text-sm text-error-500">{data.errors.agents}</p>{/if}
 			{#if canAgent}
 				<form class="flex flex-wrap items-end gap-2" onsubmit={submitSpawn}>
-					<label class="flex flex-col text-xs">
-						<span class="opacity-60">Session id</span>
-						<input class="input w-40" type="text" bind:value={spawn.session} placeholder="p1" required />
-					</label>
-					<label class="flex flex-col text-xs">
-						<span class="opacity-60">Rig</span>
-						{#if data.rigs.length > 0}
-							<select class="select w-40" bind:value={spawn.rig} required>
-								<option value="" disabled>Select rig</option>
-								{#each data.rigs as rig (rig.name)}
-									<option value={rig.name}>{rig.name}</option>
-								{/each}
-							</select>
-						{:else}
-							<input class="input w-40" type="text" bind:value={spawn.rig} placeholder="granite" required />
-						{/if}
-					</label>
 					<label class="flex flex-col text-xs">
 						<span class="opacity-60">Role</span>
 						<select class="select w-32" bind:value={spawn.role}>
