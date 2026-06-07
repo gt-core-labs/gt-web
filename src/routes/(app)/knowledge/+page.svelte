@@ -101,11 +101,12 @@
 	const saveRolePrompt = (role: string) =>
 		run(() => browserSkills().setRolePrompt(role, rolePrompts[role] ?? ''));
 
-	type Tab = 'documents' | 'skills' | 'feed';
+	type Tab = 'documents' | 'skills' | 'prompts' | 'feed';
 	let tab = $state<Tab>('documents');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'documents', label: 'Documents' },
 		{ id: 'skills', label: 'Skills' },
+		{ id: 'prompts', label: 'Prompts' },
 		{ id: 'feed', label: 'Feed' }
 	];
 </script>
@@ -271,32 +272,32 @@
 					</li>
 				{/each}
 			</ul>
-
-			{#if canWriteSkills}
-				<!-- Per-role system prompt (hq-role-skills-term.4): written as the session's CLAUDE.md. -->
-				<section class="mt-4 space-y-2">
-					<h2 class="h4">Role prompts</h2>
-					<p class="text-sm opacity-60">
-						The system prompt a role's terminal loads as <code>CLAUDE.md</code>.
-					</p>
-					<div class="grid grid-cols-2 gap-2">
-						{#each ROLES as role (role)}
-							<div class="rounded border border-surface-500/20 p-2">
-								<div class="mb-1 flex items-center justify-between">
-									<span class="font-mono text-xs">{role}</span>
-									<Button type="button" disabled={busy} onclick={() => saveRolePrompt(role)}>Save</Button>
-								</div>
-								<textarea
-									class="textarea text-xs"
-									rows="3"
-									placeholder="prompt for {role}…"
-									bind:value={rolePrompts[role]}
-								></textarea>
-							</div>
-						{/each}
+		{/if}
+	{:else if tab === 'prompts'}
+		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
+		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
+		<p class="text-sm opacity-60">
+			The system prompt a role's terminal loads as <code>CLAUDE.md</code> (hq-role-skills-term.4).
+		</p>
+		{#if canWriteSkills}
+			<div class="grid grid-cols-2 gap-2">
+				{#each ROLES as role (role)}
+					<div class="rounded border border-surface-500/20 p-2">
+						<div class="mb-1 flex items-center justify-between">
+							<span class="font-mono text-xs">{role}</span>
+							<Button type="button" disabled={busy} onclick={() => saveRolePrompt(role)}>Save</Button>
+						</div>
+						<textarea
+							class="textarea text-xs"
+							rows="4"
+							placeholder="prompt for {role}…"
+							bind:value={rolePrompts[role]}
+						></textarea>
 					</div>
-				</section>
-			{/if}
+				{/each}
+			</div>
+		{:else}
+			<p class="opacity-60">Need <code>skills.write</code> to edit role prompts.</p>
 		{/if}
 	{:else}
 		{#if data.feedError}<p class="text-sm text-error-500">{data.feedError}</p>{/if}
