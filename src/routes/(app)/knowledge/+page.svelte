@@ -5,6 +5,7 @@
 	import CreateDocModal from '$lib/components/knowledge/CreateDocModal.svelte';
 	import {
 		browserSkills,
+		EFFORT_LEVELS,
 		PERMISSION_MODES,
 		type ModelConfig,
 		type RegisterSkillBody
@@ -107,22 +108,17 @@
 		run(() => browserSkills().setRolePrompt(role, rolePrompts[role] ?? ''));
 
 	// Role model config (hq-role-model.1): seeded from the SSR bindings, editable per role. An empty
-	// model/mode + null budget clears the config (the role rides the account default).
+	// model/mode/effort clears the config (the role rides the account default).
 	const MODELS = ['', 'opus', 'sonnet', 'haiku'];
+	const blankModel = (): ModelConfig => ({ model: '', permission_mode: '', effort: '' });
 	let roleModels = $state<Record<string, ModelConfig>>({});
 	$effect(() => {
 		const seed: Record<string, ModelConfig> = {};
-		for (const b of data.bindings)
-			seed[b.role] = b.model_config ?? { model: '', permission_mode: '', thinking_budget: null };
+		for (const b of data.bindings) seed[b.role] = b.model_config ?? blankModel();
 		roleModels = seed;
 	});
 	const saveRoleModel = (role: string) =>
-		run(() =>
-			browserSkills().setRoleModel(
-				role,
-				roleModels[role] ?? { model: '', permission_mode: '', thinking_budget: null }
-			)
-		);
+		run(() => browserSkills().setRoleModel(role, roleModels[role] ?? blankModel()));
 
 	type Tab = 'documents' | 'skills' | 'prompts' | 'models' | 'feed';
 	let tab = $state<Tab>('documents');
@@ -328,8 +324,8 @@
 		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
 		<p class="text-sm opacity-60">
 			The model config a role's session launches <code>claude</code> with (hq-role-model.1):
-			<code>--model</code>, <code>--permission-mode</code>, and the thinking-token budget. Leave a
-			field blank to fall back to the account default.
+			<code>--model</code>, <code>--permission-mode</code>, and <code>--effort</code>. Leave a field
+			blank to fall back to the account default.
 		</p>
 		{#if canWriteSkills}
 			<div class="grid grid-cols-2 gap-2">
@@ -359,14 +355,13 @@
 									</select>
 								</label>
 								<label class="text-xs">
-									<span class="opacity-60">Thinking</span>
-									<input
-										class="input text-xs"
-										type="number"
-										min="0"
-										placeholder="budget"
-										bind:value={roleModels[role].thinking_budget}
-									/>
+									<span class="opacity-60">Effort</span>
+									<select class="select text-xs" bind:value={roleModels[role].effort}>
+										<option value="">default</option>
+										{#each EFFORT_LEVELS as e (e)}
+											<option value={e}>{e}</option>
+										{/each}
+									</select>
 								</label>
 							</div>
 						</div>

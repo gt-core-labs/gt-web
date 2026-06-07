@@ -31,12 +31,15 @@ export interface ModelConfig {
 	model: string;
 	/** Permission mode (`claude --permission-mode <mode>`); empty ⇒ unset. */
 	permission_mode: string;
-	/** Thinking-token budget (env `MAX_THINKING_TOKENS`); null ⇒ unset. */
-	thinking_budget: number | null;
+	/** Effort level (`claude --effort <level>`); empty ⇒ unset (the CLI default). */
+	effort: string;
 }
 
 /** The permission modes the interactive claude CLI accepts; '' (the picker's first option) clears it. */
 export const PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'bypassPermissions'] as const;
+
+/** The effort levels `claude --effort` accepts; '' (the picker's first option) leaves it unset. */
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export interface SkillsResponse {
 	count: number;
