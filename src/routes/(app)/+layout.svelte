@@ -1,10 +1,32 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { hasScope } from '$lib/api/auth';
+	import { invalidateAll } from '$app/navigation';
+	import { hasScope, switchWorkspace } from '$lib/api/auth';
+	import { setActiveRig } from '$lib/rig';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
+
+	let switching = $state(false);
+
+	// Re-target the session to another workspace: the backend re-mints the cookies
+	// (new scopes + tenant), then a hard reload re-runs SSR with the fresh session.
+	async function onWorkspace(e: Event) {
+		const slug = (e.currentTarget as HTMLSelectElement).value;
+		if (!slug || slug === data.user?.workspace) return;
+		switching = true;
+		const res = await switchWorkspace(slug);
+		if (res.ok) location.reload();
+		else switching = false;
+	}
+
+	// Selecting a rig is a pure UI preference (cookie); re-run loads so views that
+	// read `activeRig` (tracker filter, spawn default) pick it up. No reload needed.
+	async function onRig(e: Event) {
+		setActiveRig((e.currentTarget as HTMLSelectElement).value);
+		await invalidateAll();
+	}
 
 	type NavItem = { href: string; label: string; scope: string | null };
 	const NAV: NavItem[] = [
@@ -46,7 +68,32 @@
 
 	<div class="flex flex-col">
 		<header class="flex items-center justify-between border-b border-surface-500/20 px-6 py-3">
-			<div class="text-sm opacity-70">{data.user?.workspace ?? ''}</div>
+			<div class="flex items-center gap-2">
+				{#if data.workspaces.length > 1}
+					<select
+						class="select select-sm w-44"
+						aria-label="Workspace"
+						disabled={switching}
+						value={data.user?.workspace ?? ''}
+						onchange={onWorkspace}
+					>
+						{#each data.workspaces as ws (ws.workspace)}
+							<option value={ws.workspace}>{ws.workspace} · {ws.role}</option>
+						{/each}
+					</select>
+				{:else}
+					<span class="text-sm opacity-70">{data.user?.workspace ?? ''}</span>
+				{/if}
+
+				{#if data.rigs.length > 0}
+					<select class="select select-sm w-40" aria-label="Rig" value={data.activeRig} onchange={onRig}>
+						<option value="">All rigs</option>
+						{#each data.rigs as rig (rig.name)}
+							<option value={rig.name}>{rig.name}</option>
+						{/each}
+					</select>
+				{/if}
+			</div>
 			<div class="flex items-center gap-3">
 				<span class="text-sm">{data.user?.sub}</span>
 				<form method="POST" action="/logout">

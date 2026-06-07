@@ -61,7 +61,7 @@
 
 	let spawn = $state<{ session: string; rig: string; role: SpawnRole; crew: string }>({
 		session: '',
-		rig: '',
+		rig: data.activeRig, // default to the header's active rig
 		role: 'polecat',
 		crew: ''
 	});
@@ -86,7 +86,7 @@
 				// crew only meaningful for a polecat; omit otherwise so the backend default stands.
 				crew: spawn.role === 'polecat' && spawn.crew.trim() ? spawn.crew.trim() : undefined
 			});
-			spawn = { session: '', rig: '', role: 'polecat', crew: '' };
+			spawn = { session: '', rig: data.activeRig, role: 'polecat', crew: '' };
 		});
 	}
 
@@ -140,7 +140,16 @@
 					</label>
 					<label class="flex flex-col text-xs">
 						<span class="opacity-60">Rig</span>
-						<input class="input w-40" type="text" bind:value={spawn.rig} placeholder="granite" required />
+						{#if data.rigs.length > 0}
+							<select class="select w-40" bind:value={spawn.rig} required>
+								<option value="" disabled>Select rig</option>
+								{#each data.rigs as rig (rig.name)}
+									<option value={rig.name}>{rig.name}</option>
+								{/each}
+							</select>
+						{:else}
+							<input class="input w-40" type="text" bind:value={spawn.rig} placeholder="granite" required />
+						{/if}
 					</label>
 					<label class="flex flex-col text-xs">
 						<span class="opacity-60">Role</span>

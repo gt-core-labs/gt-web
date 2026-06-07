@@ -9,6 +9,7 @@
 		type IssueStatus
 	} from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
+	import { beadInRig } from '$lib/rig';
 	import { Badge, Button } from '$lib/ui';
 	import IssueCard from '$lib/components/tracker/IssueCard.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
@@ -24,6 +25,11 @@
 	});
 
 	const canWrite = $derived(hasScope(data.user?.scopes, 'issues.write'));
+
+	// Scope the board to the active rig: bead ids are `<prefix>-<slug>`, so filter by
+	// the selected rig's prefix. No active rig ⇒ every bead (the "all rigs" view).
+	const activePrefix = $derived(data.rigs.find((r) => r.name === data.activeRig)?.prefix);
+	const visible = $derived(issues.filter((i) => beadInRig(i.id, activePrefix)));
 	let error = $state('');
 	let showCreate = $state(false);
 	let dragged = $state<string | null>(null);
@@ -34,7 +40,7 @@
 		{ status: 'closed', label: 'Closed' }
 	];
 
-	const byStatus = (s: IssueStatus) => issues.filter((i) => i.status === s);
+	const byStatus = (s: IssueStatus) => visible.filter((i) => i.status === s);
 
 	// Live refresh: every issue mutation (any session, REST or MCP) publishes an
 	// `issues.*.v1` event onto `/stream?channel=issues`. Re-pull the SSR list on each,
@@ -83,7 +89,9 @@
 
 <div class="space-y-4">
 	<header class="flex items-center justify-between">
-		<h1 class="h2">Tracker <span class="text-base opacity-60">({data.total})</span></h1>
+		<h1 class="h2">
+			Tracker <span class="text-base opacity-60">({visible.length}{activePrefix ? ` / ${data.total}` : ''})</span>
+		</h1>
 		{#if canWrite}
 			<Button onclick={() => (showCreate = true)}>New bead</Button>
 		{/if}

@@ -26,6 +26,9 @@ export type AuthUser = Schemas['UserSummary'];
 /** Token payload (POST /auth/login, /auth/refresh). Cookies are set in parallel. */
 export type TokenResponse = Schemas['TokenResponse'];
 
+/** One workspace the session can switch into (GET /auth/workspaces): slug + role held there. */
+export type WorkspaceMembership = Schemas['WorkspaceMembership'];
+
 /** POST /auth/login body. */
 export type LoginBody = Schemas['LoginRequest'];
 
@@ -162,6 +165,37 @@ export async function me(fetch?: Fetch): Promise<SessionUser | null> {
 	const res = await f(fetch)('/auth/me', { credentials: 'same-origin' });
 	if (!res.ok) return null;
 	return (await res.json()) as SessionUser;
+}
+
+/**
+ * GET /auth/workspaces — the caller's workspace memberships (slug + role), for the
+ * header workspace selector. Returns `[]` on any non-2xx (e.g. 501 when the backend
+ * has no membership directory, or a single-tenant deploy) so the shell degrades to
+ * showing just the active workspace. Pass `event.fetch` in SSR.
+ */
+export async function listWorkspaces(fetch?: Fetch): Promise<WorkspaceMembership[]> {
+	try {
+		const res = await f(fetch)('/auth/workspaces', { credentials: 'same-origin' });
+		if (!res.ok) return [];
+		return (await res.json()) as WorkspaceMembership[];
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * POST /auth/switch `{workspace}` — re-target the session to another of the caller's
+ * workspaces. On success the response carries Set-Cookie for the re-minted access +
+ * refresh pair (scoped to the new workspace + its role scopes); the caller should
+ * reload so SSR re-reads /auth/me. `403` if not a member of the requested workspace.
+ */
+export async function switchWorkspace(workspace: string, fetch?: Fetch): Promise<Response> {
+	return f(fetch)('/auth/switch', {
+		method: 'POST',
+		headers: JSON_HEADERS,
+		credentials: 'same-origin',
+		body: JSON.stringify({ workspace })
+	});
 }
 
 /** GET /auth/users — requires scope users.read (or *). */
