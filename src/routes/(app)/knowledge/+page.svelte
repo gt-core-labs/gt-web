@@ -3,7 +3,12 @@
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button, Card } from '$lib/ui';
 	import CreateDocModal from '$lib/components/knowledge/CreateDocModal.svelte';
-	import { browserSkills, type RegisterSkillBody } from '$lib/api/knowledge';
+	import {
+		browserSkills,
+		PERMISSION_MODES,
+		type ModelConfig,
+		type RegisterSkillBody
+	} from '$lib/api/knowledge';
 	import { TrackerError } from '$lib/api/tracker';
 	import type { PageData } from './$types';
 
@@ -101,12 +106,31 @@
 	const saveRolePrompt = (role: string) =>
 		run(() => browserSkills().setRolePrompt(role, rolePrompts[role] ?? ''));
 
-	type Tab = 'documents' | 'skills' | 'prompts' | 'feed';
+	// Role model config (hq-role-model.1): seeded from the SSR bindings, editable per role. An empty
+	// model/mode + null budget clears the config (the role rides the account default).
+	const MODELS = ['', 'opus', 'sonnet', 'haiku'];
+	let roleModels = $state<Record<string, ModelConfig>>({});
+	$effect(() => {
+		const seed: Record<string, ModelConfig> = {};
+		for (const b of data.bindings)
+			seed[b.role] = b.model_config ?? { model: '', permission_mode: '', thinking_budget: null };
+		roleModels = seed;
+	});
+	const saveRoleModel = (role: string) =>
+		run(() =>
+			browserSkills().setRoleModel(
+				role,
+				roleModels[role] ?? { model: '', permission_mode: '', thinking_budget: null }
+			)
+		);
+
+	type Tab = 'documents' | 'skills' | 'prompts' | 'models' | 'feed';
 	let tab = $state<Tab>('documents');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'documents', label: 'Documents' },
 		{ id: 'skills', label: 'Skills' },
 		{ id: 'prompts', label: 'Prompts' },
+		{ id: 'models', label: 'Models' },
 		{ id: 'feed', label: 'Feed' }
 	];
 </script>
@@ -298,6 +322,59 @@
 			</div>
 		{:else}
 			<p class="opacity-60">Need <code>skills.write</code> to edit role prompts.</p>
+		{/if}
+	{:else if tab === 'models'}
+		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
+		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
+		<p class="text-sm opacity-60">
+			The model config a role's session launches <code>claude</code> with (hq-role-model.1):
+			<code>--model</code>, <code>--permission-mode</code>, and the thinking-token budget. Leave a
+			field blank to fall back to the account default.
+		</p>
+		{#if canWriteSkills}
+			<div class="grid grid-cols-2 gap-2">
+				{#each ROLES as role (role)}
+					{#if roleModels[role]}
+						<div class="rounded border border-surface-500/20 p-2">
+							<div class="mb-2 flex items-center justify-between">
+								<span class="font-mono text-xs">{role}</span>
+								<Button type="button" disabled={busy} onclick={() => saveRoleModel(role)}>Save</Button>
+							</div>
+							<div class="grid grid-cols-3 gap-2">
+								<label class="text-xs">
+									<span class="opacity-60">Model</span>
+									<select class="select text-xs" bind:value={roleModels[role].model}>
+										{#each MODELS as m (m)}
+											<option value={m}>{m === '' ? 'default' : m}</option>
+										{/each}
+									</select>
+								</label>
+								<label class="text-xs">
+									<span class="opacity-60">Permission</span>
+									<select class="select text-xs" bind:value={roleModels[role].permission_mode}>
+										<option value="">unset</option>
+										{#each PERMISSION_MODES as pm (pm)}
+											<option value={pm}>{pm}</option>
+										{/each}
+									</select>
+								</label>
+								<label class="text-xs">
+									<span class="opacity-60">Thinking</span>
+									<input
+										class="input text-xs"
+										type="number"
+										min="0"
+										placeholder="budget"
+										bind:value={roleModels[role].thinking_budget}
+									/>
+								</label>
+							</div>
+						</div>
+					{/if}
+				{/each}
+			</div>
+		{:else}
+			<p class="opacity-60">Need <code>skills.write</code> to edit role model config.</p>
 		{/if}
 	{:else}
 		{#if data.feedError}<p class="text-sm text-error-500">{data.feedError}</p>{/if}

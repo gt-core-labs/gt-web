@@ -21,7 +21,22 @@ export interface SkillBinding {
 	enabled_skills: string[];
 	/** The role's system prompt (hq-role-skills-term.4); written as the session's CLAUDE.md. */
 	prompt?: string;
+	/** The role's model config (hq-role-model.1); stamped onto the session's claude launch. */
+	model_config?: ModelConfig;
 }
+
+/** Per-role model config (hq-role-model.1): the claude launch levers a session of the role uses. */
+export interface ModelConfig {
+	/** Model id/alias (`claude --model <id>`); empty ⇒ account default. */
+	model: string;
+	/** Permission mode (`claude --permission-mode <mode>`); empty ⇒ unset. */
+	permission_mode: string;
+	/** Thinking-token budget (env `MAX_THINKING_TOKENS`); null ⇒ unset. */
+	thinking_budget: number | null;
+}
+
+/** The permission modes the interactive claude CLI accepts; '' (the picker's first option) clears it. */
+export const PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'bypassPermissions'] as const;
 
 export interface SkillsResponse {
 	count: number;
@@ -136,6 +151,17 @@ export function skills(doFetch: Fetcher) {
 					method: 'PUT',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ prompt })
+				})
+			);
+		},
+		// Set (or clear) a role's model config (hq-role-model.1) → stamped onto the claude launch.
+		// An all-empty config clears it.
+		async setRoleModel(role: string, config: ModelConfig): Promise<void> {
+			await unwrap(
+				await doFetch(`/api/v1/skills/roles/${encodeURIComponent(role)}/model`, {
+					method: 'PUT',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(config)
 				})
 			);
 		}
