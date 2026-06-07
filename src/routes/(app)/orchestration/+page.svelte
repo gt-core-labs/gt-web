@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { invalidateAll, goto } from '$app/navigation';
+	import { invalidateAll } from '$app/navigation';
 	import { browserOrch, roleToWire, type SpawnRole } from '$lib/api/orch';
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
+	import { terminals } from '$lib/stores/terminals.svelte';
 	import { Badge, Button } from '$lib/ui';
 	import LiveFeed from '$lib/components/orchestration/LiveFeed.svelte';
 	import type { PageData } from './$types';
@@ -17,9 +18,9 @@
 	const canAgent = $derived(hasScope(data.user?.scopes, 'agent.write'));
 	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
 
-	// Open an interactive terminal attached-or-created to a session's tmux (hq-session-terminal.2).
-	const openTerminal = (id: string) =>
-		goto(`/terminal?session=${encodeURIComponent(id)}&write=1`);
+	// Open an interactive terminal for a session in the floating dock (hq-term-dock.2): no route
+	// navigation — the dock hovers over the orchestration view.
+	const openTerminal = (id: string) => terminals.open(id);
 	const canMerge = $derived(hasScope(data.user?.scopes, 'merge.write'));
 	const canConvoy = $derived(hasScope(data.user?.scopes, 'convoy.write'));
 

@@ -3,10 +3,15 @@
 	import { invalidateAll } from '$app/navigation';
 	import { hasScope, switchWorkspace } from '$lib/api/auth';
 	import { setActiveRig } from '$lib/rig';
+	import TerminalDock from '$lib/components/terminal/TerminalDock.svelte';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
+
+	// The floating terminal dock mounts here so it can hover over any view (hq-term-dock.2). Only
+	// for a caller that can actually open a terminal.
+	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
 
 	let switching = $state(false);
 
@@ -107,3 +112,7 @@
 		</main>
 	</div>
 </div>
+
+{#if canTerminal}
+	<TerminalDock />
+{/if}
