@@ -1,12 +1,60 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button, Card } from '$lib/ui';
 	import CreateDocModal from '$lib/components/knowledge/CreateDocModal.svelte';
+	import { browserSkills, type RegisterSkillBody } from '$lib/api/knowledge';
+	import { TrackerError } from '$lib/api/tracker';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const canWrite = $derived(hasScope(data.user?.scopes, 'documents.write'));
+	const canWriteSkills = $derived(hasScope(data.user?.scopes, 'skills.write'));
 	let showCreate = $state(false);
+
+	// Skill registration (hq-agent-observability.7): the catalog is otherwise unpopulatable. The
+	// new skill rides the issues/skills event log, so a refresh re-pulls the SSR list.
+	let newSkill = $state<RegisterSkillBody & { default_scopes_csv: string }>({
+		skill: '',
+		label: '',
+		description: '',
+		default_scopes_csv: ''
+	});
+	let skillError = $state('');
+	let busy = $state(false);
+
+	async function registerSkill(e: SubmitEvent) {
+		e.preventDefault();
+		skillError = '';
+		busy = true;
+		try {
+			await browserSkills().register({
+				skill: newSkill.skill.trim(),
+				label: newSkill.label.trim(),
+				description: newSkill.description?.trim() || '',
+				default_scopes: newSkill.default_scopes_csv
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			});
+			newSkill = { skill: '', label: '', description: '', default_scopes_csv: '' };
+			await invalidateAll();
+		} catch (err) {
+			skillError = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function retireSkill(id: string) {
+		skillError = '';
+		try {
+			await browserSkills().retire(id);
+			await invalidateAll();
+		} catch (err) {
+			skillError = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		}
+	}
 
 	type Tab = 'documents' | 'skills' | 'feed';
 	let tab = $state<Tab>('documents');
@@ -74,6 +122,20 @@
 		{/if}
 	{:else if tab === 'skills'}
 		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
+		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
+		{#if canWriteSkills}
+			<form class="flex flex-wrap items-end gap-2" onsubmit={registerSkill}>
+				<input class="input w-40" placeholder="id (graphify)" bind:value={newSkill.skill} required />
+				<input class="input w-40" placeholder="label" bind:value={newSkill.label} required />
+				<input class="input flex-1" placeholder="description" bind:value={newSkill.description} />
+				<input
+					class="input w-56"
+					placeholder="scopes (graph.read, …)"
+					bind:value={newSkill.default_scopes_csv}
+				/>
+				<Button type="submit" disabled={busy}>Register skill</Button>
+			</form>
+		{/if}
 		{#if data.skills.length === 0}
 			<p class="opacity-60">No skills registered.</p>
 		{:else}
@@ -83,7 +145,18 @@
 						<Card>
 							<div class="flex items-center justify-between gap-2">
 								<span class="font-medium">{s.label}</span>
-								<span class="font-mono text-xs opacity-60">{s.id}</span>
+								<div class="flex items-center gap-2">
+									<span class="font-mono text-xs opacity-60">{s.id}</span>
+									{#if canWriteSkills}
+										<button
+											class="text-xs text-error-500 hover:underline"
+											title="Retire skill"
+											onclick={() => retireSkill(s.id)}
+										>
+											✕
+										</button>
+									{/if}
+								</div>
 							</div>
 							<p class="mt-1 text-sm opacity-70">{s.description}</p>
 							<div class="mt-2 flex flex-wrap gap-1">

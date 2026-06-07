@@ -60,6 +60,14 @@ async function unwrap<T>(res: Response): Promise<T> {
 	return (await res.json()) as T;
 }
 
+/** Body for registering a skill (hq-agent-observability.7). `now_secs` is server-stamped. */
+export interface RegisterSkillBody {
+	skill: string;
+	label: string;
+	description?: string;
+	default_scopes?: string[];
+}
+
 export function skills(doFetch: Fetcher) {
 	return {
 		async list(): Promise<SkillsResponse> {
@@ -67,6 +75,22 @@ export function skills(doFetch: Fetcher) {
 		},
 		async get(id: string): Promise<SkillDetail> {
 			return unwrap(await doFetch(`/api/v1/skills/${encodeURIComponent(id)}`));
+		},
+		// Register a skill into the catalog (skills.write). hq-agent-observability.7.
+		async register(body: RegisterSkillBody): Promise<void> {
+			await unwrap(
+				await doFetch('/api/v1/skills', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(body)
+				})
+			);
+		},
+		// Retire a skill from the catalog (skills.write).
+		async retire(id: string): Promise<void> {
+			await unwrap(
+				await doFetch(`/api/v1/skills/${encodeURIComponent(id)}`, { method: 'DELETE' })
+			);
 		}
 	};
 }
