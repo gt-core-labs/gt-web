@@ -53,49 +53,68 @@ export interface ScopeOption {
 }
 
 /**
- * The catalogue of scopes the create-token form offers as checkboxes. Curated to the grants a
- * user commonly hands a token (`<resource>.<verb>`); the form filters it to the ones the caller
- * actually holds (so they only see what they can grant), and the backend clamps regardless.
- *
- * The `*` "all" grant is NOT in here — the form offers it as a single "all my permissions" toggle
- * that sends an EMPTY scope set, which the backend reads as "everything the caller holds" (so it
- * yields `*` for an admin and the member's own scopes for everyone else).
+ * Human-readable labels for known scopes. The security page derives the grantable list from
+ * the caller's own scopes (what the server says they hold), so this map never gates which scopes
+ * appear — it only improves readability. Unknown scopes fall back to the raw scope string.
  */
-export const SCOPE_CATALOG: ScopeOption[] = [
-	{ scope: 'tokens.read', label: 'Read tokens' },
-	{ scope: 'tokens.write', label: 'Manage tokens' },
-	{ scope: 'issues.read', label: 'Read issues' },
-	{ scope: 'issues.write', label: 'Write issues' },
-	{ scope: 'documents.read', label: 'Read documents' },
-	{ scope: 'documents.write', label: 'Write documents' },
-	{ scope: 'rig.read', label: 'Read rigs' },
-	{ scope: 'rig.write', label: 'Write rigs' },
-	{ scope: 'merge.read', label: 'Read merges' },
-	{ scope: 'merge.write', label: 'Write merges' },
-	{ scope: 'merge.submit', label: 'Submit merges' },
-	{ scope: 'agent.read', label: 'Read agents' },
-	{ scope: 'agent.write', label: 'Write agents' },
-	{ scope: 'quota.read', label: 'Read quota' },
-	{ scope: 'quota.write', label: 'Write quota' },
-	{ scope: 'convoy.read', label: 'Read convoys' },
-	{ scope: 'convoy.write', label: 'Write convoys' },
-	{ scope: 'meta.read', label: 'Read meta' },
-	{ scope: 'meta.write', label: 'Write meta' },
-	{ scope: 'feed.read', label: 'Read feed' },
-	{ scope: 'me.read', label: 'Read profile' },
-	{ scope: 'skills.read', label: 'Read skills' },
-	{ scope: 'skills.write', label: 'Write skills' },
-	{ scope: 'sessions.read', label: 'Read sessions' },
-	{ scope: 'sessions.write', label: 'Write sessions' },
-	{ scope: 'terminal.attach', label: 'Attach terminal' },
-	{ scope: 'workspace.read', label: 'Read workspace' },
-	{ scope: 'workspace.write', label: 'Write workspace' },
-	{ scope: 'worktrees.read', label: 'Read worktrees' },
-	{ scope: 'hooks.read', label: 'Read hooks' },
-	{ scope: 'hooks.write', label: 'Write hooks' },
-	{ scope: 'beads.read', label: 'Read beads' },
-	{ scope: 'beads.write', label: 'Write beads' }
-];
+const SCOPE_LABELS: Record<string, string> = {
+	'tokens.read': 'Read tokens',
+	'tokens.write': 'Manage tokens',
+	'issues.read': 'Read issues',
+	'issues.write': 'Write issues',
+	'documents.read': 'Read documents',
+	'documents.write': 'Write documents',
+	'rig.read': 'Read rigs',
+	'rig.write': 'Write rigs',
+	'merge.read': 'Read merges',
+	'merge.write': 'Write merges',
+	'merge.submit': 'Submit merges',
+	'agent.read': 'Read agents',
+	'agent.write': 'Write agents',
+	'quota.read': 'Read quota',
+	'quota.write': 'Write quota',
+	'convoy.read': 'Read convoys',
+	'convoy.write': 'Write convoys',
+	'meta.read': 'Read meta',
+	'meta.write': 'Write meta',
+	'feed.read': 'Read feed',
+	'me.read': 'Read profile',
+	'skills.read': 'Read skills',
+	'skills.write': 'Write skills',
+	'sessions.read': 'Read sessions',
+	'sessions.write': 'Write sessions',
+	'terminal.attach': 'Attach terminal',
+	'workspace.read': 'Read workspace',
+	'workspace.write': 'Write workspace',
+	'worktrees.read': 'Read worktrees',
+	'hooks.read': 'Read hooks',
+	'hooks.write': 'Write hooks',
+	'beads.read': 'Read beads',
+	'beads.write': 'Write beads'
+};
+
+/** Role-label scopes that are not grantable as discrete PAT scopes. */
+const NON_GRANTABLE = new Set(['*', 'workspace.admin', 'workspace.member']);
+
+/**
+ * Build the grantable scope options from the caller's own scopes. This replaces the old static
+ * SCOPE_CATALOG so new backend scopes appear automatically without a frontend update.
+ */
+export function buildGrantable(userScopes: string[] | undefined): ScopeOption[] {
+	if (!userScopes) return [];
+	return userScopes
+		.filter((s) => !NON_GRANTABLE.has(s))
+		.map((s) => ({ scope: s, label: SCOPE_LABELS[s] ?? s }));
+}
+
+/**
+ * @deprecated Use `buildGrantable(userScopes)` instead. Kept for any callers that import this
+ * symbol directly; will be removed once the security page is the only consumer.
+ */
+export const SCOPE_CATALOG: ScopeOption[] = Object.entries(SCOPE_LABELS).map(([scope, label]) => ({
+	scope,
+	label
+}));
 
 function f(fetch?: Fetch): Fetch {
 	return fetch ?? globalThis.fetch;

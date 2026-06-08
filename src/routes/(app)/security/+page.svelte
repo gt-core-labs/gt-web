@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { hasScope } from '$lib/api/auth';
-	import { SCOPE_CATALOG, type CreatedPat } from '$lib/api/security';
+	import { buildGrantable, type CreatedPat } from '$lib/api/security';
 	import { Badge, Button, Card } from '$lib/ui';
 	import type { ActionData, PageData } from './$types';
 
@@ -9,9 +9,9 @@
 	const canWrite = $derived(hasScope(data.user?.scopes, 'tokens.write'));
 	let saving = $state(false);
 
-	// Only offer the scopes the caller actually holds — they cannot grant more than they have
-	// (the backend clamps too, but showing the rest would just be silently dropped).
-	const grantable = $derived(SCOPE_CATALOG.filter((o) => hasScope(data.user?.scopes, o.scope)));
+	// Derived from the caller's own scopes — auto-includes any scope the backend adds without
+	// requiring a frontend update. The backend clamps regardless on create.
+	const grantable = $derived(buildGrantable(data.user?.scopes));
 	// The permission list is ALWAYS visible: the user ticks the scopes the token gets. The
 	// "select all" master checkbox is pure convenience — it ticks/clears every grantable box.
 	let picked = $state(new Set<string>());
