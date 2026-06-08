@@ -44,9 +44,10 @@
 	interface DiscoveredSkill {
 		path: string;       // e.g. skills/taste-skill/SKILL.md
 		name: string;       // from frontmatter
-		label: string;      // repo name + path stem
+		label: string;      // path stem used as label
 		description: string;
 		body: string;
+		group: string;      // editable per-card; defaults to path parent dir
 		selected: boolean;
 	}
 	let discovered = $state<DiscoveredSkill[]>([]);
@@ -110,10 +111,10 @@
 					const rawRes = await fetch(toRawUrl(owner, repo, f.path));
 					const text = rawRes.ok ? await rawRes.text() : '';
 					const { name, description } = parseSkillFrontmatter(text);
-					// Derive a label from the directory name (e.g. skills/taste-skill/SKILL.md → taste-skill).
+					// Derive label + group from the parent directory name.
 					const parts = f.path.split('/');
 					const stem = parts.length > 1 ? parts[parts.length - 2] : repo;
-					return { path: f.path, name: name || stem, label: stem, description, body: text, selected: true };
+					return { path: f.path, name: name || stem, label: stem, description, body: text, group: stem, selected: true };
 				}));
 				discovered = fetched;
 			} catch (err) { importError = String(err); }
@@ -139,7 +140,7 @@
 					label: d.label,
 					description: d.description,
 					body: d.body,
-					group: newSkill.group || undefined
+					group: d.group || undefined
 				});
 			}
 			discovered = [];
@@ -326,32 +327,48 @@
 				{#if importError}<p class="text-xs text-error-500">{importError}</p>{/if}
 
 				{#if discovered.length > 0}
-					<div class="rounded border border-surface-500/20 p-2">
-						<div class="mb-2 flex items-center justify-between">
-							<label class="flex cursor-pointer items-center gap-1 text-xs">
+					<div class="space-y-2">
+						<div class="flex items-center justify-between">
+							<label class="flex cursor-pointer items-center gap-1.5 text-xs opacity-70">
 								<input type="checkbox" checked={allSelected} onchange={toggleAll} />
-								<span>Seleccionar todo ({discovered.length})</span>
+								<span>Seleccionar todo ({discovered.filter(d => d.selected).length}/{discovered.length})</span>
 							</label>
 							<Button type="button" disabled={busy} onclick={importSelected}>
 								Importar seleccionadas
 							</Button>
 						</div>
-						<ul class="space-y-1">
+						<div class="grid grid-cols-2 gap-2 lg:grid-cols-3">
 							{#each discovered as d, i (d.path)}
-								<li class="flex items-start gap-2">
-									<input
-										type="checkbox"
-										class="mt-0.5"
-										bind:checked={discovered[i].selected}
-									/>
-									<div class="min-w-0 flex-1">
-										<span class="font-mono text-xs font-medium">{d.name}</span>
-										<span class="ml-1 text-xs opacity-50">{d.path}</span>
-										{#if d.description}<p class="truncate text-xs opacity-60">{d.description}</p>{/if}
+								<div
+									class={[
+										'relative flex flex-col gap-1 rounded border p-3 transition-colors',
+										d.selected ? 'border-primary-500 bg-primary-500/5' : 'border-surface-500/20 opacity-50'
+									].join(' ')}
+								>
+									<!-- Checkbox + group badge en el header de la card -->
+									<div class="flex items-start justify-between gap-2">
+										<input
+											type="checkbox"
+											class="mt-0.5 shrink-0"
+											bind:checked={discovered[i].selected}
+										/>
+										<input
+											class="input h-5 min-w-0 flex-1 px-1 text-right font-mono text-[10px] opacity-60"
+											title="grupo"
+											bind:value={discovered[i].group}
+										/>
 									</div>
-								</li>
+									<!-- Nombre -->
+									<p class="font-mono text-xs font-semibold leading-tight">{d.name}</p>
+									<!-- Descripción -->
+									{#if d.description}
+										<p class="line-clamp-2 text-xs opacity-60">{d.description}</p>
+									{/if}
+									<!-- Ruta -->
+									<p class="mt-auto pt-1 font-mono text-[10px] opacity-30 truncate">{d.path}</p>
+								</div>
 							{/each}
-						</ul>
+						</div>
 					</div>
 				{/if}
 			</div>
