@@ -124,6 +124,7 @@
 	}
 
 	const allSelected = $derived(discovered.length > 0 && discovered.every(d => d.selected));
+	const missingGroup = $derived(discovered.some(d => d.selected && !d.group.trim()));
 	function toggleAll() {
 		const v = !allSelected;
 		discovered = discovered.map(d => ({ ...d, selected: v }));
@@ -362,7 +363,7 @@
 										<option value={role}>{role}</option>
 									{/each}
 								</select>
-								<Button type="button" disabled={busy} onclick={importSelected}>
+								<Button type="button" disabled={busy || missingGroup} title={missingGroup ? 'Asigna grupo a todas las skills seleccionadas' : ''} onclick={importSelected}>
 									{importRole ? `Importar y cargar → ${importRole}` : 'Importar seleccionadas'}
 								</Button>
 							</div>
@@ -408,7 +409,7 @@
 				<div class="flex flex-wrap items-end gap-2">
 					<input class="input w-40" placeholder="id (graphify)" bind:value={newSkill.skill} required />
 					<input class="input w-36" placeholder="label" bind:value={newSkill.label} required />
-					<input class="input w-36" placeholder="group" bind:value={newSkill.group} />
+					<input class="input w-36" placeholder="group" bind:value={newSkill.group} required />
 					<input class="input flex-1" placeholder="description" bind:value={newSkill.description} />
 					<input
 						class="input w-56"
