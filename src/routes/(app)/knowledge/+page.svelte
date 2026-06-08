@@ -76,8 +76,9 @@
 		const m = text.match(/^---\n([\s\S]*?)\n---/);
 		if (!m) return { name: '', description: '' };
 		const fm = m[1];
-		const name = fm.match(/^name:\s*(.+)$/m)?.[1]?.trim() ?? '';
-		const description = fm.match(/^description:\s*(.+)$/m)?.[1]?.trim() ?? '';
+		const unquote = (s: string) => s.replace(/^["']|["']$/g, '');
+		const name = unquote(fm.match(/^name:\s*(.+)$/m)?.[1]?.trim() ?? '');
+		const description = unquote(fm.match(/^description:\s*(.+)$/m)?.[1]?.trim() ?? '');
 		return { name, description };
 	}
 
