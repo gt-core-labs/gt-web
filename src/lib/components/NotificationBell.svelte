@@ -120,7 +120,7 @@
 				issue_type: 'epic',
 				created_by: 'gt-web',
 				description: epicDesc.trim() || undefined,
-				domain: ['platform'],
+				domain: ['platform.notify'],
 				priority: 2
 			});
 			// Mark the source notification as read
