@@ -71,11 +71,30 @@ export const SCOPE_CATALOG: ScopeOption[] = [
 	{ scope: 'rig.read', label: 'Read rigs' },
 	{ scope: 'rig.write', label: 'Write rigs' },
 	{ scope: 'merge.read', label: 'Read merges' },
+	{ scope: 'merge.write', label: 'Write merges' },
 	{ scope: 'merge.submit', label: 'Submit merges' },
 	{ scope: 'agent.read', label: 'Read agents' },
 	{ scope: 'agent.write', label: 'Write agents' },
 	{ scope: 'quota.read', label: 'Read quota' },
-	{ scope: 'workspace.read', label: 'Read workspace' }
+	{ scope: 'quota.write', label: 'Write quota' },
+	{ scope: 'convoy.read', label: 'Read convoys' },
+	{ scope: 'convoy.write', label: 'Write convoys' },
+	{ scope: 'meta.read', label: 'Read meta' },
+	{ scope: 'meta.write', label: 'Write meta' },
+	{ scope: 'feed.read', label: 'Read feed' },
+	{ scope: 'me.read', label: 'Read profile' },
+	{ scope: 'skills.read', label: 'Read skills' },
+	{ scope: 'skills.write', label: 'Write skills' },
+	{ scope: 'sessions.read', label: 'Read sessions' },
+	{ scope: 'sessions.write', label: 'Write sessions' },
+	{ scope: 'terminal.attach', label: 'Attach terminal' },
+	{ scope: 'workspace.read', label: 'Read workspace' },
+	{ scope: 'workspace.write', label: 'Write workspace' },
+	{ scope: 'worktrees.read', label: 'Read worktrees' },
+	{ scope: 'hooks.read', label: 'Read hooks' },
+	{ scope: 'hooks.write', label: 'Write hooks' },
+	{ scope: 'beads.read', label: 'Read beads' },
+	{ scope: 'beads.write', label: 'Write beads' }
 ];
 
 function f(fetch?: Fetch): Fetch {
