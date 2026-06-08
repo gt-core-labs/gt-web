@@ -14,6 +14,8 @@ export interface SkillEntry {
 	registered_at_secs: number;
 	/** The SKILL.md body (hq-role-skills-term.1); the terminal materialises it for the role. */
 	body?: string;
+	/** Optional grouping label for the UI (e.g. "design", "research"). */
+	group?: string;
 }
 
 export interface SkillBinding {
@@ -90,6 +92,8 @@ export interface RegisterSkillBody {
 	default_scopes?: string[];
 	/** The SKILL.md body (hq-role-skills-term.1). */
 	body?: string;
+	/** Optional grouping label for the UI (e.g. "design"). */
+	group?: string;
 }
 
 export function skills(doFetch: Fetcher) {
@@ -113,7 +117,7 @@ export function skills(doFetch: Fetcher) {
 		// Edit a skill's label/description/SKILL.md body (skills.write, hq-skills-edit.1). Partial.
 		async update(
 			id: string,
-			patch: { label?: string; description?: string; body?: string }
+			patch: { label?: string; description?: string; body?: string; group?: string }
 		): Promise<void> {
 			await unwrap(
 				await doFetch(`/api/v1/skills/${encodeURIComponent(id)}`, {

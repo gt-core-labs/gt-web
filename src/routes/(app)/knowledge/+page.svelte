@@ -28,9 +28,127 @@
 		label: '',
 		description: '',
 		default_scopes_csv: '',
-		body: ''
+		body: '',
+		group: ''
 	});
 	let skillError = $state('');
+
+	// Import from GitHub — two modes:
+	//   single: owner/repo/path/SKILL.md  → fetch + pre-fill the form below.
+	//   discover: owner/repo (no .md path) → GitHub API tree → checkboxes → batch register.
+	let importSource = $state('');
+	let importing = $state(false);
+	let importError = $state('');
+
+	// Discovered skills from a repo (discover mode).
+	interface DiscoveredSkill {
+		path: string;       // e.g. skills/taste-skill/SKILL.md
+		name: string;       // from frontmatter
+		label: string;      // repo name + path stem
+		description: string;
+		body: string;
+		selected: boolean;
+	}
+	let discovered = $state<DiscoveredSkill[]>([]);
+	let discovering = $state(false);
+
+	function parseOwnerRepo(input: string): { owner: string; repo: string; rest: string } | null {
+		const clean = input.replace(/^https?:\/\/github\.com\//, '').replace(/^https?:\/\/raw\.githubusercontent\.com\//, '');
+		const parts = clean.split('/').filter(Boolean);
+		if (parts.length < 2) return null;
+		return { owner: parts[0], repo: parts[1], rest: parts.slice(2).join('/') };
+	}
+
+	function toRawUrl(owner: string, repo: string, path: string, branch = 'HEAD'): string {
+		return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+	}
+
+	function parseSkillFrontmatter(text: string): { name: string; description: string } {
+		const m = text.match(/^---\n([\s\S]*?)\n---/);
+		if (!m) return { name: '', description: '' };
+		const fm = m[1];
+		const name = fm.match(/^name:\s*(.+)$/m)?.[1]?.trim() ?? '';
+		const description = fm.match(/^description:\s*(.+)$/m)?.[1]?.trim() ?? '';
+		return { name, description };
+	}
+
+	async function handleImport() {
+		importError = '';
+		const parsed = parseOwnerRepo(importSource.trim());
+		if (!parsed) { importError = 'Formato inválido — usa owner/repo o owner/repo/path/SKILL.md'; return; }
+		const { owner, repo, rest } = parsed;
+
+		if (rest.endsWith('.md') || rest.endsWith('.MD')) {
+			// Single-file mode: fetch and pre-fill.
+			importing = true;
+			try {
+				const res = await fetch(toRawUrl(owner, repo, rest || 'SKILL.md'));
+				if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+				const text = await res.text();
+				const { name, description } = parseSkillFrontmatter(text);
+				if (name && !newSkill.skill) newSkill.skill = name;
+				if (description && !newSkill.description) newSkill.description = description;
+				if (!newSkill.label) newSkill.label = repo;
+				newSkill.body = text;
+				discovered = [];
+			} catch (err) { importError = String(err); }
+			finally { importing = false; }
+		} else {
+			// Discover mode: enumerate all SKILL.md files via GitHub API.
+			discovering = true;
+			discovered = [];
+			try {
+				const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+				const treeRes = await fetch(apiUrl, { headers: { Accept: 'application/vnd.github+json' } });
+				if (!treeRes.ok) throw new Error(`GitHub API ${treeRes.status}: ${treeRes.statusText}`);
+				const tree = await treeRes.json() as { tree: { path: string; type: string }[] };
+				const skillFiles = tree.tree
+					.filter(n => n.type === 'blob' && /\/SKILL\.md$/i.test(n.path));
+				if (skillFiles.length === 0) throw new Error('No se encontraron archivos SKILL.md en el repo');
+
+				const fetched = await Promise.all(skillFiles.map(async (f) => {
+					const rawRes = await fetch(toRawUrl(owner, repo, f.path));
+					const text = rawRes.ok ? await rawRes.text() : '';
+					const { name, description } = parseSkillFrontmatter(text);
+					// Derive a label from the directory name (e.g. skills/taste-skill/SKILL.md → taste-skill).
+					const parts = f.path.split('/');
+					const stem = parts.length > 1 ? parts[parts.length - 2] : repo;
+					return { path: f.path, name: name || stem, label: stem, description, body: text, selected: true };
+				}));
+				discovered = fetched;
+			} catch (err) { importError = String(err); }
+			finally { discovering = false; }
+		}
+	}
+
+	const allSelected = $derived(discovered.length > 0 && discovered.every(d => d.selected));
+	function toggleAll() {
+		const v = !allSelected;
+		discovered = discovered.map(d => ({ ...d, selected: v }));
+	}
+
+	async function importSelected() {
+		const toRegister = discovered.filter(d => d.selected);
+		if (toRegister.length === 0) return;
+		skillError = '';
+		busy = true;
+		try {
+			for (const d of toRegister) {
+				await browserSkills().register({
+					skill: d.name,
+					label: d.label,
+					description: d.description,
+					body: d.body,
+					group: newSkill.group || undefined
+				});
+			}
+			discovered = [];
+			importSource = '';
+			await invalidateAll();
+		} catch (err) {
+			skillError = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		} finally { busy = false; }
+	}
 	let busy = $state(false);
 
 	// Per-role enabled-skill sets, from the SSR bindings (hq-role-skills-term.2).
@@ -75,14 +193,15 @@
 	let expanded = $state<Record<string, boolean>>({});
 	const toggleExpand = (id: string) => (expanded[id] = !expanded[id]);
 	let editing = $state<string | null>(null);
-	let editForm = $state<{ label: string; description: string; body: string }>({
+	let editForm = $state<{ label: string; description: string; body: string; group: string }>({
 		label: '',
 		description: '',
-		body: ''
+		body: '',
+		group: ''
 	});
-	function startEdit(s: { id: string; label: string; description: string; body?: string }) {
+	function startEdit(s: { id: string; label: string; description: string; body?: string; group?: string }) {
 		editing = s.id;
-		editForm = { label: s.label, description: s.description, body: s.body ?? '' };
+		editForm = { label: s.label, description: s.description, body: s.body ?? '', group: s.group ?? '' };
 	}
 	const saveEdit = (id: string) =>
 		run(async () => {
@@ -190,10 +309,59 @@
 		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
 		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
 		{#if canWriteSkills}
+			<!-- Import from GitHub -->
+			<div class="flex flex-col gap-2 rounded border border-surface-500/20 p-3">
+				<p class="text-xs font-medium opacity-60">Import from GitHub</p>
+				<div class="flex gap-2">
+					<input
+						class="input flex-1 font-mono text-xs"
+						placeholder="owner/repo (discover)  o  owner/repo/path/SKILL.md (single)"
+						bind:value={importSource}
+					/>
+					<input class="input w-28 text-xs" placeholder="group (opcional)" bind:value={newSkill.group} />
+					<Button type="button" disabled={importing || discovering || !importSource} onclick={handleImport}>
+						{importing || discovering ? '…' : 'Fetch'}
+					</Button>
+				</div>
+				{#if importError}<p class="text-xs text-error-500">{importError}</p>{/if}
+
+				{#if discovered.length > 0}
+					<div class="rounded border border-surface-500/20 p-2">
+						<div class="mb-2 flex items-center justify-between">
+							<label class="flex cursor-pointer items-center gap-1 text-xs">
+								<input type="checkbox" checked={allSelected} onchange={toggleAll} />
+								<span>Seleccionar todo ({discovered.length})</span>
+							</label>
+							<Button type="button" disabled={busy} onclick={importSelected}>
+								Importar seleccionadas
+							</Button>
+						</div>
+						<ul class="space-y-1">
+							{#each discovered as d, i (d.path)}
+								<li class="flex items-start gap-2">
+									<input
+										type="checkbox"
+										class="mt-0.5"
+										bind:checked={discovered[i].selected}
+									/>
+									<div class="min-w-0 flex-1">
+										<span class="font-mono text-xs font-medium">{d.name}</span>
+										<span class="ml-1 text-xs opacity-50">{d.path}</span>
+										{#if d.description}<p class="truncate text-xs opacity-60">{d.description}</p>{/if}
+									</div>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Manual registration -->
 			<form class="flex flex-col gap-2 rounded border border-surface-500/20 p-3" onsubmit={registerSkill}>
 				<div class="flex flex-wrap items-end gap-2">
 					<input class="input w-40" placeholder="id (graphify)" bind:value={newSkill.skill} required />
-					<input class="input w-40" placeholder="label" bind:value={newSkill.label} required />
+					<input class="input w-36" placeholder="label" bind:value={newSkill.label} required />
+					<input class="input w-36" placeholder="group" bind:value={newSkill.group} />
 					<input class="input flex-1" placeholder="description" bind:value={newSkill.description} />
 					<input
 						class="input w-56"
@@ -204,7 +372,7 @@
 				<textarea
 					class="textarea font-mono text-xs"
 					rows="4"
-					placeholder="SKILL.md body — the definition claude loads for the role…"
+					placeholder="SKILL.md body — la definición que claude carga para el rol…"
 					bind:value={newSkill.body}
 				></textarea>
 				<div><Button type="submit" disabled={busy}>Register skill</Button></div>
@@ -213,8 +381,16 @@
 		{#if data.skills.length === 0}
 			<p class="opacity-60">No skills registered.</p>
 		{:else}
+			{@const grouped = data.skills.reduce((acc, s) => {
+				const g = s.group || '';
+				if (!acc.has(g)) acc.set(g, []);
+				acc.get(g)!.push(s);
+				return acc;
+			}, new Map<string, typeof data.skills>())}
+			{#each [...grouped.entries()] as [group, skills] (group)}
+				{#if group}<p class="mt-3 text-[10px] font-semibold uppercase tracking-widest opacity-40">{group}</p>{/if}
 			<ul class="space-y-2">
-				{#each data.skills as s (s.id)}
+				{#each skills as s (s.id)}
 					{@const enabledRoles = ROLES.filter((r) => hasSkill(r, s.id)).length}
 					<li>
 						<Card>
@@ -247,7 +423,10 @@
 							{#if editing === s.id}
 								<!-- Inline edit (hq-skills-edit.2): label/description/SKILL.md body. -->
 								<div class="mt-3 space-y-2 border-t border-surface-500/10 pt-3">
-									<input class="input w-full" placeholder="label" bind:value={editForm.label} />
+									<div class="flex gap-2">
+										<input class="input flex-1" placeholder="label" bind:value={editForm.label} />
+										<input class="input w-36" placeholder="group" bind:value={editForm.group} />
+									</div>
 									<input class="input w-full" placeholder="description" bind:value={editForm.description} />
 									<textarea class="textarea font-mono text-xs" rows="8" placeholder="SKILL.md body" bind:value={editForm.body}></textarea>
 									<div class="flex gap-2">
@@ -292,6 +471,7 @@
 					</li>
 				{/each}
 			</ul>
+			{/each}
 		{/if}
 	{:else if tab === 'prompts'}
 		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
