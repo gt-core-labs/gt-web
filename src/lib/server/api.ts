@@ -6,6 +6,7 @@ import { admin } from '$lib/api/admin';
 import { skills, feed } from '$lib/api/knowledge';
 import { stats } from '$lib/api/stats';
 import { meta } from '$lib/api/meta';
+import { serverSystem } from '$lib/api/system';
 import { backendFetch } from './backend';
 
 /**
@@ -57,4 +58,10 @@ export function serverStats(event: RequestEvent) {
 export function serverMeta(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return meta((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side system config client (archive daemon config) bound to the backend + cookie. */
+export function serverSystemApi(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return serverSystem((path, init) => backendFetch(path, cookie, init));
 }

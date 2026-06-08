@@ -41,16 +41,53 @@
 	}
 	const roleHasPrompt = (role: string) => data.roleConfig?.[role]?.hasPrompt ?? false;
 
+	// State filter for the sessions list — "active" is the default so noise is minimal.
+	type SessionFilter = 'active' | 'all' | 'done';
+	let sessionFilter = $state<SessionFilter>('active');
+
+	const ACTIVE_STATES = new Set(['spawned', 'working']);
+	const DONE_STATES = new Set(['done', 'killed']);
+
 	// Sessions are scoped to the active rig (chosen globally in the header); when no rig is
-	// selected ("all rigs") every session shows.
-	const sessions = $derived(
+	// selected ("all rigs") every session shows. State filter applies on top of the rig filter.
+	const rigSessions = $derived(
 		data.activeRig ? data.agents.filter((s) => rigOf(s.rig) === data.activeRig) : data.agents
 	);
+	const sessions = $derived(
+		sessionFilter === 'active'
+			? rigSessions.filter((s) => ACTIVE_STATES.has(s.state))
+			: sessionFilter === 'done'
+				? rigSessions.filter((s) => DONE_STATES.has(s.state))
+				: rigSessions
+	);
+	const activeCount = $derived(rigSessions.filter((s) => ACTIVE_STATES.has(s.state)).length);
+
+	// Merge state filter — "active" shows in-flight slots only.
+	type MergeFilter = 'active' | 'all';
+	let mergeFilter = $state<MergeFilter>('active');
+	const MERGE_ACTIVE = new Set(['Ready', 'Merging']);
+	const merges = $derived(
+		mergeFilter === 'active'
+			? data.merges.filter((m) => MERGE_ACTIVE.has(m.state))
+			: data.merges
+	);
+	const mergeActiveCount = $derived(data.merges.filter((m) => MERGE_ACTIVE.has(m.state)).length);
+
+	// Convoy state filter — "active" shows convoys not yet completed/failed.
+	type ConvoyFilter = 'active' | 'all';
+	let convoyFilter = $state<ConvoyFilter>('active');
+	const CONVOY_DONE = new Set(['completed', 'failed', 'Completed', 'Failed']);
+	const convoys = $derived(
+		convoyFilter === 'active'
+			? data.convoys.filter((c) => !CONVOY_DONE.has(c.state))
+			: data.convoys
+	);
+	const convoyActiveCount = $derived(data.convoys.filter((c) => !CONVOY_DONE.has(c.state)).length);
 
 	const TABS: { id: Tab; label: string; count: number }[] = $derived([
-		{ id: 'sessions', label: 'Sessions', count: sessions.length },
-		{ id: 'merge', label: 'Merge', count: data.merges.length },
-		{ id: 'convoy', label: 'Convoy', count: data.convoys.length },
+		{ id: 'sessions', label: 'Sessions', count: activeCount },
+		{ id: 'merge', label: 'Merge', count: mergeActiveCount },
+		{ id: 'convoy', label: 'Convoy', count: convoyActiveCount },
 		{ id: 'quota', label: 'Quota', count: data.quotas.length }
 	]);
 
@@ -191,8 +228,29 @@
 					<Button type="submit" disabled={busy}>Spawn</Button>
 				</form>
 			{/if}
+			<!-- State filter pills -->
+			<div class="flex items-center gap-1">
+				{#each ([['active', 'Active'], ['all', 'All'], ['done', 'Ended']] as const) as [id, label] (id)}
+					<button
+						class="rounded px-2 py-1 text-xs"
+						class:preset-tonal-primary={sessionFilter === id}
+						class:preset-tonal-surface={sessionFilter !== id}
+						onclick={() => (sessionFilter = id)}
+					>
+						{label}
+						{#if id === 'active'}
+							<span class="opacity-60">({activeCount})</span>
+						{:else if id === 'all'}
+							<span class="opacity-60">({rigSessions.length})</span>
+						{:else}
+							<span class="opacity-60">({rigSessions.filter((s) => DONE_STATES.has(s.state)).length})</span>
+						{/if}
+					</button>
+				{/each}
+			</div>
+
 			{#if sessions.length === 0}
-				<p class="opacity-60">No active sessions.</p>
+				<p class="opacity-60">{sessionFilter === 'active' ? 'No active sessions.' : 'No sessions.'}</p>
 			{:else}
 				<div class="overflow-x-auto">
 				<table class="table">
@@ -260,15 +318,29 @@
 			{/if}
 		{:else if tab === 'merge'}
 			{#if data.errors.merges}<p class="text-sm text-error-500">{data.errors.merges}</p>{/if}
-			{#if data.merges.length === 0}
-				<p class="opacity-60">Merge board empty.</p>
+			<!-- Merge filter pills -->
+			<div class="flex items-center gap-1">
+				{#each ([['active', 'Active'], ['all', 'All']] as const) as [id, label] (id)}
+					<button
+						class="rounded px-2 py-1 text-xs"
+						class:preset-tonal-primary={mergeFilter === id}
+						class:preset-tonal-surface={mergeFilter !== id}
+						onclick={() => (mergeFilter = id)}
+					>
+						{label}
+						<span class="opacity-60">({id === 'active' ? mergeActiveCount : data.merges.length})</span>
+					</button>
+				{/each}
+			</div>
+			{#if merges.length === 0}
+				<p class="opacity-60">{mergeFilter === 'active' ? 'No in-flight merges.' : 'Merge board empty.'}</p>
 			{:else}
 				<table class="table">
 					<thead>
 						<tr><th>Bead</th><th>Branch</th><th>State</th><th></th></tr>
 					</thead>
 					<tbody>
-						{#each data.merges as m (m.bead)}
+						{#each merges as m (m.bead)}
 							<tr>
 								<td class="font-mono text-xs">{m.bead}</td>
 								<td class="font-mono text-xs">{m.branch}</td>
@@ -290,11 +362,25 @@
 			{/if}
 		{:else if tab === 'convoy'}
 			{#if data.errors.convoys}<p class="text-sm text-error-500">{data.errors.convoys}</p>{/if}
-			{#if data.convoys.length === 0}
-				<p class="opacity-60">No convoys.</p>
+			<!-- Convoy filter pills -->
+			<div class="flex items-center gap-1">
+				{#each ([['active', 'Active'], ['all', 'All']] as const) as [id, label] (id)}
+					<button
+						class="rounded px-2 py-1 text-xs"
+						class:preset-tonal-primary={convoyFilter === id}
+						class:preset-tonal-surface={convoyFilter !== id}
+						onclick={() => (convoyFilter = id)}
+					>
+						{label}
+						<span class="opacity-60">({id === 'active' ? convoyActiveCount : data.convoys.length})</span>
+					</button>
+				{/each}
+			</div>
+			{#if convoys.length === 0}
+				<p class="opacity-60">{convoyFilter === 'active' ? 'No active convoys.' : 'No convoys.'}</p>
 			{:else}
 				<div class="space-y-3">
-					{#each data.convoys as c (c.id)}
+					{#each convoys as c (c.id)}
 						<div class="card preset-filled-surface-100-900 p-3">
 							<header class="mb-2 flex items-center gap-2">
 								<span class="font-mono text-sm">{c.id}</span>

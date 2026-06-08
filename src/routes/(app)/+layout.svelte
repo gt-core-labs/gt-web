@@ -48,6 +48,7 @@
 		{ href: '/admin/rigs', label: 'Rigs', scope: 'rig.read' },
 		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read' },
 		{ href: '/admin/providers', label: 'Providers', scope: '*' },
+		{ href: '/system', label: 'System', scope: 'system.read' },
 		{ href: '/help', label: 'Help', scope: 'meta.read' }
 	];
 
