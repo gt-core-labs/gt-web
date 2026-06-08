@@ -96,56 +96,58 @@
 				</p>
 
 				{#if data.configError}
-					<p class="text-sm text-error-500">{data.configError}</p>
-				{:else}
-					<form class="space-y-3" onsubmit={(e) => { e.preventDefault(); saveConfig(); }}>
-						<label class="flex items-center gap-3 text-sm">
-							<input
-								type="checkbox"
-								class="checkbox"
-								bind:checked={enabled}
-								disabled={!canWrite || busy}
-							/>
-							<span>Enable automatic archival</span>
-						</label>
-
-						<label class="flex flex-col gap-1 text-sm">
-							<span class="opacity-60">Archive closed issues older than (days)</span>
-							<input
-								type="number"
-								class="input w-32"
-								min="1"
-								max="3650"
-								bind:value={archiveAfterDays}
-								disabled={!canWrite || busy}
-							/>
-						</label>
-
-						<label class="flex flex-col gap-1 text-sm">
-							<span class="opacity-60">Sweep interval (minutes)</span>
-							<input
-								type="number"
-								class="input w-32"
-								min="1"
-								max="10080"
-								bind:value={intervalMinutes}
-								disabled={!canWrite || busy}
-							/>
-						</label>
-
-						{#if canWrite}
-							<div class="flex gap-2">
-								<Button type="submit" disabled={busy}>Save</Button>
-								<Button
-									variant="tonal"
-									type="button"
-									disabled={busy}
-									onclick={runNow}
-								>Run Now</Button>
-							</div>
-						{/if}
-					</form>
+					<p class="rounded bg-warning-500/10 px-3 py-2 text-sm text-warning-600 dark:text-warning-400">
+						{data.configError}
+					</p>
 				{/if}
+
+				<form class="space-y-3" onsubmit={(e) => { e.preventDefault(); saveConfig(); }}>
+					<label class="flex items-center gap-3 text-sm">
+						<input
+							type="checkbox"
+							class="checkbox"
+							bind:checked={enabled}
+							disabled={!canWrite || busy}
+						/>
+						<span>Enable automatic archival</span>
+					</label>
+
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="opacity-60">Archive closed issues older than (days)</span>
+						<input
+							type="number"
+							class="input w-32"
+							min="1"
+							max="3650"
+							bind:value={archiveAfterDays}
+							disabled={!canWrite || busy}
+						/>
+					</label>
+
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="opacity-60">Sweep interval (minutes)</span>
+						<input
+							type="number"
+							class="input w-32"
+							min="1"
+							max="10080"
+							bind:value={intervalMinutes}
+							disabled={!canWrite || busy}
+						/>
+					</label>
+
+					{#if canWrite}
+						<div class="flex gap-2">
+							<Button type="submit" disabled={busy}>Save</Button>
+							<Button
+								variant="tonal"
+								type="button"
+								disabled={busy}
+								onclick={runNow}
+							>Run Now</Button>
+						</div>
+					{/if}
+				</form>
 
 				{#if message}
 					<p class="text-sm" class:text-error-500={isError} class:text-success-500={!isError}>
