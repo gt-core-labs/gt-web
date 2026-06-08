@@ -264,6 +264,11 @@
 
 	const retireSkill = (id: string) => run(() => browserSkills().retire(id));
 
+	async function deleteGroup(group: string, ids: string[]) {
+		if (!confirm(`¿Eliminar las ${ids.length} skills del grupo "${group}"?`)) return;
+		await run(() => Promise.all(ids.map((id) => browserSkills().retire(id))));
+	}
+
 	// Per-skill expand (show SKILL.md body + roles) and inline edit (hq-skills-edit.2).
 	let expanded = $state<Record<string, boolean>>({});
 	const toggleExpand = (id: string) => (expanded[id] = !expanded[id]);
@@ -536,7 +541,18 @@
 				return acc;
 			}, new Map<string, typeof data.skills>())}
 			{#each [...grouped.entries()] as [group, skills] (group)}
-				{#if group}<p class="mt-3 text-[10px] font-semibold uppercase tracking-widest opacity-40">{group}</p>{/if}
+				{#if group}
+				<div class="mt-3 flex items-center gap-2">
+					<p class="text-[10px] font-semibold uppercase tracking-widest opacity-40">{group}</p>
+					{#if canWriteSkills}
+						<button
+							class="text-[10px] text-error-500 opacity-30 hover:opacity-100 hover:underline transition-opacity"
+							title="Eliminar grupo completo"
+							onclick={() => deleteGroup(group, skills.map(s => s.id))}
+						>eliminar grupo</button>
+					{/if}
+				</div>
+			{/if}
 			<ul class="space-y-2">
 				{#each skills as s (s.id)}
 					{@const enabledRoles = ROLES.filter((r) => hasSkill(r, s.id)).length}
