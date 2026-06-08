@@ -107,14 +107,15 @@
 					.filter(n => n.type === 'blob' && /\/SKILL\.md$/i.test(n.path));
 				if (skillFiles.length === 0) throw new Error('No se encontraron archivos SKILL.md en el repo');
 
+				// Default group = repo name (or user override), so all skills in a batch share the same group.
+				const defaultGroup = (newSkill.group ?? '').trim() || repo;
 				const fetched = await Promise.all(skillFiles.map(async (f) => {
 					const rawRes = await fetch(toRawUrl(owner, repo, f.path));
 					const text = rawRes.ok ? await rawRes.text() : '';
 					const { name, description } = parseSkillFrontmatter(text);
-					// Derive label + group from the parent directory name.
 					const parts = f.path.split('/');
 					const stem = parts.length > 1 ? parts[parts.length - 2] : repo;
-					return { path: f.path, name: name || stem, label: stem, description, body: text, group: stem, selected: true };
+					return { path: f.path, name: name || stem, label: stem, description, body: text, group: defaultGroup, selected: true };
 				}));
 				discovered = fetched;
 			} catch (err) { importError = String(err); }
@@ -126,6 +127,11 @@
 	function toggleAll() {
 		const v = !allSelected;
 		discovered = discovered.map(d => ({ ...d, selected: v }));
+	}
+
+	// Bulk-set the group for all discovered cards at once.
+	function setGroupAll(g: string) {
+		discovered = discovered.map(d => ({ ...d, group: g }));
 	}
 
 	// Role to assign after import; empty = register only, no enablement.
@@ -338,6 +344,16 @@
 							<label class="flex cursor-pointer items-center gap-1.5 text-xs opacity-70">
 								<input type="checkbox" checked={allSelected} onchange={toggleAll} />
 								<span>Seleccionar todo ({discovered.filter(d => d.selected).length}/{discovered.length})</span>
+							</label>
+							<!-- Bulk group: changes all cards at once -->
+							<label class="flex items-center gap-1 text-xs opacity-70">
+								<span class="shrink-0">Grupo:</span>
+								<input
+									class="input w-32 text-xs"
+									placeholder="taste-skill"
+									value={discovered[0]?.group ?? ''}
+									oninput={(e) => setGroupAll((e.target as HTMLInputElement).value)}
+								/>
 							</label>
 							<div class="ml-auto flex items-center gap-2">
 								<select class="select text-xs" bind:value={importRole}>
