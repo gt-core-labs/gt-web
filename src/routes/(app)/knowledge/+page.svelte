@@ -65,7 +65,7 @@
 		const clean = input.replace(/^https?:\/\/github\.com\//, '').replace(/^https?:\/\/raw\.githubusercontent\.com\//, '');
 		const parts = clean.split('/').filter(Boolean);
 		if (parts.length < 2) return null;
-		return { owner: parts[0], repo: parts[1], rest: parts.slice(2).join('/') };
+		return { owner: parts[0], repo: parts[1].replace(/\.git$/, ''), rest: parts.slice(2).join('/') };
 	}
 
 	function toRawUrl(owner: string, repo: string, path: string, branch = 'HEAD'): string {
