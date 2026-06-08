@@ -4,6 +4,7 @@
 	import { hasScope, switchWorkspace } from '$lib/api/auth';
 	import { setActiveRig } from '$lib/rig';
 	import TerminalDock from '$lib/components/terminal/TerminalDock.svelte';
+	import NotificationBell from '$lib/components/NotificationBell.svelte';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
@@ -104,6 +105,7 @@
 				{/if}
 			</div>
 			<div class="flex items-center gap-3">
+				<NotificationBell />
 				<span class="text-sm">{data.user?.sub}</span>
 				<form method="POST" action="/logout">
 					<button type="submit" class="btn btn-sm preset-tonal-surface">Logout</button>
