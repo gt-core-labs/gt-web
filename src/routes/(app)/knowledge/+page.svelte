@@ -128,6 +128,9 @@
 		discovered = discovered.map(d => ({ ...d, selected: v }));
 	}
 
+	// Role to assign after import; empty = register only, no enablement.
+	let importRole = $state('');
+
 	async function importSelected() {
 		const toRegister = discovered.filter(d => d.selected);
 		if (toRegister.length === 0) return;
@@ -142,6 +145,9 @@
 					body: d.body,
 					group: d.group || undefined
 				});
+				if (importRole) {
+					await browserSkills().enableForRole(d.name, importRole);
+				}
 			}
 			discovered = [];
 			importSource = '';
@@ -328,14 +334,22 @@
 
 				{#if discovered.length > 0}
 					<div class="space-y-2">
-						<div class="flex items-center justify-between">
+						<div class="flex flex-wrap items-center gap-2">
 							<label class="flex cursor-pointer items-center gap-1.5 text-xs opacity-70">
 								<input type="checkbox" checked={allSelected} onchange={toggleAll} />
 								<span>Seleccionar todo ({discovered.filter(d => d.selected).length}/{discovered.length})</span>
 							</label>
-							<Button type="button" disabled={busy} onclick={importSelected}>
-								Importar seleccionadas
-							</Button>
+							<div class="ml-auto flex items-center gap-2">
+								<select class="select text-xs" bind:value={importRole}>
+									<option value="">Solo registrar</option>
+									{#each ROLES as role (role)}
+										<option value={role}>{role}</option>
+									{/each}
+								</select>
+								<Button type="button" disabled={busy} onclick={importSelected}>
+									{importRole ? `Importar y cargar → ${importRole}` : 'Importar seleccionadas'}
+								</Button>
+							</div>
 						</div>
 						<div class="grid grid-cols-2 gap-2 lg:grid-cols-3">
 							{#each discovered as d, i (d.path)}
