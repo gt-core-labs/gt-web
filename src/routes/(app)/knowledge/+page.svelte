@@ -42,16 +42,24 @@
 
 	// Discovered skills from a repo (discover mode).
 	interface DiscoveredSkill {
-		path: string;       // e.g. skills/taste-skill/SKILL.md
-		name: string;       // from frontmatter
-		label: string;      // path stem used as label
+		path: string;
+		name: string;
+		label: string;
 		description: string;
 		body: string;
-		group: string;      // editable per-card; defaults to path parent dir
+		group: string;
+		selected: boolean;
+	}
+	interface DiscoveredCategory {
+		name: string;      // top-level dir (= natural group)
+		count: number;
+		paths: string[];
 		selected: boolean;
 	}
 	let discovered = $state<DiscoveredSkill[]>([]);
+	let categories = $state<DiscoveredCategory[]>([]);  // set when repo is large (multi-category)
 	let discovering = $state(false);
+	let loadingCategories = $state(false);
 
 	function parseOwnerRepo(input: string): { owner: string; repo: string; rest: string } | null {
 		const clean = input.replace(/^https?:\/\/github\.com\//, '').replace(/^https?:\/\/raw\.githubusercontent\.com\//, '');
@@ -73,6 +81,34 @@
 		return { name, description };
 	}
 
+	// Fetch the GitHub tree and return SKILL.md paths grouped by top-level directory.
+	async function fetchSkillTree(owner: string, repo: string): Promise<Map<string, string[]>> {
+		const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+		const res = await fetch(apiUrl, { headers: { Accept: 'application/vnd.github+json' } });
+		if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`);
+		const tree = await res.json() as { tree: { path: string; type: string }[] };
+		const map = new Map<string, string[]>();
+		for (const n of tree.tree) {
+			if (n.type !== 'blob' || !/\/SKILL\.md$/i.test(n.path)) continue;
+			const topDir = n.path.split('/')[0];
+			if (!map.has(topDir)) map.set(topDir, []);
+			map.get(topDir)!.push(n.path);
+		}
+		return map;
+	}
+
+	// Fetch SKILL.md files for the given paths and return DiscoveredSkill entries.
+	async function fetchSkillFiles(owner: string, repo: string, paths: string[], group: string): Promise<DiscoveredSkill[]> {
+		return Promise.all(paths.map(async (path) => {
+			const rawRes = await fetch(toRawUrl(owner, repo, path));
+			const text = rawRes.ok ? await rawRes.text() : '';
+			const { name, description } = parseSkillFrontmatter(text);
+			const parts = path.split('/');
+			const stem = parts.length > 1 ? parts[parts.length - 2] : repo;
+			return { path, name: name || stem, label: stem, description, body: text, group, selected: true };
+		}));
+	}
+
 	async function handleImport() {
 		importError = '';
 		const parsed = parseOwnerRepo(importSource.trim());
@@ -92,35 +128,59 @@
 				if (!newSkill.label) newSkill.label = repo;
 				newSkill.body = text;
 				discovered = [];
+				categories = [];
 			} catch (err) { importError = String(err); }
 			finally { importing = false; }
 		} else {
-			// Discover mode: enumerate all SKILL.md files via GitHub API.
+			// Discover mode: fetch tree and decide between category-picker (large) or direct cards (small).
 			discovering = true;
 			discovered = [];
+			categories = [];
 			try {
-				const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
-				const treeRes = await fetch(apiUrl, { headers: { Accept: 'application/vnd.github+json' } });
-				if (!treeRes.ok) throw new Error(`GitHub API ${treeRes.status}: ${treeRes.statusText}`);
-				const tree = await treeRes.json() as { tree: { path: string; type: string }[] };
-				const skillFiles = tree.tree
-					.filter(n => n.type === 'blob' && /\/SKILL\.md$/i.test(n.path));
-				if (skillFiles.length === 0) throw new Error('No se encontraron archivos SKILL.md en el repo');
+				const treeMap = await fetchSkillTree(owner, repo);
+				const totalSkills = [...treeMap.values()].reduce((s, p) => s + p.length, 0);
+				if (totalSkills === 0) throw new Error('No se encontraron archivos SKILL.md en el repo');
 
-				// Default group = repo name (or user override), so all skills in a batch share the same group.
-				const defaultGroup = (newSkill.group ?? '').trim() || repo;
-				const fetched = await Promise.all(skillFiles.map(async (f) => {
-					const rawRes = await fetch(toRawUrl(owner, repo, f.path));
-					const text = rawRes.ok ? await rawRes.text() : '';
-					const { name, description } = parseSkillFrontmatter(text);
-					const parts = f.path.split('/');
-					const stem = parts.length > 1 ? parts[parts.length - 2] : repo;
-					return { path: f.path, name: name || stem, label: stem, description, body: text, group: defaultGroup, selected: true };
-				}));
-				discovered = fetched;
+				const LARGE_THRESHOLD = 30;
+				if (totalSkills > LARGE_THRESHOLD) {
+					// Large repo: show category picker first. Skip hidden dirs (e.g. .gemini).
+					categories = [...treeMap.entries()]
+						.filter(([dir]) => !dir.startsWith('.'))
+						.map(([name, paths]) => ({ name, count: paths.length, paths, selected: false }))
+						.sort((a, b) => b.count - a.count);
+				} else {
+					// Small repo: go straight to cards.
+					const defaultGroup = (newSkill.group ?? '').trim() || repo;
+					const allPaths = [...treeMap.values()].flat();
+					discovered = await fetchSkillFiles(owner, repo, allPaths, defaultGroup);
+				}
 			} catch (err) { importError = String(err); }
 			finally { discovering = false; }
 		}
+	}
+
+	// Step 2 for large repos: load SKILL.md files for the selected categories.
+	async function loadSelectedCategories() {
+		const selected = categories.filter(c => c.selected);
+		if (selected.length === 0) return;
+		importError = '';
+		loadingCategories = true;
+		try {
+			const parsed = parseOwnerRepo(importSource.trim())!;
+			const { owner, repo } = parsed;
+			const results = await Promise.all(
+				selected.map(cat => fetchSkillFiles(owner, repo, cat.paths, cat.name))
+			);
+			discovered = results.flat();
+			categories = [];
+		} catch (err) { importError = String(err); }
+		finally { loadingCategories = false; }
+	}
+
+	const allCategoriesSelected = $derived(categories.length > 0 && categories.every(c => c.selected));
+	function toggleAllCategories() {
+		const v = !allCategoriesSelected;
+		categories = categories.map(c => ({ ...c, selected: v }));
 	}
 
 	const allSelected = $derived(discovered.length > 0 && discovered.every(d => d.selected));
@@ -338,6 +398,45 @@
 					</Button>
 				</div>
 				{#if importError}<p class="text-xs text-error-500">{importError}</p>{/if}
+
+				{#if categories.length > 0}
+					<!-- Step 1: category picker for large repos -->
+					<div class="space-y-2 rounded border border-surface-500/20 p-3">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-xs font-semibold opacity-70">Categorías ({categories.length}) — selecciona las que quieres importar</p>
+							<label class="flex cursor-pointer items-center gap-1 text-xs opacity-60">
+								<input type="checkbox" checked={allCategoriesSelected} onchange={toggleAllCategories} />
+								Todo
+							</label>
+						</div>
+						<div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+							{#each categories as cat, i (cat.name)}
+								<label
+									class={[
+										'flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-xs transition-colors',
+										cat.selected ? 'border-primary-500 bg-primary-500/5' : 'border-surface-500/20 opacity-60'
+									].join(' ')}
+								>
+									<input type="checkbox" class="shrink-0" bind:checked={categories[i].selected} />
+									<span class="min-w-0 flex-1 truncate font-mono">{cat.name}</span>
+									<span class="shrink-0 tabular-nums opacity-50">{cat.count}</span>
+								</label>
+							{/each}
+						</div>
+						<div class="flex items-center justify-between gap-2 pt-1">
+							<p class="text-xs opacity-50">
+								{categories.filter(c => c.selected).reduce((s, c) => s + c.count, 0)} skills seleccionadas
+							</p>
+							<Button
+								type="button"
+								disabled={loadingCategories || categories.filter(c => c.selected).length === 0}
+								onclick={loadSelectedCategories}
+							>
+								{loadingCategories ? 'Cargando…' : 'Cargar skills seleccionadas'}
+							</Button>
+						</div>
+					</div>
+				{/if}
 
 				{#if discovered.length > 0}
 					<div class="space-y-2">
