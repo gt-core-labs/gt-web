@@ -60,7 +60,12 @@
 				{issue.id}
 			</span>
 			<Badge variant={statusVariant}>{issue.status}</Badge>
-			<Badge variant="primary">P{issue.priority}</Badge>
+			<span
+				class="inline-flex items-center rounded-[var(--gw-radius-sm)]
+					px-[var(--gw-space-2)] py-px text-[var(--gw-text-xs)] font-semibold"
+				style="background-color: var(--gw-prio-{issue.priority === 0 || issue.priority === 1 ? issue.priority : 2}-bg);
+					color: var(--gw-prio-{issue.priority === 0 || issue.priority === 1 ? issue.priority : 2}-fg)"
+			>P{issue.priority}</span>
 			{#if issue.phase}<Badge variant="surface">{issue.phase}</Badge>{/if}
 		</div>
 		<h1 class="text-[var(--gw-text-3xl)] font-bold leading-[var(--gw-leading-tight)] tracking-tight text-[var(--gw-color-text)]">

@@ -33,6 +33,12 @@
   --gw-color-text:           var(--color-surface-950,   oklch(10% 0 0));
   --gw-color-text-muted:     var(--color-surface-600,   oklch(50% 0 0));
 
+  /* Priority badge bg/fg pairs — accessible (light tint + dark ink). P0 critical
+     (red), P1 high (amber), P2 normal (neutral). Overridden for dark below. */
+  --gw-prio-0-bg: var(--color-error-100);    --gw-prio-0-fg: var(--color-error-800);
+  --gw-prio-1-bg: var(--color-warning-100);  --gw-prio-1-fg: var(--color-warning-900);
+  --gw-prio-2-bg: var(--color-surface-200);  --gw-prio-2-fg: var(--color-surface-700);
+
   /* ── Typography ─────────────────────────────────────────────────────────── */
   --gw-font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
   --gw-font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
@@ -125,6 +131,10 @@
   --gw-color-border-subtle:  var(--color-surface-700);
   --gw-color-text:           var(--color-surface-50);
   --gw-color-text-muted:     var(--color-surface-400);
+
+  --gw-prio-0-bg: var(--color-error-900);    --gw-prio-0-fg: var(--color-error-200);
+  --gw-prio-1-bg: var(--color-warning-900);  --gw-prio-1-fg: var(--color-warning-200);
+  --gw-prio-2-bg: var(--color-surface-700);  --gw-prio-2-fg: var(--color-surface-100);
 
   --color-surface-50-950:  var(--color-surface-950);
   --color-surface-100-900: var(--color-surface-900);

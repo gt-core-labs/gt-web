@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Badge } from '$lib/ui';
 	import type { IssueRow } from '$lib/api/tracker';
 	import OperatorBadge from './OperatorBadge.svelte';
 
@@ -11,13 +10,11 @@
 
 	let { issue, draggable = false, onpick }: Props = $props();
 
-	const prio: Record<number, 'error' | 'warning' | 'surface'> = {
-		0: 'error',
-		1: 'warning',
-		2: 'surface'
-	};
+	// Priority → the bg/fg token pair (P0 critical/red, P1 high/amber, P2 normal).
+	// Clamp unknown priorities to the P2 (neutral) bucket.
+	const prioVar = (p: number) => (p === 0 || p === 1 ? p : 2);
 
-	// Left accent dot colour mirrors the priority badge tone.
+	// Left accent dot colour mirrors the priority badge ink.
 	const prioDot: Record<number, string> = {
 		0: 'var(--gw-color-error)',
 		1: 'var(--gw-color-warning)',
@@ -59,7 +56,12 @@
 					{issue.id}
 				</span>
 			</span>
-			<Badge variant={prio[issue.priority] ?? 'surface'}>P{issue.priority}</Badge>
+			<span
+				class="inline-flex shrink-0 items-center rounded-[var(--gw-radius-sm)]
+					px-[var(--gw-space-2)] py-px text-[var(--gw-text-xs)] font-semibold"
+				style="background-color: var(--gw-prio-{prioVar(issue.priority)}-bg);
+					color: var(--gw-prio-{prioVar(issue.priority)}-fg)"
+			>P{issue.priority}</span>
 		</div>
 		<p
 			class="text-[var(--gw-text-sm)] leading-[var(--gw-leading-snug)] text-[var(--gw-color-text)]

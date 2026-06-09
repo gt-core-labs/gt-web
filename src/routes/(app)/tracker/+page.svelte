@@ -39,10 +39,12 @@
 	// server load; surface that as a designed loading state instead of a silent stall.
 	const loading = $derived(navigating.to?.route?.id === '/(app)/tracker');
 
-	const COLUMNS: { status: IssueStatus; label: string; dot: string }[] = [
-		{ status: 'open', label: 'Open', dot: 'var(--gw-color-border)' },
-		{ status: 'working', label: 'Working', dot: 'var(--gw-color-warning)' },
-		{ status: 'closed', label: 'Closed', dot: 'var(--gw-color-success)' }
+	// `accent` colours the column's top bar + header dot so a status reads at a glance:
+	// Open = primary (blue), Working = amber, Closed = green.
+	const COLUMNS: { status: IssueStatus; label: string; accent: string }[] = [
+		{ status: 'open', label: 'Open', accent: 'var(--gw-color-primary)' },
+		{ status: 'working', label: 'Working', accent: 'var(--gw-color-warning)' },
+		{ status: 'closed', label: 'Closed', accent: 'var(--gw-color-success)' }
 	];
 
 	const byStatus = (s: IssueStatus) => visible.filter((i) => i.status === s);
@@ -133,9 +135,10 @@
 				{@const items = byStatus(col.status)}
 				<section
 					class="flex min-h-[60vh] flex-col gap-[var(--gw-space-3)]
-						rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+						rounded-[var(--gw-radius-lg)] border border-t-[3px] border-[var(--gw-color-border-subtle)]
 						bg-[var(--gw-color-surface-2)] p-[var(--gw-space-3)]
 						transition-colors duration-[var(--gw-duration-fast)]"
+					style="border-top-color: {col.accent}"
 					role="list"
 					ondragover={(e) => canWrite && e.preventDefault()}
 					ondrop={(e) => {
@@ -151,7 +154,7 @@
 							<span
 								aria-hidden="true"
 								class="h-2 w-2 rounded-[var(--gw-radius-full)]"
-								style="background-color: {col.dot}"
+								style="background-color: {col.accent}"
 							></span>
 							{col.label}
 						</h2>
