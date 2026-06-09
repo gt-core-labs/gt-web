@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { ORCH_EVENT_KINDS } from '$lib/api/orch';
 	import { Badge } from '$lib/ui';
@@ -16,7 +15,7 @@
 		timer = setTimeout(() => invalidateAll(), 400);
 	}
 
-	onMount(() => {
+	$effect(() => {
 		// EventSource carries the gt_web_token cookie (Path=/) for SSE auth — the
 		// stream cannot read an Authorization header.
 		const es = new EventSource('/stream', { withCredentials: true });
@@ -30,8 +29,22 @@
 		// Events are named by kind; EventSource needs a listener per name.
 		for (const k of ORCH_EVENT_KINDS) es.addEventListener(k, handler as EventListener);
 
+		// When the browser tab regains focus the SSE may have been throttled or
+		// silently dropped — force a data refresh so sessions spawned while the
+		// tab was backgrounded (e.g. mayor launching polecats) become visible.
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') scheduleRefresh();
+		};
+		document.addEventListener('visibilitychange', onVisible);
+
+		// Fallback poll: if the SSE goes quiet (no events), refresh every 30s so
+		// the sessions list never goes stale for more than half a minute.
+		const poll = setInterval(() => invalidateAll(), 30_000);
+
 		return () => {
 			es.close();
+			document.removeEventListener('visibilitychange', onVisible);
+			clearInterval(poll);
 			if (timer) clearTimeout(timer);
 		};
 	});
