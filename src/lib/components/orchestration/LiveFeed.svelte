@@ -49,25 +49,36 @@
 		};
 	});
 
-	const dot = $derived(
-		status === 'live' ? 'bg-success-500' : status === 'error' ? 'bg-error-500' : 'bg-warning-500'
+	const dotColor = $derived(
+		status === 'live'
+			? 'var(--gw-color-success)'
+			: status === 'error'
+				? 'var(--gw-color-error)'
+				: 'var(--gw-color-warning)'
 	);
 </script>
 
-<aside class="card preset-tonal-surface space-y-2 p-3">
-	<header class="flex items-center gap-2">
-		<span class="inline-block h-2 w-2 rounded-full {dot}"></span>
-		<h2 class="font-semibold">Live feed</h2>
-		<span class="text-xs opacity-60">{status}</span>
+<aside
+	class="space-y-[var(--gw-space-2)] rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+		bg-[var(--gw-color-surface-2)] p-[var(--gw-space-3)]"
+>
+	<header class="flex items-center gap-[var(--gw-space-2)]">
+		<span
+			class="inline-block h-2 w-2 rounded-[var(--gw-radius-full)]"
+			class:animate-pulse={status === 'connecting'}
+			style="background-color: {dotColor}"
+		></span>
+		<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">Live feed</h2>
+		<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">{status}</span>
 	</header>
 	{#if events.length === 0}
-		<p class="text-sm opacity-60">Waiting for events…</p>
+		<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">Waiting for events…</p>
 	{:else}
-		<ul class="space-y-1 text-xs">
+		<ul class="space-y-[var(--gw-space-1)] text-[var(--gw-text-xs)]">
 			{#each events as e, i (e.ts + i)}
-				<li class="flex items-center gap-2">
+				<li class="flex items-center gap-[var(--gw-space-2)]">
 					<Badge variant="primary">{e.kind}</Badge>
-					<span class="truncate opacity-70">{e.data}</span>
+					<span class="truncate text-[var(--gw-color-text-muted)]">{e.data}</span>
 				</li>
 			{/each}
 		</ul>

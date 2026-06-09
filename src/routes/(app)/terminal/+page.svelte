@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { ScopeGate } from '$lib/ui';
+	import { Alert } from '$lib/components/ui';
 	import Terminal from '$lib/components/terminal/Terminal.svelte';
 
 	// ?session=<id> attaches the terminal to that agent's tmux (read-only) so an operator can
@@ -11,12 +12,15 @@
 	const write = $derived($page.url.searchParams.get('write') === '1');
 </script>
 
-<div class="space-y-4">
-	<header>
-		<h1 class="h2">Terminal</h1>
-		<p class="text-sm opacity-60">
+<div class="space-y-[var(--gw-space-4)]">
+	<header class="space-y-[var(--gw-space-1)]">
+		<h1 class="text-[var(--gw-text-2xl)] font-semibold tracking-tight text-[var(--gw-color-text)]">Terminal</h1>
+		<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
 			{#if session}
-				Adjunto a la sesión del agente <code>{session}</code>{write ? ' (interactivo)' : ' (solo lectura)'}.
+				Adjunto a la sesión del agente
+				<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-1)] font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text)]">{session}</code>{write
+					? ' (interactivo)'
+					: ' (solo lectura)'}.
 			{:else}
 				Shell interactiva en el servidor para operar agentes y cuentas (gt / gtmcp).
 			{/if}
@@ -28,9 +32,11 @@
 			<Terminal {session} {write} />
 		{/key}
 		{#snippet fallback()}
-			<p class="text-sm text-error-500">
-				Necesitas el scope <code>terminal.exec</code> para abrir una terminal.
-			</p>
+			<Alert variant="error">
+				Necesitas el scope
+				<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-1)] font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">terminal.exec</code>
+				para abrir una terminal.
+			</Alert>
 		{/snippet}
 	</ScopeGate>
 </div>
