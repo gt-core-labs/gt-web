@@ -7,10 +7,12 @@ const reason = (r: PromiseSettledResult<unknown>): string | null =>
 
 export const load: PageServerLoad = async (event) => {
 	const o = serverOrch(event);
-	const { activeRig } = await event.parent();
+	const { activeRig, rigs } = await event.parent();
+	// The agent store filters by rig PREFIX (e.g. "hq"), not rig name ("gt_core").
+	const activePrefix = rigs.find((r: { name: string }) => r.name === activeRig)?.prefix ?? '';
 	// Each tab degrades independently — a missing scope on one shouldn't blank the page.
 	const [agents, merges, quotas, convoys, quotaCatalog, skills] = await Promise.allSettled([
-		o.agents(activeRig || undefined),
+		o.agents(activePrefix || undefined),
 		o.merges(),
 		o.quotas(),
 		o.convoys(),

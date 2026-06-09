@@ -43,10 +43,10 @@
 
 	// Live refresh: reconnects when activeRig changes so the stream only delivers events
 	// for the active rig (hq-rig-isolation.3/.4). A burst collapses to one invalidate.
+	// Use the rig PREFIX (e.g. "gw") because that's what the store and SSE filter on.
 	$effect(() => {
-		const rig = data.activeRig;
-		const url = rig
-			? `/stream?channel=issues&rig=${encodeURIComponent(rig)}`
+		const url = activePrefix
+			? `/stream?channel=issues&rig=${encodeURIComponent(activePrefix)}`
 			: '/stream?channel=issues';
 		const es = new EventSource(url, { withCredentials: true });
 		let timer: ReturnType<typeof setTimeout> | null = null;
@@ -89,7 +89,7 @@
 <div class="space-y-4">
 	<header class="flex items-center justify-between">
 		<h1 class="h2">
-			Tracker <span class="text-base opacity-60">({visible.length}{activePrefix ? ` / ${data.total}` : ''})</span>
+			Tracker <span class="text-base opacity-60">({activePrefix ? visible.length : data.total})</span>
 		</h1>
 		{#if canWrite}
 			<Button onclick={() => (showCreate = true)}>New bead</Button>
