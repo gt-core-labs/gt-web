@@ -11,6 +11,25 @@
 	// Echoed fields live only on the failure branches of the action union.
 	const fv = $derived((form ?? {}) as Record<string, string | undefined>);
 
+	// Auto-derive name + prefix from the git URL unless the user has typed in those fields.
+	let gitUrl = $state(fv.git_url ?? '');
+	let nameValue = $state(fv.name ?? '');
+	let prefixValue = $state(fv.prefix ?? '');
+	let nameTouched = $state(!!fv.name);
+	let prefixTouched = $state(!!fv.prefix);
+
+	function slugFromUrl(url: string): string {
+		return url.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
+	}
+
+	function onGitUrlInput(e: Event) {
+		const url = (e.target as HTMLInputElement).value;
+		gitUrl = url;
+		const slug = slugFromUrl(url);
+		if (!nameTouched) nameValue = slug.replace(/-/g, '');
+		if (!prefixTouched) prefixValue = slug.split('-').map((p) => p[0] ?? '').join('');
+	}
+
 	const enhancer = () => {
 		saving = true;
 		return async ({ update }: { update: () => Promise<void> }) => {
@@ -37,15 +56,37 @@
 			<form method="POST" action="?/add" use:enhance={enhancer} class="grid gap-3 sm:grid-cols-2">
 				<label class="label">
 					<span class="label-text">Name</span>
-					<input class="input" type="text" name="name" required value={fv.name ?? ''} />
+					<input
+						class="input"
+						type="text"
+						name="name"
+						required
+						bind:value={nameValue}
+						oninput={() => (nameTouched = true)}
+					/>
 				</label>
 				<label class="label">
 					<span class="label-text">Bead prefix</span>
-					<input class="input" type="text" name="prefix" required placeholder="hq" value={fv.prefix ?? ''} />
+					<input
+						class="input"
+						type="text"
+						name="prefix"
+						required
+						placeholder="hq"
+						bind:value={prefixValue}
+						oninput={() => (prefixTouched = true)}
+					/>
 				</label>
 				<label class="label sm:col-span-2">
 					<span class="label-text">Git URL</span>
-					<input class="input" type="text" name="git_url" required value={fv.git_url ?? ''} />
+					<input
+						class="input"
+						type="text"
+						name="git_url"
+						required
+						value={gitUrl}
+						oninput={onGitUrlInput}
+					/>
 				</label>
 				<label class="label">
 					<span class="label-text">Default branch</span>
