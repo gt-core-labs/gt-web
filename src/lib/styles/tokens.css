@@ -3,24 +3,34 @@
    (--color-primary-*, --color-surface-*, etc.) are resolved first; these tokens
    alias them under a stable --gw-* namespace so components reference one source
    of truth and the cerberus values only need changing in one place.
+
+   Dark mode (gw-ui-redesign.5): the surface/border/text tokens alias Skeleton's
+   `light-dark()` pairing vars (--color-surface-50-950, …) instead of a fixed
+   shade, so they flip automatically with the document's CSS `color-scheme`. The
+   theme store (src/lib/stores/theme.svelte.ts) sets `color-scheme` on <html>;
+   Skeleton's own preset-*/card/table utilities already follow the same
+   `light-dark()` mechanism, so one switch drives both layers. No component
+   should hardcode a colour outside these tokens.
 */
 
 :root {
   /* ── Color ──────────────────────────────────────────────────────────────── */
+  /* Brand + semantic hues read the same in both schemes (mid-tone 500/400). */
   --gw-color-primary:        var(--color-primary-500,   oklch(60% 0.22 250));
   --gw-color-primary-hover:  var(--color-primary-600,   oklch(53% 0.22 250));
   --gw-color-primary-focus:  var(--color-primary-400,   oklch(67% 0.22 250));
-  --gw-color-primary-subtle: var(--color-primary-100,   oklch(93% 0.06 250));
+  --gw-color-primary-subtle: var(--color-primary-100-900, light-dark(oklch(93% 0.06 250), oklch(30% 0.08 250)));
   --gw-color-success:        var(--color-success-500,   oklch(65% 0.18 145));
   --gw-color-warning:        var(--color-warning-500,   oklch(73% 0.18  80));
   --gw-color-error:          var(--color-error-500,     oklch(60% 0.24  25));
-  --gw-color-surface:        var(--color-surface-50,    oklch(99% 0 0));
-  --gw-color-surface-2:      var(--color-surface-100,   oklch(97% 0 0));
-  --gw-color-surface-3:      var(--color-surface-200,   oklch(93% 0 0));
-  --gw-color-border:         var(--color-surface-400,   oklch(72% 0 0));
-  --gw-color-border-subtle:  var(--color-surface-300,   oklch(83% 0 0));
-  --gw-color-text:           var(--color-surface-950,   oklch(10% 0 0));
-  --gw-color-text-muted:     var(--color-surface-600,   oklch(50% 0 0));
+  /* Surfaces/text/border flip with color-scheme via Skeleton's light-dark pairs. */
+  --gw-color-surface:        var(--color-surface-50-950,  light-dark(oklch(99% 0 0), oklch(17% 0.01 260)));
+  --gw-color-surface-2:      var(--color-surface-100-900, light-dark(oklch(97% 0 0), oklch(21% 0.01 260)));
+  --gw-color-surface-3:      var(--color-surface-200-800, light-dark(oklch(93% 0 0), oklch(27% 0.01 260)));
+  --gw-color-border:         var(--color-surface-400-600, light-dark(oklch(72% 0 0), oklch(45% 0.01 260)));
+  --gw-color-border-subtle:  var(--color-surface-300-700, light-dark(oklch(83% 0 0), oklch(34% 0.01 260)));
+  --gw-color-text:           var(--color-surface-950-50,  light-dark(oklch(10% 0 0), oklch(96% 0 0)));
+  --gw-color-text-muted:     var(--color-surface-600-400, light-dark(oklch(50% 0 0), oklch(70% 0 0)));
 
   /* ── Typography ─────────────────────────────────────────────────────────── */
   --gw-font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;

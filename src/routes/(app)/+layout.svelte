@@ -1,15 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
 	import { hasScope, switchWorkspace } from '$lib/api/auth';
 	import { setActiveRig } from '$lib/rig';
+	import { theme } from '$lib/stores/theme.svelte';
 	import TerminalDock from '$lib/components/terminal/TerminalDock.svelte';
 	import NotificationBell from '$lib/components/NotificationBell.svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
+	import { ThemeToggle } from '$lib/components/ui';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
+
+	// Sync the theme store with the persisted preference the anti-FOUC script already
+	// applied (gw-ui-redesign.5), so the header toggle reflects the live mode.
+	onMount(() => theme.init());
 
 	// The floating terminal dock mounts here so it can hover over any view (hq-term-dock.2). Only
 	// for a caller that can actually open a terminal.
@@ -109,6 +116,7 @@
 			</div>
 
 			<div class="flex items-center gap-[var(--gw-space-4)]">
+				<ThemeToggle />
 				<NotificationBell />
 				<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
 					{data.user?.sub}
