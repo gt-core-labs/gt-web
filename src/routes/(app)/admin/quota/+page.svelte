@@ -164,7 +164,7 @@
 				{#each data.accounts as acct (acct.id)}
 					<tr>
 						<td class="font-medium">{acct.id}</td>
-						<td><Badge variant={acct.status === 'active' ? 'success' : 'warning'}>{acct.status}</Badge></td>
+						<td><Badge variant={acct.status === 'Healthy' ? 'success' : 'warning'}>{acct.status}</Badge></td>
 						<td>{acct.window?.kind ?? '—'}</td>
 						<td>
 							{#if acct.window}

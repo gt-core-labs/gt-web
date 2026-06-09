@@ -46,7 +46,7 @@ async function act(event: Parameters<Actions['rotate']>[0], _kind: 'rotate') {
 		// surface requires an explicit `to_account` (empty/self → 422), so auto-pick the first
 		// other active account from the pool.
 		const accounts = await admin.quotas();
-		const target = accounts.find((a) => a.id !== account && a.status === 'active');
+		const target = accounts.find((a) => a.id !== account && a.status === 'Healthy');
 		if (!target) return fail(409, { error: 'No other active account to rotate onto.' });
 		await admin.rotateQuota(account, target.id);
 		return { ok: true };
