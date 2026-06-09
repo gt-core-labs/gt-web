@@ -2,7 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { browserTracker, parseJsonArray, TrackerError, type IssueStatus } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
-	import { Badge, Button } from '$lib/ui';
+	import { Badge, Button, Input } from '$lib/ui';
 	import { Alert, Spinner } from '$lib/components/ui';
 	import OperatorBadge from '$lib/components/tracker/OperatorBadge.svelte';
 	import type { PageData } from './$types';
@@ -117,15 +117,7 @@
 						<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
 							commit_sha (required if code surface)
 						</span>
-						<input
-							class="input w-full transition-[border-color,box-shadow] duration-[var(--gw-duration-fast)]
-								hover:border-[var(--gw-color-primary)] focus-visible:border-[var(--gw-color-primary)]
-								focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]/30
-								disabled:cursor-not-allowed disabled:opacity-50"
-							bind:value={commitSha}
-							placeholder="7+ hex"
-							disabled={busy}
-						/>
+						<Input bind:value={commitSha} placeholder="7+ hex" disabled={busy} />
 					</label>
 					<Button disabled={busy} onclick={close}>Close</Button>
 				</div>
