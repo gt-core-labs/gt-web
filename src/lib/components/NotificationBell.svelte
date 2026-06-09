@@ -237,13 +237,15 @@
 		></div>
 
 		<div
-			class="card preset-filled-surface-100-900 absolute right-0 top-full z-50 mt-2 flex w-96 flex-col shadow-xl"
+			class="absolute right-0 top-full z-50 mt-2 flex w-96 flex-col overflow-hidden
+				rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+				bg-[var(--gw-color-surface-2)] shadow-[var(--gw-shadow-xl)]"
 			role="dialog"
 			aria-label="Panel de notificaciones"
 		>
 			<!-- Header -->
-			<header class="flex items-center justify-between border-b border-surface-500/20 px-4 py-3">
-				<h3 class="text-base font-semibold">Notificaciones</h3>
+			<header class="flex items-center justify-between border-b border-[var(--gw-color-border-subtle)] px-4 py-3">
+				<h3 class="text-base font-semibold text-[var(--gw-color-text)]">Notificaciones</h3>
 				{#if unreadCount > 0}
 					<button
 						type="button"
@@ -256,16 +258,16 @@
 			</header>
 
 			<!-- List -->
-			<ul class="max-h-[28rem] divide-y divide-surface-500/10 overflow-y-auto">
+			<ul class="max-h-[28rem] divide-y divide-[var(--gw-color-border-subtle)] overflow-y-auto">
 				{#if loading}
-					<li class="px-4 py-6 text-center text-sm opacity-60">Cargando…</li>
+					<li class="px-4 py-6 text-center text-sm text-[var(--gw-color-text-muted)]">Cargando…</li>
 				{:else if items.length === 0}
-					<li class="px-4 py-6 text-center text-sm opacity-60">Sin notificaciones</li>
+					<li class="px-4 py-6 text-center text-sm text-[var(--gw-color-text-muted)]">Sin notificaciones</li>
 				{:else}
 					{#each items as n (n.id)}
 						<li
-							class="flex flex-col gap-1 px-4 py-3 transition-colors"
-							class:bg-surface-50-950={n.read_at === null}
+							class="flex flex-col gap-1 px-4 py-3 transition-colors
+								{n.read_at === null ? 'bg-[var(--gw-color-surface)]' : ''}"
 						>
 							<div class="flex items-start justify-between gap-2">
 								<div class="flex items-center gap-2">
