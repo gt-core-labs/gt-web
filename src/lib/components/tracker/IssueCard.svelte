@@ -10,12 +10,10 @@
 
 	let { issue, draggable = false, onpick }: Props = $props();
 
-	// Priority → the bg/fg token pair (P0 critical/red, P1 high/amber, P2 normal).
-	// Clamp unknown priorities to the P2 (neutral) bucket.
 	const prioVar = (p: number) => (p === 0 || p === 1 ? p : 2);
 
-	// Left accent dot colour mirrors the priority badge ink.
-	const prioDot: Record<number, string> = {
+	// Left accent strip colour: P0 error/red, P1 warning/amber, P2 subtle border.
+	const prioAccent: Record<number, string> = {
 		0: 'var(--gw-color-error)',
 		1: 'var(--gw-color-warning)',
 		2: 'var(--gw-color-border)'
@@ -27,59 +25,60 @@
 	}
 </script>
 
-<!-- The card is a wrapper div (not one big anchor) so the operator badge can carry its own
-	terminal link without nesting anchors (hq-agent-observability.6). The title region stays the
-	link to the bead detail. -->
+<!--
+  Card is a wrapper div (not one big anchor) so OperatorBadge can carry its own
+  terminal link without nesting anchors (hq-agent-observability.6). The title
+  region is the navigation link.
+-->
 <div
-	class="group rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
-		bg-[var(--gw-color-surface)] p-[var(--gw-space-3)]
-		shadow-[var(--gw-shadow-sm)]
-		transition-[box-shadow,border-color,transform] duration-[var(--gw-duration-fast)]
-		hover:-translate-y-px hover:border-[var(--gw-color-border)] hover:shadow-[var(--gw-shadow-md)]"
+	class="group relative overflow-hidden rounded-2xl border border-[var(--gw-color-border)]
+		bg-[var(--gw-color-surface)]
+		transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+		hover:-translate-y-px hover:border-[var(--gw-color-border)] hover:shadow-[0_6px_20px_-6px_rgba(0,0,0,0.12)]"
 >
+	<!-- Left priority accent strip -->
+	<div
+		aria-hidden="true"
+		class="absolute inset-y-0 left-0 w-[3px] transition-opacity duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:opacity-100 opacity-80"
+		style="background-color: {prioAccent[prioVar(issue.priority)]}"
+	></div>
+
 	<a
 		href={`/tracker/${issue.id}`}
-		class="block space-y-[var(--gw-space-2)] no-underline
+		class="block space-y-2.5 pb-3 pl-5 pr-4 pt-4 no-underline
 			focus-visible:outline-none focus-visible:ring-2
 			focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"
 		{draggable}
 		ondragstart={dragstart}
 	>
-		<div class="flex items-center justify-between gap-[var(--gw-space-2)]">
-			<span class="flex items-center gap-[var(--gw-space-2)] min-w-0">
-				<span
-					aria-hidden="true"
-					class="h-2 w-2 shrink-0 rounded-[var(--gw-radius-full)]"
-					style="background-color: {prioDot[issue.priority] ?? 'var(--gw-color-border)'}"
-				></span>
-				<span class="truncate font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-					{issue.id}
-				</span>
-			</span>
+		<!-- Top row: id + priority badge -->
+		<div class="flex items-center justify-between gap-2">
+			<span class="truncate font-mono text-[10px] text-[var(--gw-color-text-muted)]">{issue.id}</span>
 			<span
-				class="inline-flex shrink-0 items-center rounded-[var(--gw-radius-sm)]
-					px-[var(--gw-space-2)] py-px text-[var(--gw-text-xs)] font-semibold"
-				style="background-color: var(--gw-prio-{prioVar(issue.priority)}-bg);
-					color: var(--gw-prio-{prioVar(issue.priority)}-fg)"
+				class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+				style="background-color: var(--gw-prio-{prioVar(issue.priority)}-bg); color: var(--gw-prio-{prioVar(issue.priority)}-fg)"
 			>P{issue.priority}</span>
 		</div>
-		<p class="text-[var(--gw-text-sm)] leading-[var(--gw-leading-snug)] text-[var(--gw-color-text)]">
-			{issue.title}
-		</p>
-		<div class="flex flex-wrap items-center gap-[var(--gw-space-2)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+
+		<!-- Title -->
+		<p class="text-sm leading-snug text-[var(--gw-color-text)]">{issue.title}</p>
+
+		<!-- Meta row -->
+		<div class="flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--gw-color-text-muted)]">
 			<span>{issue.issue_type}</span>
 			{#if issue.assignee}
-				<span aria-hidden="true" class="opacity-40">·</span>
+				<span aria-hidden="true" class="opacity-30">·</span>
 				<span>@{issue.assignee}</span>
 			{/if}
 			{#if issue.phase}
-				<span aria-hidden="true" class="opacity-40">·</span>
-				<span>{issue.phase}</span>
+				<span aria-hidden="true" class="opacity-30">·</span>
+				<span class="rounded-full border border-[var(--gw-color-border)] px-1.5 py-px">{issue.phase}</span>
 			{/if}
 		</div>
 	</a>
+
 	{#if issue.operated_by}
-		<div class="mt-[var(--gw-space-2)] border-t border-[var(--gw-color-border-subtle)] pt-[var(--gw-space-2)]">
+		<div class="border-t border-[var(--gw-color-border)]/60 pb-3 pl-5 pr-4 pt-2.5">
 			<OperatorBadge operator={issue.operated_by} compact />
 		</div>
 	{/if}

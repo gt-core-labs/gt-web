@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { browserTracker, TrackerError } from '$lib/api/tracker';
-	import { Button, Input } from '$lib/ui';
-	import { Alert } from '$lib/components/ui';
 
 	interface Props {
 		createdBy: string;
@@ -47,85 +45,185 @@
 			saving = false;
 		}
 	}
-
-	// Shared field styling. Text inputs use the `Input` primitive; `fieldBase`
-	// carries the same token-driven states onto the native select/textarea, which
-	// have no primitive yet.
-	const fieldLabel = 'text-[var(--gw-text-xs)] font-medium text-[var(--gw-color-text-muted)]';
-	const fieldBase =
-		'w-full transition-[border-color,box-shadow] duration-[var(--gw-duration-fast)] ' +
-		'hover:border-[var(--gw-color-primary)] focus-visible:border-[var(--gw-color-primary)] ' +
-		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]/30 ' +
-		'disabled:cursor-not-allowed disabled:opacity-50';
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
+<!-- Backdrop — fixed, so backdrop-blur is safe here (no scrolling container). -->
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 <div
-	class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-[var(--gw-space-4)]"
+	class="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-xl"
+	style="background: rgba(0,0,0,0.55)"
 	role="presentation"
 	onclick={onclose}
 >
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+
+	<!-- Dialog — Double-Bezel -->
 	<div
-		class="w-full max-w-lg rounded-[var(--gw-radius-xl)] border border-[var(--gw-color-border-subtle)]
-			bg-[var(--gw-color-surface)] p-[var(--gw-space-5)] shadow-[var(--gw-shadow-xl)]"
+		class="w-full max-w-lg"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="create-bead-title"
 		tabindex="-1"
 		onclick={(e) => e.stopPropagation()}
 	>
-		<h2
-			id="create-bead-title"
-			class="mb-[var(--gw-space-4)] text-[var(--gw-text-xl)] font-semibold tracking-tight text-[var(--gw-color-text)]"
-		>
-			New bead
-		</h2>
-		<form class="space-y-[var(--gw-space-3)]" onsubmit={submit}>
-			<div class="grid grid-cols-2 gap-[var(--gw-space-3)]">
-				<label class="space-y-[var(--gw-space-1)]">
-					<span class={fieldLabel}>id</span>
-					<Input bind:value={id} placeholder="hq-epic.1" required />
-				</label>
-				<label class="space-y-[var(--gw-space-1)]">
-					<span class={fieldLabel}>type</span>
-					<Input bind:value={issueType} required />
-				</label>
-			</div>
-			<label class="space-y-[var(--gw-space-1)]">
-				<span class={fieldLabel}>title</span>
-				<Input bind:value={title} required />
-			</label>
-			<div class="grid grid-cols-3 gap-[var(--gw-space-3)]">
-				<label class="col-span-1 space-y-[var(--gw-space-1)]">
-					<span class={fieldLabel}>epic (external_ref)</span>
-					<Input bind:value={externalRef} placeholder="hq-epic" />
-				</label>
-				<label class="col-span-1 space-y-[var(--gw-space-1)]">
-					<span class={fieldLabel}>domain (csv)</span>
-					<Input bind:value={domain} required />
-				</label>
-				<label class="col-span-1 space-y-[var(--gw-space-1)]">
-					<span class={fieldLabel}>priority</span>
-					<select class="select {fieldBase}" bind:value={priority}>
-						<option value={0}>P0</option>
-						<option value={1}>P1</option>
-						<option value={2}>P2</option>
-					</select>
-				</label>
-			</div>
-			<label class="space-y-[var(--gw-space-1)]">
-				<span class={fieldLabel}>description</span>
-				<textarea class="textarea {fieldBase}" rows="3" bind:value={description}></textarea>
-			</label>
+		<!-- Outer shell -->
+		<div class="rounded-[1.75rem] border border-[var(--gw-color-border)] bg-[var(--gw-color-border)]/30 p-[3px]">
+			<!-- Inner core -->
+			<div class="rounded-[calc(1.75rem-3px)] bg-[var(--gw-color-surface)] px-6 py-7 shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] sm:px-8">
 
-			{#if error}<Alert variant="error">{error}</Alert>{/if}
+				<div class="mb-6 flex items-center justify-between">
+					<h2 id="create-bead-title" class="text-lg font-semibold tracking-tight text-[var(--gw-color-text)]">
+						New bead
+					</h2>
+					<button
+						type="button"
+						onclick={onclose}
+						class="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--gw-color-border)] text-[var(--gw-color-text-muted)]
+							transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]
+							hover:border-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]
+							focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]"
+						aria-label="Cerrar"
+					>
+						<svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+							<path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+						</svg>
+					</button>
+				</div>
 
-			<div class="flex justify-end gap-[var(--gw-space-2)] pt-[var(--gw-space-1)]">
-				<Button variant="tonal" type="button" onclick={onclose}>Cancel</Button>
-				<Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create'}</Button>
+				<form class="flex flex-col gap-4" onsubmit={submit}>
+					<div class="grid grid-cols-2 gap-3">
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-id" class="field-label">ID</label>
+							<div class="field-wrap">
+								<input id="bead-id" class="field-input font-mono" bind:value={id} placeholder="hq-epic.1" required />
+							</div>
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-type" class="field-label">Type</label>
+							<div class="field-wrap">
+								<input id="bead-type" class="field-input" bind:value={issueType} required />
+							</div>
+						</div>
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<label for="bead-title" class="field-label">Title</label>
+						<div class="field-wrap">
+							<input id="bead-title" class="field-input" bind:value={title} required />
+						</div>
+					</div>
+
+					<div class="grid grid-cols-3 gap-3">
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-epic" class="field-label">Epic <span class="normal-case tracking-normal opacity-60">ref</span></label>
+							<div class="field-wrap">
+								<input id="bead-epic" class="field-input font-mono" bind:value={externalRef} placeholder="hq-epic" />
+							</div>
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-domain" class="field-label">Domain <span class="normal-case tracking-normal opacity-60">csv</span></label>
+							<div class="field-wrap">
+								<input id="bead-domain" class="field-input" bind:value={domain} required />
+							</div>
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-priority" class="field-label">Priority</label>
+							<div class="field-wrap">
+								<select id="bead-priority" class="field-input" bind:value={priority}>
+									<option value={0}>P0</option>
+									<option value={1}>P1</option>
+									<option value={2}>P2</option>
+								</select>
+							</div>
+						</div>
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<label for="bead-desc" class="field-label">Description</label>
+						<div class="field-wrap">
+							<textarea id="bead-desc" class="field-input resize-none" rows="3" bind:value={description}></textarea>
+						</div>
+					</div>
+
+					{#if error}
+						<div class="rounded-2xl border border-[var(--color-error-500)]/30 bg-[var(--color-error-500)]/8 px-4 py-2.5 text-sm text-[var(--color-error-500)]">
+							{error}
+						</div>
+					{/if}
+
+					<div class="flex items-center justify-end gap-2 pt-1">
+						<button
+							type="button"
+							onclick={onclose}
+							class="rounded-full border border-[var(--gw-color-border)] px-4 py-2 text-sm font-medium text-[var(--gw-color-text-muted)]
+								transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+								hover:border-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]
+								active:scale-[0.98]
+								focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]"
+						>
+							Cancel
+						</button>
+						<!-- Button-in-Button -->
+						<button
+							type="submit"
+							disabled={saving}
+							class="group flex items-center gap-2 rounded-full bg-[var(--gw-color-primary)] px-5 py-2 text-sm font-medium text-white
+								transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+								hover:opacity-90 active:scale-[0.98]
+								disabled:cursor-not-allowed disabled:opacity-40
+								focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-2"
+						>
+							{saving ? 'Creating…' : 'Create'}
+							{#if !saving}
+								<span class="flex h-5 w-5 items-center justify-center rounded-full bg-white/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-px">
+									<svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+										<path d="M1.5 8.5L8.5 1.5M8.5 1.5H3.5M8.5 1.5V6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+									</svg>
+								</span>
+							{/if}
+						</button>
+					</div>
+				</form>
+
 			</div>
-		</form>
+		</div>
 	</div>
 </div>
+
+<style>
+	.field-label {
+		font-size: 10px;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		color: var(--gw-color-text-muted);
+	}
+	.field-wrap {
+		border-radius: 0.75rem;
+		border: 1px solid var(--gw-color-border);
+		background: var(--gw-color-surface-2);
+		transition:
+			border-color 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+			box-shadow 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.field-wrap:focus-within {
+		border-color: var(--gw-color-primary);
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--gw-color-primary) 20%, transparent);
+	}
+	.field-input {
+		display: block;
+		width: 100%;
+		background: transparent;
+		border: none;
+		outline: none;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.875rem;
+		color: var(--gw-color-text);
+		border-radius: 0.75rem;
+	}
+	.field-input::placeholder {
+		color: color-mix(in oklch, var(--gw-color-text-muted) 50%, transparent);
+	}
+</style>
