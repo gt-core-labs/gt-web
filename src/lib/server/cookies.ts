@@ -47,6 +47,15 @@ export function relaySetCookies(setCookies: string[], cookies: Cookies): void {
 					break;
 			}
 		}
+		// Dev-only: when SSR proxies a remote HTTPS backend onto http://localhost,
+		// its Domain=<remote>/Secure/SameSite=None attributes make the browser drop
+		// the session cookie and login bounces. Strip them so the cookie binds to
+		// localhost. Gated on DEV so the container/prod build keeps the originals.
+		if (import.meta.env.DEV) {
+			delete opts.domain;
+			opts.secure = false;
+			if (opts.sameSite === 'none') opts.sameSite = 'lax';
+		}
 		// `value` arrives already cookie-encoded from the backend; keep it verbatim.
 		cookies.set(name, value, { ...opts, encode: (x) => x });
 	}
