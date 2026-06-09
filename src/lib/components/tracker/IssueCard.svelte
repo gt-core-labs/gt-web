@@ -35,7 +35,7 @@
 		bg-[var(--gw-color-surface)] p-[var(--gw-space-3)]
 		shadow-[var(--gw-shadow-sm)]
 		transition-[box-shadow,border-color,transform] duration-[var(--gw-duration-fast)]
-		hover:-translate-y-px hover:border-[var(--gw-color-primary-focus)] hover:shadow-[var(--gw-shadow-md)]"
+		hover:-translate-y-px hover:border-[var(--gw-color-border)] hover:shadow-[var(--gw-shadow-md)]"
 >
 	<a
 		href={`/tracker/${issue.id}`}
@@ -63,10 +63,7 @@
 					color: var(--gw-prio-{prioVar(issue.priority)}-fg)"
 			>P{issue.priority}</span>
 		</div>
-		<p
-			class="text-[var(--gw-text-sm)] leading-[var(--gw-leading-snug)] text-[var(--gw-color-text)]
-				transition-colors duration-[var(--gw-duration-fast)] group-hover:text-[var(--gw-color-primary)]"
-		>
+		<p class="text-[var(--gw-text-sm)] leading-[var(--gw-leading-snug)] text-[var(--gw-color-text)]">
 			{issue.title}
 		</p>
 		<div class="flex flex-wrap items-center gap-[var(--gw-space-2)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
