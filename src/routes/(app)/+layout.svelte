@@ -5,6 +5,7 @@
 	import { setActiveRig } from '$lib/rig';
 	import TerminalDock from '$lib/components/terminal/TerminalDock.svelte';
 	import NotificationBell from '$lib/components/NotificationBell.svelte';
+	import { Icon } from '$lib/ui';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
@@ -34,23 +35,24 @@
 		await invalidateAll();
 	}
 
-	type NavItem = { href: string; label: string; scope: string | null };
+	// `icon` = nombre lucide (icons0.dev). Neutro/currentColor vía el primitivo Icon.
+	type NavItem = { href: string; label: string; scope: string | null; icon: string };
 	const NAV: NavItem[] = [
-		{ href: '/', label: 'Home', scope: null },
-		{ href: '/tracker', label: 'Tracker', scope: 'issues.read' },
-		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read' },
-		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec' },
-		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read' },
-		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write' },
-		{ href: '/stats', label: 'Statistics', scope: 'issues.read' },
-		{ href: '/security', label: 'Security', scope: 'tokens.read' },
-		{ href: '/admin/users', label: 'Users', scope: 'users.read' },
-		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read' },
-		{ href: '/admin/rigs', label: 'Rigs', scope: 'rig.read' },
-		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read' },
-		{ href: '/admin/providers', label: 'Providers', scope: '*' },
-		{ href: '/system', label: 'System', scope: 'system.read' },
-		{ href: '/help', label: 'Help', scope: 'meta.read' }
+		{ href: '/', label: 'Home', scope: null, icon: 'lucide:home' },
+		{ href: '/tracker', label: 'Tracker', scope: 'issues.read', icon: 'lucide:list-todo' },
+		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read', icon: 'lucide:workflow' },
+		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec', icon: 'lucide:terminal' },
+		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read', icon: 'lucide:book-open' },
+		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write', icon: 'lucide:webhook' },
+		{ href: '/stats', label: 'Statistics', scope: 'issues.read', icon: 'lucide:bar-chart-3' },
+		{ href: '/security', label: 'Security', scope: 'tokens.read', icon: 'lucide:shield' },
+		{ href: '/admin/users', label: 'Users', scope: 'users.read', icon: 'lucide:users' },
+		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read', icon: 'lucide:layout-grid' },
+		{ href: '/admin/rigs', label: 'Rigs', scope: 'rig.read', icon: 'lucide:server' },
+		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read', icon: 'lucide:gauge' },
+		{ href: '/admin/providers', label: 'Providers', scope: '*', icon: 'lucide:plug' },
+		{ href: '/system', label: 'System', scope: 'system.read', icon: 'lucide:cpu' },
+		{ href: '/help', label: 'Help', scope: 'meta.read', icon: 'lucide:circle-help' }
 	];
 
 	const items = $derived(NAV.filter((i) => !i.scope || hasScope(data.user?.scopes, i.scope)));
@@ -65,9 +67,10 @@
 			{#each items as item (item.href)}
 				<a
 					href={item.href}
-					class="rounded px-3 py-2 text-sm hover:preset-tonal-primary"
+					class="flex items-center gap-2 rounded px-3 py-2 text-sm hover:preset-tonal-primary"
 					class:preset-tonal-primary={isActive(item.href)}
 				>
+					<Icon icon={item.icon} size={16} />
 					{item.label}
 				</a>
 			{/each}
