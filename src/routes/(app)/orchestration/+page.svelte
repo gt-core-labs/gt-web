@@ -29,9 +29,10 @@
 	// accounts the admin can attach here. Assigned ones live in the table below (data.quotas).
 	const unassigned = $derived(data.quotaCatalog.filter((a) => !a.assigned));
 
-	// hq-prefixed rigs (the internal "hq" sessions) belong to the gt_core rig — annex them so they
-	// surface under gt_core rather than as a phantom rig.
-	const rigOf = (rig: string) => (rig.startsWith('hq') ? 'gt_core' : rig);
+	// Map a stored session rig (the prefix, e.g. "hq", "gw") to the display rig name (e.g.
+	// "gt_core", "gtweb") by looking up the rig catalog.  Falls back to the raw value so
+	// sessions spawned before a rig was registered still surface rather than disappear.
+	const rigOf = (rig: string) => data.rigs.find((r) => r.prefix === rig)?.name ?? rig;
 
 	// The agent's configured skills: its own spawn manifest if present, else the skills its ROLE
 	// has in the catalog (hq-sessions-role-info.1). `fromRole` flags the catalog fallback.
