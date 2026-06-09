@@ -118,8 +118,9 @@ async function unwrap<T>(res: Response): Promise<T> {
 
 export function orch(doFetch: Fetcher) {
 	return {
-		async agents(): Promise<Session[]> {
-			const j = await unwrap<{ sessions: Session[] }>(await doFetch('/api/v1/agent'));
+		async agents(rig?: string): Promise<Session[]> {
+			const url = rig ? `/api/v1/agent?rig=${encodeURIComponent(rig)}` : '/api/v1/agent';
+			const j = await unwrap<{ sessions: Session[] }>(await doFetch(url));
 			return j.sessions ?? [];
 		},
 		async merges(): Promise<MergeSlot[]> {

@@ -99,6 +99,8 @@ export interface ListQuery {
 	limit?: number;
 	offset?: number;
 	full?: boolean;
+	/** Narrow to a single rig (hq-rig-isolation.1). Absent ⇒ workspace-wide. */
+	rig?: string;
 }
 
 export interface CreateIssueBody {

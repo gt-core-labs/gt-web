@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import {
 		browserTracker,
@@ -42,19 +41,19 @@
 
 	const byStatus = (s: IssueStatus) => visible.filter((i) => i.status === s);
 
-	// Live refresh: every issue mutation (any session, REST or MCP) publishes an
-	// `issues.*.v1` event onto `/stream?channel=issues`. Re-pull the SSR list on each,
-	// debounced so a burst (e.g. an epic + its beads) collapses to one refetch. The
-	// EventSource carries the gt_web_token cookie (Path=/) for auth — it cannot set an
-	// Authorization header. `?channel=issues` keeps the merge/convoy/quota feed out.
-	onMount(() => {
-		const es = new EventSource('/stream?channel=issues', { withCredentials: true });
+	// Live refresh: reconnects when activeRig changes so the stream only delivers events
+	// for the active rig (hq-rig-isolation.3/.4). A burst collapses to one invalidate.
+	$effect(() => {
+		const rig = data.activeRig;
+		const url = rig
+			? `/stream?channel=issues&rig=${encodeURIComponent(rig)}`
+			: '/stream?channel=issues';
+		const es = new EventSource(url, { withCredentials: true });
 		let timer: ReturnType<typeof setTimeout> | null = null;
 		const refresh = () => {
 			if (timer) clearTimeout(timer);
 			timer = setTimeout(() => invalidateAll(), 400);
 		};
-		// EventSource needs a listener per named kind — there is no catch-all for named events.
 		for (const k of ISSUE_EVENT_KINDS) es.addEventListener(k, refresh as EventListener);
 		return () => {
 			es.close();
