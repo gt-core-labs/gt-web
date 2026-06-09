@@ -14,18 +14,12 @@
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
-	// Sync the theme store with the persisted preference the anti-FOUC script already
-	// applied (gw-ui-redesign.5), so the header toggle reflects the live mode.
 	onMount(() => theme.init());
 
-	// The floating terminal dock mounts here so it can hover over any view (hq-term-dock.2). Only
-	// for a caller that can actually open a terminal.
 	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
 
 	let switching = $state(false);
 
-	// Re-target the session to another workspace: the backend re-mints the cookies
-	// (new scopes + tenant), then a hard reload re-runs SSR with the fresh session.
 	async function onWorkspace(e: Event) {
 		const slug = (e.currentTarget as HTMLSelectElement).value;
 		if (!slug || slug === data.user?.workspace) return;
@@ -35,14 +29,11 @@
 		else switching = false;
 	}
 
-	// Selecting a rig is a pure UI preference (cookie); re-run loads so views that
-	// read `activeRig` (tracker filter, spawn default) pick it up. No reload needed.
 	async function onRig(e: Event) {
 		setActiveRig((e.currentTarget as HTMLSelectElement).value);
 		await invalidateAll();
 	}
 
-	// `icon` = nombre lucide (icons0.dev). Neutro/currentColor vía el primitivo Icon.
 	type NavItem = { href: string; label: string; scope: string | null; icon: string };
 	const NAV: NavItem[] = [
 		{ href: '/', label: 'Home', scope: null, icon: 'lucide:home' },
@@ -66,73 +57,130 @@
 	const path = $derived(page.url.pathname);
 </script>
 
-<div class="grid min-h-screen grid-cols-[14rem_1fr]">
+<!--
+  Shell: sidebar (fixed width, scales up on xl) + main column.
+  grid-cols breakpoints: default 14rem · xl 16rem · 2xl 18rem
+-->
+<div class="grid min-h-screen grid-cols-[14rem_1fr] xl:grid-cols-[16rem_1fr] 2xl:grid-cols-[18rem_1fr]">
+
 	<Navbar {items} {path} />
 
 	<div class="flex min-h-screen flex-col overflow-hidden">
-		<!-- Top bar: workspace/rig context + user actions -->
-		<header
-			class="flex shrink-0 items-center justify-between
-				border-b border-[var(--gw-color-border-subtle)]
-				bg-[var(--gw-color-surface)]
-				px-[var(--gw-space-6)] py-[var(--gw-space-3)]"
-		>
-			<div class="flex items-center gap-[var(--gw-space-3)]">
+
+		<!-- ── Top header bar ─────────────────────────────────────────────────── -->
+		<header class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] px-5 xl:px-7">
+
+			<!-- Left: workspace · rig context -->
+			<div class="flex items-center gap-2 text-sm">
 				{#if data.workspaces.length > 1}
-					<select
-						class="select select-sm w-44"
-						aria-label="Workspace"
-						disabled={switching}
-						value={data.user?.workspace ?? ''}
-						onchange={onWorkspace}
-					>
-						{#each data.workspaces as ws (ws.workspace)}
-							<option value={ws.workspace}>{ws.workspace} · {ws.role}</option>
-						{/each}
-					</select>
+					<div class="ctx-wrap">
+						<select
+							class="ctx-select"
+							aria-label="Workspace"
+							disabled={switching}
+							value={data.user?.workspace ?? ''}
+							onchange={onWorkspace}
+						>
+							{#each data.workspaces as ws (ws.workspace)}
+								<option value={ws.workspace}>{ws.workspace} · {ws.role}</option>
+							{/each}
+						</select>
+					</div>
 				{:else}
-					<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-						{data.user?.workspace ?? ''}
-					</span>
+					<span class="font-medium text-[var(--gw-color-text)]">{data.user?.workspace ?? ''}</span>
 				{/if}
 
 				{#if data.rigs.length === 1}
-					<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-						{data.rigs[0].name}
-					</span>
+					<span class="text-[var(--gw-color-border)]">·</span>
+					<span class="text-[var(--gw-color-text-muted)]">{data.rigs[0].name}</span>
 				{:else if data.rigs.length > 1}
-					<select
-						class="select select-sm w-40"
-						aria-label="Rig"
-						value={data.activeRig}
-						onchange={onRig}
-					>
-						<option value="">All rigs</option>
-						{#each data.rigs as rig (rig.name)}
-							<option value={rig.name}>{rig.name}</option>
-						{/each}
-					</select>
+					<span class="text-[var(--gw-color-border)]">·</span>
+					<div class="ctx-wrap">
+						<select
+							class="ctx-select"
+							aria-label="Rig"
+							value={data.activeRig}
+							onchange={onRig}
+						>
+							<option value="">All rigs</option>
+							{#each data.rigs as rig (rig.name)}
+								<option value={rig.name}>{rig.name}</option>
+							{/each}
+						</select>
+					</div>
 				{/if}
 			</div>
 
-			<div class="flex items-center gap-[var(--gw-space-4)]">
+			<!-- Right: actions -->
+			<div class="flex items-center gap-1.5">
 				<ThemeToggle />
 				<NotificationBell />
-				<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+				<span class="hidden px-1 text-xs text-[var(--gw-color-text-muted)] sm:block">
 					{data.user?.sub}
 				</span>
 				<form method="POST" action="/logout">
-					<button type="submit" class="btn btn-sm preset-tonal-surface">Logout</button>
+					<button type="submit" class="logout-btn">Logout</button>
 				</form>
 			</div>
+
 		</header>
 
-		<main class="flex-1 overflow-auto p-[var(--gw-space-6)]">
+		<!-- ── Main content ───────────────────────────────────────────────────── -->
+		<main class="flex-1 overflow-auto p-6 xl:p-8 2xl:p-10">
 			{@render children()}
 		</main>
+
 	</div>
 </div>
 
 {#if canTerminal}
 	<TerminalDock />
 {/if}
+
+<style>
+	/* Context selects (workspace / rig) — pill-shaped, minimal */
+	.ctx-wrap {
+		border-radius: 9999px;
+		border: 1px solid var(--gw-color-border);
+		background: var(--gw-color-surface-2);
+		transition: border-color 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.ctx-wrap:focus-within {
+		border-color: var(--gw-color-primary);
+	}
+	.ctx-select {
+		display: block;
+		background: transparent;
+		border: none;
+		outline: none;
+		padding: 0.2rem 0.75rem;
+		font-size: 0.8125rem;
+		color: var(--gw-color-text);
+		cursor: pointer;
+		border-radius: 9999px;
+	}
+
+	/* Logout — ghost pill */
+	.logout-btn {
+		border-radius: 9999px;
+		border: 1px solid var(--gw-color-border);
+		padding: 0.2rem 0.75rem;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: var(--gw-color-text-muted);
+		background: transparent;
+		cursor: pointer;
+		transition: all 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.logout-btn:hover {
+		border-color: var(--gw-color-text-muted);
+		color: var(--gw-color-text);
+	}
+	.logout-btn:active {
+		transform: scale(0.97);
+	}
+	.logout-btn:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 2px var(--gw-color-primary-focus);
+	}
+</style>

@@ -123,7 +123,7 @@
 </script>
 
 <!-- ─── Page ────────────────────────────────────────────────────────────────── -->
-<div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:px-10 md:py-20 min-h-[100dvh]">
+<div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:px-10 md:py-20 xl:max-w-7xl xl:px-12 2xl:max-w-screen-xl min-h-[100dvh]">
 
 	<!-- ── Header ─────────────────────────────────────────────────────────────── -->
 	<header class="reveal-entry mb-16 flex flex-col gap-4" use:reveal>

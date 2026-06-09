@@ -12,7 +12,6 @@
 
 	const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 
-	// Items whose href belongs to admin/system/security/help surfaces
 	const ADMIN_HREFS = new Set([
 		'/security',
 		'/admin/users',
@@ -28,38 +27,28 @@
 	const adminItems = $derived(items.filter((i) => ADMIN_HREFS.has(i.href)));
 </script>
 
-<!--
-  App sidebar navigation.  Uses --gw-* design tokens throughout; no raw
-  colour literals or magic spacing values.
--->
-<aside
-	class="flex flex-col border-r border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-2)]"
->
+<aside class="flex flex-col border-r border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)]">
+
 	<!-- Brand mark -->
 	<a
 		href="/"
-		class="flex shrink-0 items-center gap-[var(--gw-space-3)]
-			border-b border-[var(--gw-color-border-subtle)]
-			px-[var(--gw-space-4)] py-[var(--gw-space-4)]
-			no-underline"
+		class="flex shrink-0 items-center gap-3 border-b border-[var(--gw-color-border)] px-4 py-4 no-underline
+			transition-opacity duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:opacity-80
+			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"
 		aria-label="gt-web home"
 	>
-		<span
-			class="flex h-7 w-7 shrink-0 items-center justify-center
-				rounded-[var(--gw-radius-md)]
-				bg-[var(--gw-color-primary)]
-				text-[var(--gw-text-xs)] font-bold leading-none text-white"
-		>gt</span>
-		<span
-			class="text-[var(--gw-text-sm)] font-semibold
-				tracking-tight text-[var(--gw-color-text)]"
-		>gt-web</span>
+		<!-- Logo — outer shell + inner core (Double-Bezel mini) -->
+		<div class="rounded-[10px] border border-[var(--gw-color-primary)]/25 bg-[var(--gw-color-primary)]/10 p-[2px]">
+			<div class="flex h-7 w-7 items-center justify-center rounded-[8px] bg-[var(--gw-color-primary)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
+				<span class="text-[11px] font-bold leading-none tracking-tight text-white">gt</span>
+			</div>
+		</div>
+		<span class="text-sm font-semibold tracking-tight text-[var(--gw-color-text)]">gt-web</span>
 	</a>
 
 	<!-- Nav items -->
 	<nav
-		class="flex flex-1 flex-col gap-[var(--gw-space-1)]
-			overflow-y-auto p-[var(--gw-space-3)]"
+		class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3"
 		aria-label="Main navigation"
 	>
 		{#each mainItems as item (item.href)}
@@ -67,44 +56,38 @@
 			<a
 				href={item.href}
 				aria-current={active ? 'page' : undefined}
-				class="relative flex items-center rounded-[var(--gw-radius-md)]
-					px-[var(--gw-space-3)] py-[var(--gw-space-2)]
-					text-[var(--gw-text-sm)] no-underline
-					transition-colors duration-[var(--gw-duration-fast)]
-					focus-visible:outline-none focus-visible:ring-2
-					focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
+				class="group relative flex items-center rounded-xl px-3 py-2.5 text-sm no-underline
+					transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+					focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
 					{active
-						? 'preset-tonal-primary font-medium text-[var(--gw-color-primary)]'
+						? 'bg-[var(--gw-color-primary)]/10 font-medium text-[var(--gw-color-primary)]'
 						: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]'}"
 			>
 				{#if active}
 					<span
 						aria-hidden="true"
-						class="absolute left-0 top-1/2 h-4 w-[3px]
-							-translate-y-1/2 rounded-r-full
-							bg-[var(--gw-color-primary)]"
+						class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--gw-color-primary)]
+							transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
 					></span>
 				{/if}
-				<span class="flex items-center gap-[var(--gw-space-2)] pl-[var(--gw-space-1)]">
-					{#if item.icon}<Icon icon={item.icon} size={16} />{/if}
+				<span class="flex items-center gap-2.5 pl-1">
+					{#if item.icon}
+						<span class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] {active ? '' : 'group-hover:translate-x-px'}">
+							<Icon icon={item.icon} size={15} />
+						</span>
+					{/if}
 					{item.label}
 				</span>
 			</a>
 		{/each}
 
 		{#if adminItems.length > 0}
-			<!-- Admin section divider -->
-			<div
-				class="mt-[var(--gw-space-3)] mb-[var(--gw-space-1)]
-					flex items-center gap-[var(--gw-space-2)]
-					px-[var(--gw-space-3)]"
-			>
-				<span
-					class="text-[0.65rem] font-semibold uppercase
-						leading-none tracking-widest
-						text-[var(--gw-color-text-muted)] opacity-60"
-				>Admin</span>
-				<div class="h-px flex-1 bg-[var(--gw-color-border-subtle)]"></div>
+			<!-- Admin divider -->
+			<div class="mb-1 mt-4 flex items-center gap-2 px-3">
+				<span class="text-[0.625rem] font-semibold uppercase leading-none tracking-widest text-[var(--gw-color-text-muted)]/50">
+					Admin
+				</span>
+				<div class="h-px flex-1 bg-[var(--gw-color-border)]"></div>
 			</div>
 
 			{#each adminItems as item (item.href)}
@@ -112,26 +95,25 @@
 				<a
 					href={item.href}
 					aria-current={active ? 'page' : undefined}
-					class="relative flex items-center rounded-[var(--gw-radius-md)]
-						px-[var(--gw-space-3)] py-[var(--gw-space-2)]
-						text-[var(--gw-text-sm)] no-underline
-						transition-colors duration-[var(--gw-duration-fast)]
-						focus-visible:outline-none focus-visible:ring-2
-						focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
+					class="group relative flex items-center rounded-xl px-3 py-2.5 text-sm no-underline
+						transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
 						{active
-							? 'preset-tonal-primary font-medium text-[var(--gw-color-primary)]'
+							? 'bg-[var(--gw-color-primary)]/10 font-medium text-[var(--gw-color-primary)]'
 							: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]'}"
 				>
 					{#if active}
 						<span
 							aria-hidden="true"
-							class="absolute left-0 top-1/2 h-4 w-[3px]
-								-translate-y-1/2 rounded-r-full
-								bg-[var(--gw-color-primary)]"
+							class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--gw-color-primary)]"
 						></span>
 					{/if}
-					<span class="flex items-center gap-[var(--gw-space-2)] pl-[var(--gw-space-1)]">
-						{#if item.icon}<Icon icon={item.icon} size={16} />{/if}
+					<span class="flex items-center gap-2.5 pl-1">
+						{#if item.icon}
+							<span class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] {active ? '' : 'group-hover:translate-x-px'}">
+								<Icon icon={item.icon} size={15} />
+							</span>
+						{/if}
 						{item.label}
 					</span>
 				</a>
