@@ -5,9 +5,14 @@
 		class?: string;
 		/** Shows an error message and applies error border/ring. */
 		error?: string;
+		/** Two-way bound input value (`bind:value`). */
+		value?: HTMLInputAttributes['value'];
 	}
 
-	let { class: cls = '', error, ...rest }: Props = $props();
+	// `value` is pulled out of the rest spread and declared $bindable so callers can
+	// `bind:value`; everything else (placeholder, disabled, type, …) still flows
+	// through `...rest`.
+	let { class: cls = '', error, value = $bindable(), ...rest }: Props = $props();
 </script>
 
 <input
@@ -20,6 +25,7 @@
 		{error ? '!border-[var(--gw-color-error)] focus-visible:!ring-[var(--gw-color-error)]/30' : ''}
 		{cls}"
 	aria-invalid={error ? 'true' : undefined}
+	bind:value
 	{...rest}
 />
 {#if error}

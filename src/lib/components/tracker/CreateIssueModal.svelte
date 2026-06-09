@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { browserTracker, TrackerError } from '$lib/api/tracker';
-	import { Button } from '$lib/ui';
+	import { Button, Input } from '$lib/ui';
 	import { Alert } from '$lib/components/ui';
 
 	interface Props {
@@ -48,9 +48,9 @@
 		}
 	}
 
-	// Shared field styling. `fieldBase` mirrors the token-driven states of the
-	// `Input` primitive but stays on native elements so two-way `bind:value` works
-	// (the primitive's `value` is not $bindable).
+	// Shared field styling. Text inputs use the `Input` primitive; `fieldBase`
+	// carries the same token-driven states onto the native select/textarea, which
+	// have no primitive yet.
 	const fieldLabel = 'text-[var(--gw-text-xs)] font-medium text-[var(--gw-color-text-muted)]';
 	const fieldBase =
 		'w-full transition-[border-color,box-shadow] duration-[var(--gw-duration-fast)] ' +
@@ -86,25 +86,25 @@
 			<div class="grid grid-cols-2 gap-[var(--gw-space-3)]">
 				<label class="space-y-[var(--gw-space-1)]">
 					<span class={fieldLabel}>id</span>
-					<input class="input {fieldBase}" bind:value={id} placeholder="hq-epic.1" required />
+					<Input bind:value={id} placeholder="hq-epic.1" required />
 				</label>
 				<label class="space-y-[var(--gw-space-1)]">
 					<span class={fieldLabel}>type</span>
-					<input class="input {fieldBase}" bind:value={issueType} required />
+					<Input bind:value={issueType} required />
 				</label>
 			</div>
 			<label class="space-y-[var(--gw-space-1)]">
 				<span class={fieldLabel}>title</span>
-				<input class="input {fieldBase}" bind:value={title} required />
+				<Input bind:value={title} required />
 			</label>
 			<div class="grid grid-cols-3 gap-[var(--gw-space-3)]">
 				<label class="col-span-1 space-y-[var(--gw-space-1)]">
 					<span class={fieldLabel}>epic (external_ref)</span>
-					<input class="input {fieldBase}" bind:value={externalRef} placeholder="hq-epic" />
+					<Input bind:value={externalRef} placeholder="hq-epic" />
 				</label>
 				<label class="col-span-1 space-y-[var(--gw-space-1)]">
 					<span class={fieldLabel}>domain (csv)</span>
-					<input class="input {fieldBase}" bind:value={domain} required />
+					<Input bind:value={domain} required />
 				</label>
 				<label class="col-span-1 space-y-[var(--gw-space-1)]">
 					<span class={fieldLabel}>priority</span>
