@@ -434,7 +434,7 @@
 			{:else}
 				<table class="table">
 					<thead>
-						<tr><th>Account</th><th>Status</th><th>Window</th><th>Consumed / Limit</th><th></th></tr>
+						<tr><th>Account</th><th>Status</th><th>Window</th><th>5h Consumed / Limit</th><th>Weekly Consumed / Limit</th><th></th></tr>
 					</thead>
 					<tbody>
 						{#each data.quotas as a (a.id)}
@@ -443,6 +443,7 @@
 								<td><Badge variant={stateVariant(a.status)}>{a.status}</Badge></td>
 								<td>{a.window?.kind ?? '—'}</td>
 								<td>{a.window ? `${Math.ceil(a.window.consumed)} / ${a.window.limit}` : '—'}</td>
+								<td>{a.weekly_window ? `${Math.ceil(a.weekly_window.consumed)} / ${a.weekly_window.limit}` : '—'}</td>
 								<td class="text-right">
 									{#if canQuota}
 										<Button variant="tonal" disabled={busy} onclick={() => run(() => o.detachAccount(a.id))}>Remove</Button>

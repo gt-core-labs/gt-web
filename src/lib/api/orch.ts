@@ -86,6 +86,7 @@ export interface QuotaAccount {
 	id: string;
 	status: string;
 	window: QuotaWindow | null;
+	weekly_window?: QuotaWindow | null;
 }
 
 /** One account in the deploy-global pool (GET /api/v1/quota/catalog), flagged whether it is
