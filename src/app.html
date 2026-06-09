@@ -4,15 +4,21 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
-		<!-- Anti-FOUC (gw-ui-redesign.5): apply the persisted theme before first paint
-		     so the page never flashes the wrong scheme. Mirrors theme.svelte.ts: a
-		     stored 'light'/'dark' forces the scheme; anything else (incl. 'system')
-		     leaves it to the stylesheet's prefers-color-scheme rule. -->
+		<!-- Anti-FOUC (gw-ui-redesign.5): set the resolved theme on <html> before the
+		     first paint so the page never flashes the wrong scheme. Mirrors
+		     theme.svelte.ts: stored 'light'/'dark' wins; 'system' (or unset) resolves
+		     to the OS scheme. Always writes a concrete data-theme-mode the CSS keys on. -->
 		<script>
 			(function () {
 				try {
 					var m = localStorage.getItem('gw-theme');
-					if (m === 'light' || m === 'dark') document.documentElement.style.colorScheme = m;
+					var resolved =
+						m === 'light' || m === 'dark'
+							? m
+							: window.matchMedia('(prefers-color-scheme: dark)').matches
+								? 'dark'
+								: 'light';
+					document.documentElement.setAttribute('data-theme-mode', resolved);
 				} catch (e) {}
 			})();
 		</script>
