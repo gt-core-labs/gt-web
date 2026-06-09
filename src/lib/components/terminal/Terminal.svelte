@@ -3,6 +3,7 @@
 	import { Terminal } from '@xterm/xterm';
 	import { FitAddon } from '@xterm/addon-fit';
 	import '@xterm/xterm/css/xterm.css';
+	import { Button } from '$lib/ui';
 
 	// Backend WS that spawns /bin/sh on a pty (hq-terminal). Same-origin so the gt_web_token
 	// cookie rides automatically; Traefik routes /api to the backend and upgrades the socket.
@@ -107,22 +108,26 @@
 	}
 </script>
 
-<div class="flex flex-col gap-2" class:h-full={fill}>
-	<div class="flex items-center gap-3 text-sm">
+<div class="flex flex-col gap-[var(--gw-space-2)]" class:h-full={fill}>
+	<div class="flex items-center gap-[var(--gw-space-3)] text-[var(--gw-text-sm)]">
 		<span
-			class="inline-block h-2 w-2 rounded-full"
-			class:bg-success-500={status === 'open'}
-			class:bg-warning-500={status === 'connecting'}
-			class:bg-error-500={status === 'closed' || status === 'error'}
+			class="inline-block h-2 w-2 rounded-[var(--gw-radius-full)]"
+			class:animate-pulse={status === 'connecting'}
+			style="background-color: {status === 'open'
+				? 'var(--gw-color-success)'
+				: status === 'connecting'
+					? 'var(--gw-color-warning)'
+					: 'var(--gw-color-error)'}"
 		></span>
-		<span class="opacity-70">{status}{detail ? ` — ${detail}` : ''}</span>
+		<span class="text-[var(--gw-color-text-muted)]">{status}{detail ? ` — ${detail}` : ''}</span>
 		{#if status === 'closed' || status === 'error'}
-			<button class="btn btn-sm preset-tonal" onclick={reconnect}>Reconnect</button>
+			<Button variant="tonal" class="btn-sm" onclick={reconnect}>Reconnect</Button>
 		{/if}
 	</div>
 	<div
 		bind:this={host}
-		class="w-full rounded border border-surface-500/20 p-2 {fill ? 'min-h-0 flex-1' : 'h-[70vh]'}"
+		class="w-full rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border-subtle)]
+			p-[var(--gw-space-2)] {fill ? 'min-h-0 flex-1' : 'h-[70vh]'}"
 		style="background:#0b0f17"
 	></div>
 </div>

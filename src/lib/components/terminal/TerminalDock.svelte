@@ -33,13 +33,15 @@
 
 {#if terminals.ids.length > 0}
 	<section
-		class="card preset-filled-surface-100-900 fixed bottom-0 left-0 right-0 z-50 flex flex-col border-t border-surface-500/30 shadow-2xl"
+		class="fixed bottom-0 left-0 right-0 z-50 flex flex-col
+			border-t border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)] shadow-[var(--gw-shadow-xl)]"
 		aria-label="Terminal dock"
 	>
 		<!-- Resize handle: drag the top edge to change the dock height. -->
 		<div
-			class="h-1.5 w-full shrink-0 cursor-row-resize bg-surface-500/20 hover:bg-primary-500/40"
-			class:bg-primary-500={dragging}
+			class="h-1.5 w-full shrink-0 cursor-row-resize
+				transition-colors duration-[var(--gw-duration-fast)] hover:bg-[var(--gw-color-primary-focus)]
+				{dragging ? 'bg-[var(--gw-color-primary)]' : 'bg-[var(--gw-color-border-subtle)]'}"
 			role="separator"
 			aria-orientation="horizontal"
 			aria-label="Resize terminal dock"
@@ -49,22 +51,23 @@
 		></div>
 
 		<!-- Tab strip + dock controls -->
-		<header class="flex shrink-0 items-center gap-1 border-b border-surface-500/20 px-2 py-1">
-			<span class="mr-1 font-mono text-[10px] opacity-50">term</span>
-			<div class="flex flex-1 flex-wrap items-center gap-1 overflow-hidden">
+		<header class="flex shrink-0 items-center gap-[var(--gw-space-1)] border-b border-[var(--gw-color-border-subtle)] px-[var(--gw-space-2)] py-[var(--gw-space-1)]">
+			<span class="mr-[var(--gw-space-1)] font-[family-name:var(--gw-font-mono)] text-[10px] uppercase tracking-widest text-[var(--gw-color-text-muted)]">term</span>
+			<div class="flex flex-1 flex-wrap items-center gap-[var(--gw-space-1)] overflow-hidden">
 				{#each terminals.ids as id (id)}
 					{@const active = terminals.active === id}
 					<span
-						class="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px]"
-						class:preset-tonal-primary={active}
-						class:border-primary-500={active}
-						class:border-surface-500={!active}
-						class:opacity-60={!active}
+						class="inline-flex items-center gap-1 rounded-[var(--gw-radius-md)] border
+							px-[var(--gw-space-2)] py-0.5 font-[family-name:var(--gw-font-mono)] text-[11px]
+							transition-colors duration-[var(--gw-duration-fast)]
+							{active
+								? 'preset-tonal-primary border-[var(--gw-color-primary)] text-[var(--gw-color-primary)]'
+								: 'border-[var(--gw-color-border-subtle)] text-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]'}"
 					>
 						<button type="button" onclick={() => terminals.focus(id)}>{id}</button>
 						<button
 							type="button"
-							class="opacity-60 hover:opacity-100"
+							class="opacity-60 transition-opacity hover:opacity-100"
 							aria-label="Close terminal {id}"
 							onclick={() => terminals.close(id)}>×</button
 						>
@@ -73,14 +76,19 @@
 			</div>
 			<button
 				type="button"
-				class="btn btn-sm preset-tonal-surface px-2 py-0.5 text-xs"
+				class="rounded-[var(--gw-radius-sm)] px-[var(--gw-space-2)] py-0.5 text-[var(--gw-text-xs)]
+					text-[var(--gw-color-text-muted)] transition-colors duration-[var(--gw-duration-fast)]
+					hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]"
+				aria-label={collapsed ? 'Expand dock' : 'Collapse dock'}
 				onclick={() => (collapsed = !collapsed)}
 			>
 				{collapsed ? '▢' : '—'}
 			</button>
 			<button
 				type="button"
-				class="btn btn-sm preset-tonal-surface px-2 py-0.5 text-xs"
+				class="rounded-[var(--gw-radius-sm)] px-[var(--gw-space-2)] py-0.5 text-[var(--gw-text-xs)]
+					text-[var(--gw-color-text-muted)] transition-colors duration-[var(--gw-duration-fast)]
+					hover:bg-[var(--gw-color-error)]/15 hover:text-[var(--gw-color-error)]"
 				aria-label="Close dock"
 				onclick={() => terminals.reset()}>×</button
 			>

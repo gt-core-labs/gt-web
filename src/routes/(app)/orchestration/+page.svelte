@@ -4,7 +4,8 @@
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { terminals } from '$lib/stores/terminals.svelte';
-	import { Badge, Button } from '$lib/ui';
+	import { Badge, Button, Input } from '$lib/ui';
+	import { Alert, EmptyState } from '$lib/components/ui';
 	import LiveFeed from '$lib/components/orchestration/LiveFeed.svelte';
 	import type { PageData } from './$types';
 
@@ -179,50 +180,68 @@
 				return 'surface';
 		}
 	};
+
+	// ── Shared design-system class strings (gw-ui-redesign.4) ───────────────────
+	// Filter pill: token padding/radius; active vs idle handled inline by callers.
+	const pillBase =
+		'rounded-[var(--gw-radius-full)] px-[var(--gw-space-3)] py-[var(--gw-space-1)] ' +
+		'text-[var(--gw-text-xs)] font-medium transition-colors duration-[var(--gw-duration-fast)] ' +
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1';
+	const pillActive = 'preset-tonal-primary text-[var(--gw-color-primary)]';
+	const pillIdle = 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]';
+	// Native select styling matching the Input primitive.
+	const nativeField =
+		'w-full transition-[border-color,box-shadow] duration-[var(--gw-duration-fast)] ' +
+		'hover:border-[var(--gw-color-primary)] focus-visible:border-[var(--gw-color-primary)] ' +
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]/30';
+	// Card frame wrapping a data table.
+	const tableCard =
+		'overflow-x-auto rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface)]';
 </script>
 
-<div class="grid grid-cols-[1fr_18rem] gap-4">
-	<div class="space-y-4">
+<div class="grid grid-cols-1 gap-[var(--gw-space-4)] lg:grid-cols-[1fr_18rem]">
+	<div class="space-y-[var(--gw-space-4)]">
 		<header class="flex items-center justify-between">
-			<h1 class="h2">Orchestration</h1>
+			<h1 class="text-[var(--gw-text-2xl)] font-semibold tracking-tight text-[var(--gw-color-text)]">
+				Orchestration
+			</h1>
 		</header>
 
-		<nav class="flex gap-1 border-b border-surface-500/20">
+		<nav class="flex gap-[var(--gw-space-1)] border-b border-[var(--gw-color-border-subtle)]" aria-label="Orchestration views">
 			{#each TABS as t (t.id)}
+				{@const active = tab === t.id}
 				<button
-					class="px-3 py-2 text-sm"
-					class:border-b-2={tab === t.id}
-					class:border-primary-500={tab === t.id}
-					class:opacity-60={tab !== t.id}
+					aria-current={active ? 'page' : undefined}
+					class="relative -mb-px border-b-2 px-[var(--gw-space-3)] py-[var(--gw-space-2)]
+						text-[var(--gw-text-sm)] transition-colors duration-[var(--gw-duration-fast)]
+						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
+						{active
+							? 'border-[var(--gw-color-primary)] font-medium text-[var(--gw-color-primary)]'
+							: 'border-transparent text-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]'}"
 					onclick={() => (tab = t.id)}
 				>
-					{t.label} <span class="opacity-60">({t.count})</span>
+					{t.label}
+					<span class="text-[var(--gw-color-text-muted)]">({t.count})</span>
 				</button>
 			{/each}
 		</nav>
 
-		{#if error}<p class="text-sm text-error-500">{error}</p>{/if}
+		{#if error}<Alert variant="error">{error}</Alert>{/if}
 
 		{#if tab === 'sessions'}
-			{#if data.errors.agents}<p class="text-sm text-error-500">{data.errors.agents}</p>{/if}
+			{#if data.errors.agents}<Alert variant="error">{data.errors.agents}</Alert>{/if}
 			{#if canAgent}
-				<form class="flex flex-wrap items-end gap-2" onsubmit={submitSpawn}>
-					<label class="flex flex-col text-xs">
-						<span class="opacity-60">Role</span>
-						<select class="select w-32" bind:value={spawn.role}>
+				<form class="flex flex-wrap items-end gap-[var(--gw-space-2)]" onsubmit={submitSpawn}>
+					<label class="flex flex-col gap-[var(--gw-space-1)] text-[var(--gw-text-xs)]">
+						<span class="text-[var(--gw-color-text-muted)]">Role</span>
+						<select class="select w-32 {nativeField}" bind:value={spawn.role}>
 							{#each SPAWN_ROLES as r (r)}<option value={r}>{r}</option>{/each}
 						</select>
 					</label>
 					{#if spawn.role === 'polecat'}
-						<label class="flex flex-col text-xs">
-							<span class="opacity-60">Crew (optional)</span>
-							<input
-								class="input w-40"
-								type="text"
-								list="known-crews"
-								bind:value={spawn.crew}
-								placeholder="ada"
-							/>
+						<label class="flex flex-col gap-[var(--gw-space-1)] text-[var(--gw-text-xs)]">
+							<span class="text-[var(--gw-color-text-muted)]">Crew (optional)</span>
+							<Input class="w-40" type="text" list="known-crews" bind:value={spawn.crew} placeholder="ada" />
 							<datalist id="known-crews">
 								{#each knownCrews as c (c)}<option value={c}></option>{/each}
 							</datalist>
@@ -232,14 +251,9 @@
 				</form>
 			{/if}
 			<!-- State filter pills -->
-			<div class="flex items-center gap-1">
+			<div class="flex items-center gap-[var(--gw-space-1)]">
 				{#each ([['active', 'Active'], ['all', 'All'], ['done', 'Ended']] as const) as [id, label] (id)}
-					<button
-						class="rounded px-2 py-1 text-xs"
-						class:preset-tonal-primary={sessionFilter === id}
-						class:preset-tonal-surface={sessionFilter !== id}
-						onclick={() => (sessionFilter = id)}
-					>
+					<button class="{pillBase} {sessionFilter === id ? pillActive : pillIdle}" onclick={() => (sessionFilter = id)}>
 						{label}
 						{#if id === 'active'}
 							<span class="opacity-60">({activeCount})</span>
@@ -253,9 +267,15 @@
 			</div>
 
 			{#if sessions.length === 0}
-				<p class="opacity-60">{sessionFilter === 'active' ? 'No active sessions.' : 'No sessions.'}</p>
+				<EmptyState
+					icon="▷"
+					title={sessionFilter === 'active' ? 'Sin sesiones activas' : 'Sin sesiones'}
+					description={sessionFilter === 'active'
+						? 'No hay agentes corriendo en este rig. Lanza uno con el formulario de arriba.'
+						: 'Aún no hay sesiones registradas para este rig.'}
+				/>
 			{:else}
-				<div class="overflow-x-auto">
+				<div class={tableCard}>
 				<table class="table">
 					<thead>
 						<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>Skills</th><th>Hooks</th><th>State</th><th></th></tr>
@@ -264,7 +284,7 @@
 						{#each sessions as s (s.id)}
 							{@const cfg = agentSkills(s)}
 							<tr>
-								<td class="font-mono text-xs">{s.id}</td>
+								<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{s.id}</td>
 								<td>{rigOf(s.rig)}</td>
 								<td>
 									<span class="flex items-center gap-1">
@@ -281,9 +301,12 @@
 												{cfg.skills.length} skills
 											</Badge>
 											<span
-												class="invisible absolute left-0 top-full z-30 mt-1 w-max max-w-xs rounded border border-surface-500/30 bg-surface-100-900 p-2 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100"
+												class="invisible absolute left-0 top-full z-30 mt-1 w-max max-w-xs
+													rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border-subtle)]
+													bg-[var(--gw-color-surface)] p-[var(--gw-space-2)] opacity-0 shadow-[var(--gw-shadow-lg)]
+													transition-opacity group-hover:visible group-hover:opacity-100"
 											>
-												<span class="mb-1 block text-[10px] uppercase opacity-50">
+												<span class="mb-1 block text-[10px] uppercase text-[var(--gw-color-text-muted)]">
 													{cfg.fromRole ? 'role config' : 'spawn manifest'}
 												</span>
 												<span class="flex flex-wrap gap-1">
@@ -320,24 +343,24 @@
 				</div>
 			{/if}
 		{:else if tab === 'merge'}
-			{#if data.errors.merges}<p class="text-sm text-error-500">{data.errors.merges}</p>{/if}
+			{#if data.errors.merges}<Alert variant="error">{data.errors.merges}</Alert>{/if}
 			<!-- Merge filter pills -->
-			<div class="flex items-center gap-1">
+			<div class="flex items-center gap-[var(--gw-space-1)]">
 				{#each ([['active', 'Active'], ['all', 'All']] as const) as [id, label] (id)}
-					<button
-						class="rounded px-2 py-1 text-xs"
-						class:preset-tonal-primary={mergeFilter === id}
-						class:preset-tonal-surface={mergeFilter !== id}
-						onclick={() => (mergeFilter = id)}
-					>
+					<button class="{pillBase} {mergeFilter === id ? pillActive : pillIdle}" onclick={() => (mergeFilter = id)}>
 						{label}
 						<span class="opacity-60">({id === 'active' ? mergeActiveCount : data.merges.length})</span>
 					</button>
 				{/each}
 			</div>
 			{#if merges.length === 0}
-				<p class="opacity-60">{mergeFilter === 'active' ? 'No in-flight merges.' : 'Merge board empty.'}</p>
+				<EmptyState
+					icon="⇄"
+					title={mergeFilter === 'active' ? 'Sin merges en vuelo' : 'Cola de merge vacía'}
+					description="No hay slots de merge para mostrar con este filtro."
+				/>
 			{:else}
+				<div class={tableCard}>
 				<table class="table">
 					<thead>
 						<tr><th>Bead</th><th>Branch</th><th>State</th><th></th></tr>
@@ -345,8 +368,8 @@
 					<tbody>
 						{#each merges as m (m.bead)}
 							<tr>
-								<td class="font-mono text-xs">{m.bead}</td>
-								<td class="font-mono text-xs">{m.branch}</td>
+								<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{m.bead}</td>
+								<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{m.branch}</td>
 								<td><Badge variant={stateVariant(m.state)}>{m.state}</Badge></td>
 								<td class="text-right">
 									{#if canMerge}
@@ -362,38 +385,38 @@
 						{/each}
 					</tbody>
 				</table>
+				</div>
 			{/if}
 		{:else if tab === 'convoy'}
-			{#if data.errors.convoys}<p class="text-sm text-error-500">{data.errors.convoys}</p>{/if}
+			{#if data.errors.convoys}<Alert variant="error">{data.errors.convoys}</Alert>{/if}
 			<!-- Convoy filter pills -->
-			<div class="flex items-center gap-1">
+			<div class="flex items-center gap-[var(--gw-space-1)]">
 				{#each ([['active', 'Active'], ['all', 'All']] as const) as [id, label] (id)}
-					<button
-						class="rounded px-2 py-1 text-xs"
-						class:preset-tonal-primary={convoyFilter === id}
-						class:preset-tonal-surface={convoyFilter !== id}
-						onclick={() => (convoyFilter = id)}
-					>
+					<button class="{pillBase} {convoyFilter === id ? pillActive : pillIdle}" onclick={() => (convoyFilter = id)}>
 						{label}
 						<span class="opacity-60">({id === 'active' ? convoyActiveCount : data.convoys.length})</span>
 					</button>
 				{/each}
 			</div>
 			{#if convoys.length === 0}
-				<p class="opacity-60">{convoyFilter === 'active' ? 'No active convoys.' : 'No convoys.'}</p>
+				<EmptyState
+					icon="⛓"
+					title={convoyFilter === 'active' ? 'Sin convoys activos' : 'Sin convoys'}
+					description="No hay convoys para mostrar con este filtro."
+				/>
 			{:else}
-				<div class="space-y-3">
+				<div class="space-y-[var(--gw-space-3)]">
 					{#each convoys as c (c.id)}
-						<div class="card preset-filled-surface-100-900 p-3">
-							<header class="mb-2 flex items-center gap-2">
-								<span class="font-mono text-sm">{c.id}</span>
+						<div class="rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface)] p-[var(--gw-space-3)]">
+							<header class="mb-[var(--gw-space-2)] flex items-center gap-[var(--gw-space-2)]">
+								<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-sm)]">{c.id}</span>
 								<Badge variant={stateVariant(c.state)}>{c.state}</Badge>
 							</header>
 							<table class="table">
 								<tbody>
 									{#each c.members as m (m.bead)}
 										<tr>
-											<td class="font-mono text-xs">{m.bead}</td>
+											<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{m.bead}</td>
 											<td><Badge variant={stateVariant(m.state)}>{m.state}</Badge></td>
 											<td class="text-right">
 												{#if canConvoy && m.state.toLowerCase() === 'active'}
@@ -410,17 +433,19 @@
 				</div>
 			{/if}
 		{:else}
-			{#if data.errors.quotas}<p class="text-sm text-error-500">{data.errors.quotas}</p>{/if}
+			{#if data.errors.quotas}<Alert variant="error">{data.errors.quotas}</Alert>{/if}
 
 			<!-- hq-quota-ws-accounts.3: assign accounts from the deploy-global pool to THIS workspace.
 			     /admin/quota administers the pool itself (onboard/retire). -->
 			{#if canQuota && unassigned.length > 0}
-				<div class="space-y-2">
-					<h2 class="font-semibold">Available accounts <span class="opacity-60">({unassigned.length})</span></h2>
-					<div class="flex flex-wrap gap-2">
+				<div class="space-y-[var(--gw-space-2)]">
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+						Available accounts <span class="text-[var(--gw-color-text-muted)]">({unassigned.length})</span>
+					</h2>
+					<div class="flex flex-wrap gap-[var(--gw-space-2)]">
 						{#each unassigned as a (a.id)}
-							<span class="flex items-center gap-2 rounded preset-tonal-surface px-2 py-1 text-sm">
-								<span class="font-mono text-xs">{a.id}</span>
+							<span class="flex items-center gap-[var(--gw-space-2)] rounded-[var(--gw-radius-md)] preset-tonal-surface px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-sm)]">
+								<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{a.id}</span>
 								<Button variant="tonal" disabled={busy} onclick={() => run(() => o.assignAccount(a.id))}>Assign</Button>
 							</span>
 						{/each}
@@ -428,10 +453,17 @@
 				</div>
 			{/if}
 
-			<h2 class="font-semibold">Assigned to this workspace <span class="opacity-60">({data.quotas.length})</span></h2>
+			<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+				Assigned to this workspace <span class="text-[var(--gw-color-text-muted)]">({data.quotas.length})</span>
+			</h2>
 			{#if data.quotas.length === 0}
-				<p class="opacity-60">No quota accounts. Assign one from the pool above.</p>
+				<EmptyState
+					icon="◷"
+					title="Sin cuentas de cuota"
+					description="Este workspace no tiene cuentas asignadas. Asigna una del pool de arriba."
+				/>
 			{:else}
+				<div class={tableCard}>
 				<table class="table">
 					<thead>
 						<tr><th>Account</th><th>Status</th><th>Window</th><th>5h Consumed / Limit</th><th>Weekly Consumed / Limit</th><th></th></tr>
@@ -439,7 +471,7 @@
 					<tbody>
 						{#each data.quotas as a (a.id)}
 							<tr>
-								<td class="font-mono text-xs">{a.id}</td>
+								<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{a.id}</td>
 								<td><Badge variant={stateVariant(a.status)}>{a.status}</Badge></td>
 								<td>{a.window?.kind ?? '—'}</td>
 								<td>{a.window ? `${Math.ceil(a.window.consumed)} / ${a.window.limit}` : '—'}</td>
@@ -453,6 +485,7 @@
 						{/each}
 					</tbody>
 				</table>
+				</div>
 			{/if}
 		{/if}
 	</div>
