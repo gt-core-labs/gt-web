@@ -17,4 +17,12 @@
 	} as const;
 </script>
 
-<button class="btn {preset[variant]} {cls}" {...rest}>{@render children()}</button>
+<button
+	class="btn {preset[variant]}
+		transition-opacity duration-[var(--gw-duration-fast)]
+		hover:opacity-90
+		focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
+		disabled:cursor-not-allowed disabled:opacity-40
+		{cls}"
+	{...rest}
+>{@render children()}</button>
