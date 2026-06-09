@@ -5,6 +5,7 @@
 	import { setActiveRig } from '$lib/rig';
 	import TerminalDock from '$lib/components/terminal/TerminalDock.svelte';
 	import NotificationBell from '$lib/components/NotificationBell.svelte';
+	import Navbar from '$lib/components/Navbar.svelte';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
@@ -55,28 +56,20 @@
 
 	const items = $derived(NAV.filter((i) => !i.scope || hasScope(data.user?.scopes, i.scope)));
 	const path = $derived(page.url.pathname);
-	const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 </script>
 
-<div class="grid min-h-screen grid-cols-[15rem_1fr]">
-	<aside class="flex flex-col gap-4 border-r border-surface-500/20 bg-surface-100-900 p-4">
-		<a href="/" class="h4">gt-web</a>
-		<nav class="flex flex-col gap-1">
-			{#each items as item (item.href)}
-				<a
-					href={item.href}
-					class="rounded px-3 py-2 text-sm hover:preset-tonal-primary"
-					class:preset-tonal-primary={isActive(item.href)}
-				>
-					{item.label}
-				</a>
-			{/each}
-		</nav>
-	</aside>
+<div class="grid min-h-screen grid-cols-[14rem_1fr]">
+	<Navbar {items} {path} />
 
-	<div class="flex flex-col">
-		<header class="flex items-center justify-between border-b border-surface-500/20 px-6 py-3">
-			<div class="flex items-center gap-2">
+	<div class="flex min-h-screen flex-col overflow-hidden">
+		<!-- Top bar: workspace/rig context + user actions -->
+		<header
+			class="flex shrink-0 items-center justify-between
+				border-b border-[var(--gw-color-border-subtle)]
+				bg-[var(--gw-color-surface)]
+				px-[var(--gw-space-6)] py-[var(--gw-space-3)]"
+		>
+			<div class="flex items-center gap-[var(--gw-space-3)]">
 				{#if data.workspaces.length > 1}
 					<select
 						class="select select-sm w-44"
@@ -90,13 +83,22 @@
 						{/each}
 					</select>
 				{:else}
-					<span class="text-sm opacity-70">{data.user?.workspace ?? ''}</span>
+					<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+						{data.user?.workspace ?? ''}
+					</span>
 				{/if}
 
 				{#if data.rigs.length === 1}
-					<span class="text-sm opacity-70">{data.rigs[0].name}</span>
+					<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+						{data.rigs[0].name}
+					</span>
 				{:else if data.rigs.length > 1}
-					<select class="select select-sm w-40" aria-label="Rig" value={data.activeRig} onchange={onRig}>
+					<select
+						class="select select-sm w-40"
+						aria-label="Rig"
+						value={data.activeRig}
+						onchange={onRig}
+					>
 						<option value="">All rigs</option>
 						{#each data.rigs as rig (rig.name)}
 							<option value={rig.name}>{rig.name}</option>
@@ -104,16 +106,19 @@
 					</select>
 				{/if}
 			</div>
-			<div class="flex items-center gap-3">
+
+			<div class="flex items-center gap-[var(--gw-space-4)]">
 				<NotificationBell />
-				<span class="text-sm">{data.user?.sub}</span>
+				<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+					{data.user?.sub}
+				</span>
 				<form method="POST" action="/logout">
 					<button type="submit" class="btn btn-sm preset-tonal-surface">Logout</button>
 				</form>
 			</div>
 		</header>
 
-		<main class="flex-1 overflow-auto p-6">
+		<main class="flex-1 overflow-auto p-[var(--gw-space-6)]">
 			{@render children()}
 		</main>
 	</div>
