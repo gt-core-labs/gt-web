@@ -148,3 +148,11 @@
   background-color: var(--color-surface-950);
   color: var(--color-surface-50);
 }
+
+/* Table rules — the row dividers and the head underline. Skeleton paints these
+   with its heavier --color-surface-200-800 pair; retint them to our faint border
+   token so the lines read as subtle hairlines. */
+.table thead,
+.table tbody > :not(:last-child) {
+  border-color: var(--gw-color-border-subtle);
+}
