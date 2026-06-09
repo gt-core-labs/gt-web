@@ -3,6 +3,7 @@
 	import { browserTracker, parseJsonArray, TrackerError, type IssueStatus } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
+	import { Alert, Spinner } from '$lib/components/ui';
 	import OperatorBadge from '$lib/components/tracker/OperatorBadge.svelte';
 	import type { PageData } from './$types';
 
@@ -17,6 +18,10 @@
 	const domains = $derived(parseJsonArray(issue.domain_json));
 	const deps = $derived(parseJsonArray(issue.depends_on_json));
 	const surfaces = $derived(parseJsonArray(issue.surface_json));
+
+	const statusVariant = $derived(
+		issue.status === 'closed' ? 'success' : issue.status === 'working' ? 'warning' : 'surface'
+	);
 
 	async function run(fn: () => Promise<unknown>) {
 		busy = true;
@@ -36,38 +41,66 @@
 	const close = () => run(() => browserTracker().close(issue.id, commitSha ? { commit_sha: commitSha } : {}));
 </script>
 
-<div class="mx-auto max-w-3xl space-y-5">
-	<a href="/tracker" class="text-sm opacity-70 hover:underline">← Tracker</a>
+<div class="mx-auto max-w-3xl space-y-[var(--gw-space-6)]">
+	<a
+		href="/tracker"
+		class="inline-flex items-center gap-[var(--gw-space-1)]
+			text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)] no-underline
+			transition-colors duration-[var(--gw-duration-fast)] hover:text-[var(--gw-color-text)]
+			focus-visible:outline-none focus-visible:ring-2
+			focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"
+	>
+		<span aria-hidden="true">←</span> Tracker
+	</a>
 
-	<header class="space-y-2">
-		<div class="flex items-center gap-2">
-			<span class="font-mono text-sm opacity-70">{issue.id}</span>
-			<Badge variant={issue.status === 'closed' ? 'success' : issue.status === 'working' ? 'warning' : 'surface'}>
-				{issue.status}
-			</Badge>
+	<!-- Identity header: meta badges, then the title as the dominant element. -->
+	<header class="space-y-[var(--gw-space-3)]">
+		<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
+			<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+				{issue.id}
+			</span>
+			<Badge variant={statusVariant}>{issue.status}</Badge>
 			<Badge variant="primary">P{issue.priority}</Badge>
 			{#if issue.phase}<Badge variant="surface">{issue.phase}</Badge>{/if}
 		</div>
-		<h1 class="h2">{issue.title}</h1>
-		<div class="flex flex-wrap gap-x-4 gap-y-1 text-sm opacity-70">
-			<span>type: {issue.issue_type}</span>
-			{#if issue.external_ref}<span>epic: {issue.external_ref}</span>{/if}
-			<span>assignee: {issue.assignee ?? '—'}</span>
-			<span>owner: {issue.owner || '—'}</span>
-			<span>v{issue.version}</span>
-		</div>
-		<div class="flex flex-wrap gap-1">
-			{#each domains as d (d)}<Badge variant="surface">{d}</Badge>{/each}
-		</div>
+		<h1 class="text-[var(--gw-text-3xl)] font-bold leading-[var(--gw-leading-tight)] tracking-tight text-[var(--gw-color-text)]">
+			{issue.title}
+		</h1>
+		<dl class="flex flex-wrap gap-x-[var(--gw-space-5)] gap-y-[var(--gw-space-1)] text-[var(--gw-text-sm)]">
+			{#snippet meta(label: string, value: string)}
+				<div class="flex items-center gap-[var(--gw-space-1)]">
+					<dt class="text-[var(--gw-color-text-muted)]">{label}</dt>
+					<dd class="text-[var(--gw-color-text)]">{value}</dd>
+				</div>
+			{/snippet}
+			{@render meta('type', issue.issue_type)}
+			{#if issue.external_ref}{@render meta('epic', issue.external_ref)}{/if}
+			{@render meta('assignee', issue.assignee ?? '—')}
+			{@render meta('owner', issue.owner || '—')}
+			{@render meta('version', `v${issue.version}`)}
+		</dl>
+		{#if domains.length}
+			<div class="flex flex-wrap gap-[var(--gw-space-1)]">
+				{#each domains as d (d)}<Badge variant="surface">{d}</Badge>{/each}
+			</div>
+		{/if}
 		{#if issue.operated_by}
 			<OperatorBadge operator={issue.operated_by} />
 		{/if}
 	</header>
 
 	{#if canWrite}
-		<section class="card preset-tonal-surface space-y-3 p-4">
-			{#if error}<p class="text-sm text-error-500">{error}</p>{/if}
-			<div class="flex flex-wrap items-center gap-2">
+		<section
+			class="space-y-[var(--gw-space-3)] rounded-[var(--gw-radius-lg)]
+				border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-2)]
+				p-[var(--gw-space-4)]"
+			aria-busy={busy}
+		>
+			<h2 class="text-[var(--gw-text-xs)] font-semibold uppercase tracking-widest text-[var(--gw-color-text-muted)]">
+				Acciones
+			</h2>
+			{#if error}<Alert variant="error">{error}</Alert>{/if}
+			<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
 				{#if issue.status === 'open'}
 					<Button disabled={busy} onclick={() => transition('working')}>Start (→ working)</Button>
 					<Button variant="tonal" disabled={busy} onclick={claim}>Claim</Button>
@@ -76,12 +109,23 @@
 				{:else}
 					<Button variant="tonal" disabled={busy} onclick={() => transition('open')}>Reopen</Button>
 				{/if}
+				{#if busy}<Spinner size={1} label="Procesando acción" />{/if}
 			</div>
 			{#if issue.status !== 'closed'}
-				<div class="flex items-end gap-2">
-					<label class="label flex-1">
-						<span class="label-text">commit_sha (required if code surface)</span>
-						<input class="input" bind:value={commitSha} placeholder="7+ hex" />
+				<div class="flex items-end gap-[var(--gw-space-2)]">
+					<label class="flex-1 space-y-[var(--gw-space-1)]">
+						<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							commit_sha (required if code surface)
+						</span>
+						<input
+							class="input w-full transition-[border-color,box-shadow] duration-[var(--gw-duration-fast)]
+								hover:border-[var(--gw-color-primary)] focus-visible:border-[var(--gw-color-primary)]
+								focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]/30
+								disabled:cursor-not-allowed disabled:opacity-50"
+							bind:value={commitSha}
+							placeholder="7+ hex"
+							disabled={busy}
+						/>
 					</label>
 					<Button disabled={busy} onclick={close}>Close</Button>
 				</div>
@@ -91,9 +135,13 @@
 
 	{#snippet body(label: string, text: string)}
 		{#if text}
-			<section class="space-y-1">
-				<h2 class="font-semibold opacity-80">{label}</h2>
-				<pre class="card preset-filled-surface-100-900 whitespace-pre-wrap p-3 text-sm">{text}</pre>
+			<section class="space-y-[var(--gw-space-2)]">
+				<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">{label}</h2>
+				<pre
+					class="overflow-x-auto whitespace-pre-wrap rounded-[var(--gw-radius-md)]
+						border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-2)]
+						p-[var(--gw-space-3)] text-[var(--gw-text-sm)] leading-[var(--gw-leading-normal)]
+						text-[var(--gw-color-text)]">{text}</pre>
 			</section>
 		{/if}
 	{/snippet}
@@ -104,19 +152,27 @@
 	{@render body('Notes', issue.notes)}
 
 	{#if deps.length || surfaces.length}
-		<section class="grid grid-cols-2 gap-4 text-sm">
+		<section class="grid grid-cols-1 gap-[var(--gw-space-4)] sm:grid-cols-2">
 			{#if deps.length}
-				<div>
-					<h2 class="font-semibold opacity-80">Depends on</h2>
-					<ul class="list-disc pl-5">
-						{#each deps as d (d)}<li><a class="hover:underline" href={`/tracker/${d}`}>{d}</a></li>{/each}
+				<div class="space-y-[var(--gw-space-2)]">
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">Depends on</h2>
+					<ul class="space-y-[var(--gw-space-1)]">
+						{#each deps as d (d)}
+							<li>
+								<a
+									class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-sm)]
+										text-[var(--gw-color-primary)] no-underline hover:underline"
+									href={`/tracker/${d}`}
+								>{d}</a>
+							</li>
+						{/each}
 					</ul>
 				</div>
 			{/if}
 			{#if surfaces.length}
-				<div>
-					<h2 class="font-semibold opacity-80">Surface</h2>
-					<ul class="list-disc pl-5 font-mono text-xs">
+				<div class="space-y-[var(--gw-space-2)]">
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">Surface</h2>
+					<ul class="space-y-[var(--gw-space-1)] font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
 						{#each surfaces as s (s)}<li>{s}</li>{/each}
 					</ul>
 				</div>

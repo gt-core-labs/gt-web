@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { navigating } from '$app/state';
 	import {
 		browserTracker,
 		ISSUE_EVENT_KINDS,
@@ -10,6 +11,7 @@
 	import { hasScope } from '$lib/api/auth';
 	import { beadInRig } from '$lib/rig';
 	import { Badge, Button } from '$lib/ui';
+	import { Alert, EmptyState, Spinner } from '$lib/components/ui';
 	import IssueCard from '$lib/components/tracker/IssueCard.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
 	import type { PageData } from './$types';
@@ -33,10 +35,14 @@
 	let showCreate = $state(false);
 	let dragged = $state<string | null>(null);
 
-	const COLUMNS: { status: IssueStatus; label: string }[] = [
-		{ status: 'open', label: 'Open' },
-		{ status: 'working', label: 'Working' },
-		{ status: 'closed', label: 'Closed' }
+	// A navigation into the tracker (e.g. switching rig → invalidateAll) re-runs the
+	// server load; surface that as a designed loading state instead of a silent stall.
+	const loading = $derived(navigating.to?.route?.id === '/(app)/tracker');
+
+	const COLUMNS: { status: IssueStatus; label: string; dot: string }[] = [
+		{ status: 'open', label: 'Open', dot: 'var(--gw-color-border)' },
+		{ status: 'working', label: 'Working', dot: 'var(--gw-color-warning)' },
+		{ status: 'closed', label: 'Closed', dot: 'var(--gw-color-success)' }
 	];
 
 	const byStatus = (s: IssueStatus) => visible.filter((i) => i.status === s);
@@ -86,39 +92,90 @@
 	}
 </script>
 
-<div class="space-y-4">
-	<header class="flex items-center justify-between">
-		<h1 class="h2">
-			Tracker <span class="text-base opacity-60">({activePrefix ? visible.length : data.total})</span>
-		</h1>
+<div class="space-y-[var(--gw-space-5)]">
+	<header class="flex items-center justify-between gap-[var(--gw-space-4)]">
+		<div class="flex items-center gap-[var(--gw-space-3)]">
+			<h1 class="text-[var(--gw-text-2xl)] font-semibold tracking-tight text-[var(--gw-color-text)]">
+				Tracker
+			</h1>
+			<span
+				class="rounded-[var(--gw-radius-full)] bg-[var(--gw-color-surface-3)]
+					px-[var(--gw-space-2)] py-[2px] text-[var(--gw-text-xs)] font-medium text-[var(--gw-color-text-muted)]"
+			>
+				{activePrefix ? visible.length : data.total}
+			</span>
+			{#if loading}<Spinner size={1} label="Actualizando tracker" />{/if}
+		</div>
 		{#if canWrite}
 			<Button onclick={() => (showCreate = true)}>New bead</Button>
 		{/if}
 	</header>
 
-	{#if error}<p class="text-sm text-error-500">{error}</p>{/if}
+	{#if error}
+		<Alert variant="error">{error}</Alert>
+	{/if}
 
-	<div class="grid grid-cols-3 gap-4">
-		{#each COLUMNS as col (col.status)}
-			<section
-				class="card preset-tonal-surface min-h-[60vh] space-y-2 p-3"
-				role="list"
-				ondragover={(e) => canWrite && e.preventDefault()}
-				ondrop={(e) => {
-					e.preventDefault();
-					if (canWrite) drop(col.status);
-				}}
-			>
-				<header class="flex items-center justify-between">
-					<h2 class="font-semibold">{col.label}</h2>
-					<Badge variant="surface">{byStatus(col.status).length}</Badge>
-				</header>
-				{#each byStatus(col.status) as issue (issue.id)}
-					<IssueCard {issue} draggable={canWrite} onpick={(id) => (dragged = id)} />
-				{/each}
-			</section>
-		{/each}
-	</div>
+	{#if visible.length === 0 && !loading}
+		<EmptyState
+			icon="◇"
+			title="Sin beads"
+			description={activePrefix
+				? 'Este rig no tiene beads todavía. Crea el primero para empezar a trabajar.'
+				: 'No hay beads en el tracker. Crea el primero para empezar a trabajar.'}
+		>
+			{#if canWrite}
+				<Button onclick={() => (showCreate = true)}>New bead</Button>
+			{/if}
+		</EmptyState>
+	{:else}
+		<div class="grid grid-cols-1 gap-[var(--gw-space-4)] md:grid-cols-3">
+			{#each COLUMNS as col (col.status)}
+				{@const items = byStatus(col.status)}
+				<section
+					class="flex min-h-[60vh] flex-col gap-[var(--gw-space-3)]
+						rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+						bg-[var(--gw-color-surface-2)] p-[var(--gw-space-3)]
+						transition-colors duration-[var(--gw-duration-fast)]"
+					role="list"
+					ondragover={(e) => canWrite && e.preventDefault()}
+					ondrop={(e) => {
+						e.preventDefault();
+						if (canWrite) drop(col.status);
+					}}
+				>
+					<header class="flex items-center justify-between px-[var(--gw-space-1)]">
+						<h2
+							class="flex items-center gap-[var(--gw-space-2)]
+								text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]"
+						>
+							<span
+								aria-hidden="true"
+								class="h-2 w-2 rounded-[var(--gw-radius-full)]"
+								style="background-color: {col.dot}"
+							></span>
+							{col.label}
+						</h2>
+						<Badge variant="surface">{items.length}</Badge>
+					</header>
+					<div class="flex flex-1 flex-col gap-[var(--gw-space-2)]">
+						{#each items as issue (issue.id)}
+							<IssueCard {issue} draggable={canWrite} onpick={(id) => (dragged = id)} />
+						{/each}
+						{#if items.length === 0}
+							<p
+								class="flex flex-1 items-center justify-center rounded-[var(--gw-radius-md)]
+									border border-dashed border-[var(--gw-color-border-subtle)]
+									px-[var(--gw-space-3)] py-[var(--gw-space-6)]
+									text-center text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]"
+							>
+								Sin beads en {col.label.toLowerCase()}
+							</p>
+						{/if}
+					</div>
+				</section>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 {#if showCreate}

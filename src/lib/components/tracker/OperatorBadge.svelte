@@ -14,14 +14,22 @@
 	let { operator, compact = false }: Props = $props();
 </script>
 
-<div class="flex flex-wrap items-center gap-1 text-xs" data-testid="operator-badge">
+<div
+	class="flex flex-wrap items-center gap-[var(--gw-space-1)] text-[var(--gw-text-xs)]"
+	data-testid="operator-badge"
+>
 	<Badge variant="primary">▶ {operator.role}</Badge>
-	<span class="font-mono opacity-70">{operator.session}</span>
+	<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-color-text-muted)]">
+		{operator.session}
+	</span>
 	<!-- Open a read-only terminal attached to the agent's tmux session, so the operator watches
 		what it is doing live (hq-agent-observability.6). -->
 	<a
 		href={`/terminal?session=${encodeURIComponent(operator.session)}`}
-		class="opacity-70 hover:opacity-100"
+		class="rounded-[var(--gw-radius-sm)] px-[2px] text-[var(--gw-color-text-muted)]
+			transition-colors duration-[var(--gw-duration-fast)] hover:text-[var(--gw-color-text)]
+			focus-visible:outline-none focus-visible:ring-2
+			focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"
 		title="Abrir terminal del agente (solo lectura)"
 		aria-label="Abrir terminal del agente"
 	>

@@ -17,6 +17,13 @@
 		2: 'surface'
 	};
 
+	// Left accent dot colour mirrors the priority badge tone.
+	const prioDot: Record<number, string> = {
+		0: 'var(--gw-color-error)',
+		1: 'var(--gw-color-warning)',
+		2: 'var(--gw-color-border)'
+	};
+
 	function dragstart(e: DragEvent) {
 		e.dataTransfer?.setData('text/plain', issue.id);
 		onpick?.(issue.id);
@@ -26,25 +33,55 @@
 <!-- The card is a wrapper div (not one big anchor) so the operator badge can carry its own
 	terminal link without nesting anchors (hq-agent-observability.6). The title region stays the
 	link to the bead detail. -->
-<div class="card preset-filled-surface-100-900 space-y-1 p-3">
+<div
+	class="group rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+		bg-[var(--gw-color-surface)] p-[var(--gw-space-3)]
+		shadow-[var(--gw-shadow-sm)]
+		transition-[box-shadow,border-color,transform] duration-[var(--gw-duration-fast)]
+		hover:-translate-y-px hover:border-[var(--gw-color-primary-focus)] hover:shadow-[var(--gw-shadow-md)]"
+>
 	<a
 		href={`/tracker/${issue.id}`}
-		class="block cursor-pointer space-y-1 hover:preset-tonal-primary"
+		class="block space-y-[var(--gw-space-2)] no-underline
+			focus-visible:outline-none focus-visible:ring-2
+			focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"
 		{draggable}
 		ondragstart={dragstart}
 	>
-		<div class="flex items-center justify-between gap-2">
-			<span class="font-mono text-xs opacity-70">{issue.id}</span>
+		<div class="flex items-center justify-between gap-[var(--gw-space-2)]">
+			<span class="flex items-center gap-[var(--gw-space-2)] min-w-0">
+				<span
+					aria-hidden="true"
+					class="h-2 w-2 shrink-0 rounded-[var(--gw-radius-full)]"
+					style="background-color: {prioDot[issue.priority] ?? 'var(--gw-color-border)'}"
+				></span>
+				<span class="truncate font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+					{issue.id}
+				</span>
+			</span>
 			<Badge variant={prio[issue.priority] ?? 'surface'}>P{issue.priority}</Badge>
 		</div>
-		<p class="text-sm">{issue.title}</p>
-		<div class="flex items-center gap-2 text-xs opacity-60">
+		<p
+			class="text-[var(--gw-text-sm)] leading-[var(--gw-leading-snug)] text-[var(--gw-color-text)]
+				transition-colors duration-[var(--gw-duration-fast)] group-hover:text-[var(--gw-color-primary)]"
+		>
+			{issue.title}
+		</p>
+		<div class="flex flex-wrap items-center gap-[var(--gw-space-2)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
 			<span>{issue.issue_type}</span>
-			{#if issue.assignee}<span>@{issue.assignee}</span>{/if}
-			{#if issue.phase}<span>{issue.phase}</span>{/if}
+			{#if issue.assignee}
+				<span aria-hidden="true" class="opacity-40">·</span>
+				<span>@{issue.assignee}</span>
+			{/if}
+			{#if issue.phase}
+				<span aria-hidden="true" class="opacity-40">·</span>
+				<span>{issue.phase}</span>
+			{/if}
 		</div>
 	</a>
 	{#if issue.operated_by}
-		<OperatorBadge operator={issue.operated_by} compact />
+		<div class="mt-[var(--gw-space-2)] border-t border-[var(--gw-color-border-subtle)] pt-[var(--gw-space-2)]">
+			<OperatorBadge operator={issue.operated_by} compact />
+		</div>
 	{/if}
 </div>
