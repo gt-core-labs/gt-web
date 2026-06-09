@@ -78,9 +78,9 @@
 
 			{#if data.providers.length > 0}
 				<div class="my-4 flex items-center gap-3 text-xs opacity-50">
-					<hr class="flex-1 border-surface-500/30" />
+					<hr class="flex-1 border-[var(--gw-color-border-subtle)]" />
 					<span>or</span>
-					<hr class="flex-1 border-surface-500/30" />
+					<hr class="flex-1 border-[var(--gw-color-border-subtle)]" />
 				</div>
 
 				<!--

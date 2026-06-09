@@ -166,3 +166,32 @@
 .table tbody > :not(:last-child) {
   border-color: var(--gw-color-border-subtle);
 }
+
+/* ── Tokenise Skeleton chrome ────────────────────────────────────────────────
+   Many shared components still lean on Skeleton's cerberus greys, which no longer
+   match our neutral --gw-* scale. Retint the common surfaces here once so every
+   component (top-bar selects, buttons, modals, cards…) shares the same greys in
+   BOTH themes — these tokens flip via the data-theme-mode overrides above. The
+   two-class selectors out-specify Skeleton's single-class @utility rules. */
+.input,
+.select,
+.textarea {
+  background-color: var(--gw-color-surface);
+  border-color: var(--gw-color-border-subtle);
+  color: var(--gw-color-text);
+}
+
+.btn.preset-tonal-surface {
+  background-color: var(--gw-color-surface-2);
+  border: 1px solid var(--gw-color-border-subtle);
+  color: var(--gw-color-text);
+}
+.btn.preset-tonal-surface:hover {
+  background-color: var(--gw-color-surface);
+}
+
+.card.preset-filled-surface-100-900 {
+  background-color: var(--gw-color-surface);
+  border-color: var(--gw-color-border-subtle);
+  color: var(--gw-color-text);
+}
