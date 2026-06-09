@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { Button, Card } from '$lib/ui';
+	import { Button, Card, Icon } from '$lib/ui';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -19,8 +19,17 @@
 <main class="flex min-h-screen items-center justify-center p-6">
 	<div class="w-full max-w-sm">
 		<Card>
-			<h1 class="h2 mb-1">gt-web</h1>
-			<p class="mb-4 text-sm opacity-70">Sign in to the control plane.</p>
+			<div class="mb-4 flex flex-col items-center gap-[var(--gw-space-2)] text-center">
+				<span
+					class="flex h-12 w-12 items-center justify-center rounded-[var(--gw-radius-lg)]
+						bg-[var(--gw-color-primary)] text-white shadow-[var(--gw-shadow-md)]"
+				>
+					<Icon icon="lucide:user" size={24} />
+				</span>
+				<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+					Sign in to the control plane.
+				</p>
+			</div>
 
 			<form
 				method="POST"
