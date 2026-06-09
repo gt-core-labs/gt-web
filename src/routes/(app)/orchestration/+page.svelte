@@ -195,11 +195,14 @@
 		'hover:border-[var(--gw-color-primary)] focus-visible:border-[var(--gw-color-primary)] ' +
 		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]/30';
 	// Card frame wrapping a data table.
+	// No `overflow` here: it would force `overflow-y: auto` and clip the absolutely
+	// positioned skills hover popover (and add a spurious scrollbar). Skeleton's
+	// `.table` is width:100%, so it never needs horizontal scrolling.
 	const tableCard =
-		'overflow-x-auto rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface)]';
+		'rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface)]';
 </script>
 
-<div class="grid grid-cols-1 gap-[var(--gw-space-4)] lg:grid-cols-[1fr_18rem]">
+<div class="grid grid-cols-1 items-start gap-[var(--gw-space-4)] lg:grid-cols-[1fr_18rem]">
 	<div class="space-y-[var(--gw-space-4)]">
 		<header class="flex items-center justify-between">
 			<h1 class="text-[var(--gw-text-2xl)] font-semibold tracking-tight text-[var(--gw-color-text)]">

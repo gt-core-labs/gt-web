@@ -130,7 +130,10 @@
 								bg-[var(--gw-color-primary)]"
 						></span>
 					{/if}
-					<span class="pl-[var(--gw-space-1)]">{item.label}</span>
+					<span class="flex items-center gap-[var(--gw-space-2)] pl-[var(--gw-space-1)]">
+						{#if item.icon}<Icon icon={item.icon} size={16} />{/if}
+						{item.label}
+					</span>
 				</a>
 			{/each}
 		{/if}
