@@ -24,14 +24,14 @@
   --gw-color-success:        var(--color-success-500,   oklch(65% 0.18 145));
   --gw-color-warning:        var(--color-warning-500,   oklch(73% 0.18  80));
   --gw-color-error:          var(--color-error-500,     oklch(60% 0.24  25));
-  --gw-color-surface:        var(--color-surface-50,    oklch(99% 0 0));
-  --gw-color-surface-2:      var(--color-surface-100,   oklch(98% 0 0));
-  --gw-color-surface-3:      var(--color-surface-200,   oklch(95% 0 0));
-  /* Softer, fainter lines — the borders were the most prominent grey. */
-  --gw-color-border:         var(--color-surface-300,   oklch(90% 0 0));
-  --gw-color-border-subtle:  var(--color-surface-200,   oklch(94% 0 0));
-  --gw-color-text:           var(--color-surface-950,   oklch(10% 0 0));
-  --gw-color-text-muted:     var(--color-surface-600,   oklch(50% 0 0));
+  /* Pure-neutral greyscale (hue/chroma 0) so state + priority are the only hues. */
+  --gw-color-surface:        oklch(1 0 0);       /* #FFFFFF — cards / app / header */
+  --gw-color-surface-2:      oklch(0.985 0 0);   /* #FAFAFA — sidebar */
+  --gw-color-surface-3:      oklch(0.97 0 0);    /* #F4F4F5 — columns / muted / hover */
+  --gw-color-border:         oklch(0.922 0 0);   /* #E5E5E5 — all borders/separators */
+  --gw-color-border-subtle:  oklch(0.922 0 0);   /* #E5E5E5 */
+  --gw-color-text:           oklch(0.145 0 0);   /* #252525 — primary text */
+  --gw-color-text-muted:     oklch(0.556 0 0);   /* #737373 — secondary text */
 
   /* Priority badge bg/fg pairs — accessible (light tint + dark ink). P0 critical
      (red), P1 high (amber), P2 normal (neutral). Overridden for dark below. */

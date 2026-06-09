@@ -136,7 +136,7 @@
 				<section
 					class="flex min-h-[60vh] flex-col gap-[var(--gw-space-3)]
 						rounded-[var(--gw-radius-lg)] border border-t-[3px] border-[var(--gw-color-border-subtle)]
-						bg-[var(--gw-color-surface-2)] p-[var(--gw-space-3)]
+						bg-[var(--gw-color-surface-3)] p-[var(--gw-space-3)]
 						transition-colors duration-[var(--gw-duration-fast)]"
 					style="border-top-color: {col.accent}"
 					role="list"
