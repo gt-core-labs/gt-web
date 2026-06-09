@@ -143,11 +143,13 @@
 
 	function submitSpawn(e: SubmitEvent) {
 		e.preventDefault();
-		const rig = data.activeRig?.trim();
-		if (!rig) {
+		if (!data.activeRig?.trim()) {
 			error = 'no active rig selected';
 			return;
 		}
+		// Use the rig's PREFIX as the session rig field — this matches what orchd stores
+		// (GT_RIG = prefix) and the ?rig=<prefix> filter the session loader sends.
+		const rig = data.rigs.find((r) => r.name === data.activeRig)?.prefix ?? data.activeRig;
 		run(async () => {
 			await o.spawnAgent({
 				session: genSessionId(spawn.role),
