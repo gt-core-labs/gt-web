@@ -25,19 +25,32 @@ export const load: PageServerLoad = async ({ locals, request, url }) => {
 	if (!isAdmin(locals.user?.scopes)) throw error(403, 'Requires system admin (scope *)');
 	const cookie = request.headers.get('cookie') ?? '';
 
-	const res = await backendFetch('/auth/providers/all', cookie);
-	if (!res.ok) throw error(res.status, `Failed to list providers (${res.status})`);
-	const providers = (await res.json()) as ProviderAdmin[];
+	// Degrade gracefully instead of throwing: a backend that lacks the provider
+	// endpoints (404) or hits a schema mismatch (500) would otherwise render a hard
+	// error page. Surface an empty list + a banner so the admin still sees the page.
+	let providers: ProviderAdmin[] = [];
+	let loadError: string | null = null;
+	try {
+		const res = await backendFetch('/auth/providers/all', cookie);
+		if (res.ok) {
+			providers = (await res.json()) as ProviderAdmin[];
+		} else {
+			const detail = await res.text().catch(() => '');
+			loadError = `No se pudieron listar los providers (${res.status}). ${detail}`.trim();
+		}
+	} catch (e) {
+		loadError = `No se pudo contactar el backend de providers: ${e instanceof Error ? e.message : String(e)}`;
+	}
 
 	// `?edit=<id>` pre-fills the edit form by fetching the single (secret-free) view.
 	let editing: ProviderAdmin | null = null;
 	const editId = url.searchParams.get('edit');
-	if (editId) {
+	if (editId && !loadError) {
 		const one = await backendFetch(`/auth/providers/${encodeURIComponent(editId)}`, cookie);
 		if (one.ok) editing = (await one.json()) as ProviderAdmin;
 	}
 
-	return { providers, editing };
+	return { providers, editing, loadError };
 };
 
 /** Trim a form value to string; empty string when absent. */

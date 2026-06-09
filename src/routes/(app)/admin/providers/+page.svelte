@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { PRESET_KINDS, type ProviderKind } from '$lib/api/auth';
 	import { Badge, Button, Card } from '$lib/ui';
+	import { Alert } from '$lib/components/ui';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -43,6 +44,13 @@
 	<header class="flex items-center justify-between">
 		<h1 class="h2">OAuth providers <span class="text-base opacity-60">({data.providers.length})</span></h1>
 	</header>
+
+	{#if data.loadError}
+		<Alert variant="warning">
+			{data.loadError}
+			<span class="opacity-80">— el backend desplegado no expone el endpoint de providers (revisar migración/schema en gt-core).</span>
+		</Alert>
+	{/if}
 
 	<Card>
 		<div class="flex flex-wrap items-center justify-between gap-3">
