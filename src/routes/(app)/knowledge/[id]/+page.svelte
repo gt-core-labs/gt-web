@@ -3,7 +3,7 @@
 	import { browserDocs } from '$lib/api/documents';
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
-	import { Badge, Button, Card } from '$lib/ui';
+	import { Badge, Button } from '$lib/ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -95,16 +95,73 @@
 		s === 'active' ? 'success' : s === 'expired' ? 'warning' : 'error';
 </script>
 
-<div class="mx-auto max-w-3xl space-y-4">
-	<a href="/knowledge" class="text-sm opacity-70 hover:underline">← Knowledge</a>
+<style>
+	@keyframes fade-up-in {
+		from { opacity: 0; transform: translateY(8px); }
+		to   { opacity: 1; transform: translateY(0); }
+	}
 
-	<header class="space-y-1">
-		<div class="flex items-center gap-2">
-			<h1 class="h2">{doc.filename}</h1>
-			<Badge variant="surface">{doc.kind}</Badge>
-			<Badge variant="primary">v{doc.version}</Badge>
+	.entry   { animation: fade-up-in 480ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+	.entry-1 { animation-delay: 0ms; }
+	.entry-2 { animation-delay: 60ms; }
+	.entry-3 { animation-delay: 120ms; }
+	.entry-4 { animation-delay: 180ms; }
+
+	.bezel {
+		border-radius: var(--gw-radius-2xl);
+		border: 1px solid var(--gw-color-border-subtle);
+		background-color: var(--gw-color-surface-3);
+		padding: 3px;
+	}
+
+	.bezel-core {
+		border-radius: calc(var(--gw-radius-2xl) - 3px);
+		background-color: var(--gw-color-surface);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	}
+
+	/* Share row hover */
+	.share-row {
+		transition: background-color 160ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.share-row:hover {
+		background-color: var(--gw-color-surface-3);
+	}
+</style>
+
+<div class="mx-auto max-w-3xl space-y-5">
+
+	<!-- ── Back nav ───────────────────────────────────────────────────── -->
+	<a
+		href="/knowledge"
+		class="entry entry-1 inline-flex items-center gap-1.5 rounded-full
+			border border-[var(--gw-color-border-subtle)]
+			bg-[var(--gw-color-surface-3)]
+			px-[var(--gw-space-3)] py-[var(--gw-space-1)]
+			text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]
+			transition-colors duration-[200ms] ease-[cubic-bezier(0.32,0.72,0,1)]
+			hover:text-[var(--gw-color-text)]"
+	>← Knowledge</a>
+
+	<!-- ── Document header ────────────────────────────────────────────── -->
+	<header class="entry entry-2 space-y-2">
+		<span
+			class="inline-flex items-center rounded-full border border-[var(--gw-color-border-subtle)]
+				bg-[var(--gw-color-surface-3)] px-[var(--gw-space-3)] py-[3px]
+				text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]"
+		>Document</span>
+		<div class="flex flex-wrap items-start gap-3">
+			<h1
+				class="text-[var(--gw-text-3xl)] font-semibold leading-[var(--gw-leading-tight)]
+					tracking-tight text-[var(--gw-color-text)]"
+			>{doc.filename}</h1>
+			<div class="flex items-center gap-2 pt-1">
+				<Badge variant="surface">{doc.kind}</Badge>
+				<Badge variant="primary">v{doc.version}</Badge>
+			</div>
 		</div>
-		<div class="flex flex-wrap gap-x-4 text-sm opacity-70">
+		<div class="flex flex-wrap gap-x-[var(--gw-space-4)] gap-y-[var(--gw-space-1)]
+			text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
 			<span>{doc.owner_type}:{doc.owner_id}</span>
 			{#if doc.content_type}<span>{doc.content_type}</span>{/if}
 			{#if doc.uploaded_by}<span>by {doc.uploaded_by}</span>{/if}
@@ -112,85 +169,132 @@
 		</div>
 	</header>
 
-	{#if error}<p class="text-sm text-error-500">{error}</p>{/if}
+	{#if error}
+		<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{error}</p>
+	{/if}
 
 	{#if canWrite && !editing}
-		<div class="flex gap-2">
+		<div class="entry entry-3 flex gap-[var(--gw-space-2)]">
 			<Button variant="tonal" onclick={startEdit}>Edit</Button>
 			<Button variant="tonal" disabled={busy} onclick={remove}>Delete</Button>
 		</div>
 	{/if}
 
 	{#if editing}
-		<div class="space-y-3">
-			<label class="label">
-				<span class="label-text">filename</span>
-				<input class="input" bind:value={filename} />
-			</label>
-			<label class="label">
-				<span class="label-text">body (markdown)</span>
-				<textarea class="textarea font-mono" rows="18" bind:value={bodyMd}></textarea>
-			</label>
-			<div class="flex gap-2">
-				<Button disabled={busy} onclick={save}>{busy ? 'Saving…' : 'Save'}</Button>
-				<Button variant="tonal" type="button" onclick={() => (editing = false)}>Cancel</Button>
+		<!-- Edit form — Double-Bezel -->
+		<div class="entry entry-3 bezel">
+			<div class="bezel-core space-y-[var(--gw-space-3)] p-[var(--gw-space-4)]">
+				<label class="block space-y-1 text-[var(--gw-text-xs)]">
+					<span class="text-[var(--gw-color-text-muted)]">filename</span>
+					<input class="input w-full" bind:value={filename} />
+				</label>
+				<label class="block space-y-1 text-[var(--gw-text-xs)]">
+					<span class="text-[var(--gw-color-text-muted)]">body (markdown)</span>
+					<textarea
+						class="textarea font-[family-name:var(--gw-font-mono)]"
+						rows="18"
+						bind:value={bodyMd}
+					></textarea>
+				</label>
+				<div class="flex gap-[var(--gw-space-2)]">
+					<Button disabled={busy} onclick={save}>{busy ? 'Saving…' : 'Save'}</Button>
+					<Button variant="tonal" type="button" onclick={() => (editing = false)}>Cancel</Button>
+				</div>
 			</div>
 		</div>
+
 	{:else if doc.body_md}
-		<Card>
-			<pre class="whitespace-pre-wrap text-sm">{doc.body_md}</pre>
-		</Card>
+		<!-- Body viewer — Double-Bezel -->
+		<div class="entry entry-3 bezel">
+			<div class="bezel-core p-[var(--gw-space-4)]">
+				<pre class="whitespace-pre-wrap font-[family-name:var(--gw-font-mono)]
+					text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">{doc.body_md}</pre>
+			</div>
+		</div>
+
 	{:else if doc.extracted_text}
-		<section class="space-y-1">
-			<h2 class="font-semibold opacity-80">Extracted text</h2>
-			<Card><pre class="whitespace-pre-wrap text-sm">{doc.extracted_text}</pre></Card>
-		</section>
+		<!-- Extracted text — Double-Bezel -->
+		<div class="entry entry-3 space-y-[var(--gw-space-2)]">
+			<p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
+				Extracted text
+			</p>
+			<div class="bezel">
+				<div class="bezel-core p-[var(--gw-space-4)]">
+					<pre class="whitespace-pre-wrap font-[family-name:var(--gw-font-mono)]
+						text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">{doc.extracted_text}</pre>
+				</div>
+			</div>
+		</div>
+
 	{:else}
-		<p class="opacity-60">No inline content (binary stored at {doc.bucket}/{doc.key}).</p>
+		<p class="entry entry-3 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+			No inline content (binary stored at {doc.bucket}/{doc.key}).
+		</p>
 	{/if}
 
 	{#if canWrite}
-		<section class="card preset-tonal-surface space-y-3 p-4">
-			<header class="flex items-center justify-between">
-				<h2 class="font-semibold">Shares</h2>
-				<div class="flex items-end gap-2">
-					<label class="label">
-						<span class="label-text text-xs">TTL days (0 = no limit)</span>
-						<input class="input w-28" type="number" min="0" bind:value={shareTtlDays} />
-					</label>
-					<Button disabled={busy} onclick={createShare}>Create share</Button>
-				</div>
-			</header>
+		<!-- Shares section — Double-Bezel -->
+		<section class="entry entry-4 bezel">
+			<div class="bezel-core">
+				<!-- Section header -->
+				<header
+					class="flex flex-wrap items-center justify-between gap-[var(--gw-space-3)]
+						border-b border-[var(--gw-color-border-subtle)]
+						px-[var(--gw-space-4)] py-[var(--gw-space-3)]"
+				>
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+						Shares
+					</h2>
+					<div class="flex items-end gap-[var(--gw-space-2)]">
+						<label class="space-y-1 text-[var(--gw-text-xs)]">
+							<span class="text-[var(--gw-color-text-muted)]">TTL days (0 = no limit)</span>
+							<input class="input w-28" type="number" min="0" bind:value={shareTtlDays} />
+						</label>
+						<Button disabled={busy} onclick={createShare}>Create share</Button>
+					</div>
+				</header>
 
-			{#if data.shares.length === 0}
-				<p class="text-sm opacity-60">No shares for this document.</p>
-			{:else}
-				<table class="table">
-					<thead>
-						<tr><th>Link</th><th>State</th><th>Expires</th><th></th></tr>
-					</thead>
-					<tbody>
-						{#each data.shares as sh (sh.hash)}
-							<tr>
-								<td>
-									<button class="font-mono text-xs hover:underline" onclick={() => copyUrl(sh.url)}>
-										{sh.url}{copied === sh.url ? ' ✓ copied' : ''}
-									</button>
-								</td>
-								<td><Badge variant={shareVariant(sh.state)}>{sh.state}</Badge></td>
-								<td class="text-xs">{sh.expires_at ? new Date(sh.expires_at).toLocaleString() : '—'}</td>
-								<td class="text-right">
-									{#if sh.state !== 'revoked'}
-										<Button variant="tonal" disabled={busy} onclick={() => extendShare(sh.hash)}>+7d</Button>
-										<Button variant="tonal" disabled={busy} onclick={() => liftShare(sh.hash)}>No limit</Button>
-										<Button variant="tonal" disabled={busy} onclick={() => revokeShare(sh.hash)}>Revoke</Button>
-									{/if}
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			{/if}
+				{#if data.shares.length === 0}
+					<p class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]
+						text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+						No shares for this document.
+					</p>
+				{:else}
+					<table class="table">
+						<thead>
+							<tr><th>Link</th><th>State</th><th>Expires</th><th></th></tr>
+						</thead>
+						<tbody>
+							{#each data.shares as sh (sh.hash)}
+								<tr class="share-row">
+									<td>
+										<button
+											class="font-[family-name:var(--gw-font-mono)] text-xs
+												text-[var(--gw-color-text-muted)]
+												transition-colors duration-[150ms] hover:text-[var(--gw-color-text)] hover:underline"
+											onclick={() => copyUrl(sh.url)}
+										>
+											{sh.url}{copied === sh.url ? ' ✓ copied' : ''}
+										</button>
+									</td>
+									<td><Badge variant={shareVariant(sh.state)}>{sh.state}</Badge></td>
+									<td class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+										{sh.expires_at ? new Date(sh.expires_at).toLocaleString() : '—'}
+									</td>
+									<td class="text-right">
+										{#if sh.state !== 'revoked'}
+											<Button variant="tonal" disabled={busy} onclick={() => extendShare(sh.hash)}>+7d</Button>
+											<Button variant="tonal" disabled={busy} onclick={() => liftShare(sh.hash)}>No limit</Button>
+											<Button variant="tonal" disabled={busy} onclick={() => revokeShare(sh.hash)}>Revoke</Button>
+										{/if}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
+			</div>
 		</section>
 	{/if}
+
 </div>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { hasScope } from '$lib/api/auth';
-	import { Badge, Button, Card } from '$lib/ui';
+	import { Badge, Button } from '$lib/ui';
 	import CreateDocModal from '$lib/components/knowledge/CreateDocModal.svelte';
 	import {
 		browserSkills,
@@ -330,21 +330,112 @@
 	];
 </script>
 
-<div class="space-y-4">
-	<header class="flex items-center justify-between">
-		<h1 class="h2">Knowledge</h1>
-		{#if canWrite && tab === 'documents'}
-			<Button onclick={() => (showCreate = true)}>New document</Button>
-		{/if}
+<style>
+	/* Entry animation — fade-up (no blur), distinct from Orchestration's slide-up-blur */
+	@keyframes fade-up-in {
+		from { opacity: 0; transform: translateY(8px); }
+		to   { opacity: 1; transform: translateY(0); }
+	}
+
+	.entry   { animation: fade-up-in 480ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+	.entry-1 { animation-delay: 0ms; }
+	.entry-2 { animation-delay: 55ms; }
+	.entry-3 { animation-delay: 0ms; }
+	.entry-4 { animation-delay: 60ms; }
+	/* entry-5 reserved — not currently used */
+
+	/* Double-Bezel — outer shell */
+	.bezel {
+		border-radius: var(--gw-radius-2xl);
+		border: 1px solid var(--gw-color-border-subtle);
+		background-color: var(--gw-color-surface-3);
+		padding: 3px;
+	}
+
+	/* Double-Bezel — inner core */
+	.bezel-core {
+		border-radius: calc(var(--gw-radius-2xl) - 3px);
+		background-color: var(--gw-color-surface);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	}
+
+	/* Double-Bezel — inner core with overflow clip (tables) */
+	.bezel-core-overflow {
+		border-radius: calc(var(--gw-radius-2xl) - 3px);
+		background-color: var(--gw-color-surface);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+		overflow: hidden;
+	}
+
+	/* Document card hover lift — GPU-safe */
+	.doc-card {
+		transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+		            box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.doc-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.09),
+		            0 4px 10px -4px rgba(0, 0, 0, 0.06);
+	}
+
+	/* Group separator horizontal rule */
+	.group-rule {
+		height: 1px;
+		flex: 1;
+		background-color: var(--gw-color-border-subtle);
+	}
+
+	/* Feed row hover */
+	.feed-row {
+		transition: background-color 160ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.feed-row:hover {
+		background-color: var(--gw-color-surface-3);
+	}
+</style>
+
+<div class="space-y-5">
+
+	<!-- ── Header ────────────────────────────────────────────────────── -->
+	<header class="entry entry-1 space-y-2">
+		<span
+			class="inline-flex items-center rounded-full border border-[var(--gw-color-border-subtle)]
+				bg-[var(--gw-color-surface-3)] px-[var(--gw-space-3)] py-[3px]
+				text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]"
+		>
+			Knowledge Base
+		</span>
+		<div class="flex items-end justify-between gap-4">
+			<h1
+				class="text-[var(--gw-text-3xl)] font-semibold leading-[var(--gw-leading-tight)]
+					tracking-tight text-[var(--gw-color-text)]"
+			>
+				Knowledge
+			</h1>
+			{#if canWrite && tab === 'documents'}
+				<Button onclick={() => (showCreate = true)}>New document</Button>
+			{/if}
+		</div>
 	</header>
 
-	<nav class="flex gap-1 border-b border-surface-500/20">
+	<!-- ── Full-width segmented tab control (inverted active) ────────── -->
+	<nav
+		class="entry entry-2 grid grid-cols-5 gap-[3px] rounded-[var(--gw-radius-xl)]
+			bg-[var(--gw-color-surface-3)] p-[3px] ring-1 ring-[var(--gw-color-border-subtle)]"
+		aria-label="Knowledge views"
+	>
 		{#each TABS as t (t.id)}
+			{@const active = tab === t.id}
 			<button
-				class="px-3 py-2 text-sm"
-				class:border-b-2={tab === t.id}
-				class:border-primary-500={tab === t.id}
-				class:opacity-60={tab !== t.id}
+				aria-current={active ? 'page' : undefined}
+				class="rounded-[calc(var(--gw-radius-xl)-3px)] py-[var(--gw-space-2)]
+					text-center text-[var(--gw-text-xs)] font-medium
+					transition-all duration-[200ms] ease-[cubic-bezier(0.32,0.72,0,1)]
+					focus-visible:outline-none focus-visible:ring-2
+					focus-visible:ring-[var(--gw-color-primary-focus)]
+					{active
+						? 'bg-[var(--gw-color-primary)] text-white shadow-sm'
+						: 'text-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]'}"
 				onclick={() => (tab = t.id)}
 			>
 				{t.label}
@@ -352,187 +443,250 @@
 		{/each}
 	</nav>
 
+	<!-- ══ DOCUMENTS ══════════════════════════════════════════════════════ -->
 	{#if tab === 'documents'}
-		<form method="GET" class="flex gap-2">
-			<input class="input" type="search" name="q" value={data.q} placeholder="Search documents (full-text / hybrid)…" />
-			<Button type="submit">Search</Button>
+
+		<!-- Search — Double-Bezel -->
+		<form method="GET" class="entry entry-3 bezel">
+			<div class="bezel-core flex gap-[var(--gw-space-2)] p-[var(--gw-space-3)]">
+				<input
+					class="input flex-1"
+					type="search"
+					name="q"
+					value={data.q}
+					placeholder="Search documents (full-text / hybrid)…"
+				/>
+				<Button type="submit">Search</Button>
+			</div>
 		</form>
 
-		{#if data.docError}<p class="text-sm text-error-500">{data.docError}</p>{/if}
+		{#if data.docError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.docError}</p>
+		{/if}
 
 		{#if data.results.length === 0}
-			<p class="opacity-60">{data.q ? `No documents match “${data.q}”.` : 'No documents yet.'}</p>
+			<p class="entry entry-4 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+				{data.q ? `No documents match "${data.q}".` : 'No documents yet.'}
+			</p>
 		{:else}
-			{#if !data.q}<p class="text-sm opacity-50">Recent documents</p>{/if}
-			<ul class="space-y-2">
-				{#each data.results as doc (doc.id)}
-					<li>
-						<a href={`/knowledge/${doc.id}`} class="block">
-							<Card>
-								<div class="flex items-center justify-between gap-2">
-									<span class="font-medium">{doc.filename}</span>
-									<Badge variant="surface">{doc.kind}</Badge>
-								</div>
-								<div class="text-xs opacity-60">{doc.owner_type}:{doc.owner_id} · v{doc.version}</div>
-								{#if doc.body_md || doc.extracted_text}
-									<p class="mt-1 line-clamp-2 text-sm opacity-70">
-										{(doc.body_md ?? doc.extracted_text ?? '').slice(0, 200)}
-									</p>
-								{/if}
-							</Card>
-						</a>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	{:else if tab === 'skills'}
-		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
-		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
-		{#if canWriteSkills}
-			<!-- Import from GitHub -->
-			<div class="flex flex-col gap-2 rounded border border-surface-500/20 p-3">
-				<p class="text-xs font-medium opacity-60">Import from GitHub</p>
-				<div class="flex gap-2">
-					<input
-						class="input flex-1 font-mono text-xs"
-						placeholder="owner/repo (discover)  o  owner/repo/path/SKILL.md (single)"
-						bind:value={importSource}
-					/>
-					<input class="input w-28 text-xs" placeholder="group (opcional)" bind:value={newSkill.group} />
-					<Button type="button" disabled={importing || discovering || !importSource} onclick={handleImport}>
-						{importing || discovering ? '…' : 'Fetch'}
-					</Button>
-				</div>
-				{#if importError}<p class="text-xs text-error-500">{importError}</p>{/if}
-
-				{#if categories.length > 0}
-					<!-- Step 1: category picker for large repos -->
-					<div class="space-y-2 rounded border border-surface-500/20 p-3">
-						<div class="flex items-center justify-between gap-2">
-							<p class="text-xs font-semibold opacity-70">Categorías ({categories.length}) — selecciona las que quieres importar</p>
-							<label class="flex cursor-pointer items-center gap-1 text-xs opacity-60">
-								<input type="checkbox" checked={allCategoriesSelected} onchange={toggleAllCategories} />
-								Todo
-							</label>
-						</div>
-						<div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
-							{#each categories as cat, i (cat.name)}
-								<label
-									class={[
-										'flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-xs transition-colors',
-										cat.selected ? 'border-primary-500 bg-primary-500/5' : 'border-surface-500/20 opacity-60'
-									].join(' ')}
-								>
-									<input type="checkbox" class="shrink-0" bind:checked={categories[i].selected} />
-									<span class="min-w-0 flex-1 truncate font-mono">{cat.name}</span>
-									<span class="shrink-0 tabular-nums opacity-50">{cat.count}</span>
-								</label>
-							{/each}
-						</div>
-						<div class="flex items-center justify-between gap-2 pt-1">
-							<p class="text-xs opacity-50">
-								{categories.filter(c => c.selected).reduce((s, c) => s + c.count, 0)} skills seleccionadas
-							</p>
-							<Button
-								type="button"
-								disabled={loadingCategories || categories.filter(c => c.selected).length === 0}
-								onclick={loadSelectedCategories}
-							>
-								{loadingCategories ? 'Cargando…' : 'Cargar skills seleccionadas'}
-							</Button>
-						</div>
-					</div>
+			<div class="entry entry-4">
+				{#if !data.q}
+					<p class="mb-[var(--gw-space-3)] text-[10px] font-semibold uppercase
+						tracking-[0.14em] text-[var(--gw-color-text-muted)]">
+						Recent documents
+					</p>
 				{/if}
+				<ul class="space-y-[var(--gw-space-3)]">
+					{#each data.results as doc (doc.id)}
+						<li>
+							<a
+								href={`/knowledge/${doc.id}`}
+								class="block rounded-[var(--gw-radius-2xl)] outline-none
+									focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]"
+							>
+								<div class="bezel doc-card">
+									<div class="bezel-core p-[var(--gw-space-4)]">
+										<div class="flex items-start justify-between gap-3">
+											<div class="min-w-0 flex-1">
+												<div class="flex flex-wrap items-center gap-2">
+													<span class="font-semibold text-[var(--gw-color-text)]">{doc.filename}</span>
+													<Badge variant="surface">{doc.kind}</Badge>
+												</div>
+												<div class="mt-0.5 text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+													{doc.owner_type}:{doc.owner_id} · v{doc.version}
+												</div>
+												{#if doc.body_md || doc.extracted_text}
+													<p class="mt-2 line-clamp-2 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+														{(doc.body_md ?? doc.extracted_text ?? '').slice(0, 200)}
+													</p>
+												{/if}
+											</div>
+										</div>
+									</div>
+								</div>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
 
-				{#if discovered.length > 0}
-					<div class="space-y-2">
-						<div class="flex flex-wrap items-center gap-2">
-							<label class="flex cursor-pointer items-center gap-1.5 text-xs opacity-70">
-								<input type="checkbox" checked={allSelected} onchange={toggleAll} />
-								<span>Seleccionar todo ({discovered.filter(d => d.selected).length}/{discovered.length})</span>
-							</label>
-							<!-- Bulk group: changes all cards at once -->
-							<label class="flex items-center gap-1 text-xs opacity-70">
-								<span class="shrink-0">Grupo:</span>
-								<input
-									class="input w-32 text-xs"
-									placeholder="taste-skill"
-									value={discovered[0]?.group ?? ''}
-									oninput={(e) => setGroupAll((e.target as HTMLInputElement).value)}
-								/>
-							</label>
-							<div class="ml-auto flex items-center gap-2">
-								<select class="select text-xs" bind:value={importRole}>
-									<option value="">Solo registrar</option>
-									{#each ROLES as role (role)}
-										<option value={role}>{role}</option>
-									{/each}
-								</select>
-								<Button type="button" disabled={busy || missingGroup} title={missingGroup ? 'Asigna grupo a todas las skills seleccionadas' : ''} onclick={importSelected}>
-									{importRole ? `Importar y cargar → ${importRole}` : 'Importar seleccionadas'}
+	<!-- ══ SKILLS ═════════════════════════════════════════════════════════ -->
+	{:else if tab === 'skills'}
+		{#if data.skillsError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.skillsError}</p>
+		{/if}
+		{#if skillError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{skillError}</p>
+		{/if}
+
+		{#if canWriteSkills}
+			<!-- GitHub import — Double-Bezel -->
+			<div class="entry entry-3 bezel">
+				<div class="bezel-core p-[var(--gw-space-4)]">
+					<p class="mb-[var(--gw-space-3)] text-[10px] font-semibold uppercase
+						tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+						Import from GitHub
+					</p>
+					<div class="flex gap-[var(--gw-space-2)]">
+						<input
+							class="input flex-1 font-[family-name:var(--gw-font-mono)] text-xs"
+							placeholder="owner/repo (discover)  o  owner/repo/path/SKILL.md (single)"
+							bind:value={importSource}
+						/>
+						<input class="input w-28 text-xs" placeholder="group (opcional)" bind:value={newSkill.group} />
+						<Button
+							type="button"
+							disabled={importing || discovering || !importSource}
+							onclick={handleImport}
+						>
+							{importing || discovering ? '…' : 'Fetch'}
+						</Button>
+					</div>
+
+					{#if importError}
+						<p class="mt-2 text-xs text-[var(--gw-color-error)]">{importError}</p>
+					{/if}
+
+					{#if categories.length > 0}
+						<!-- Category picker for large repos -->
+						<div class="mt-[var(--gw-space-3)] space-y-[var(--gw-space-3)] rounded-[var(--gw-radius-lg)]
+							border border-[var(--gw-color-border-subtle)] p-[var(--gw-space-3)]">
+							<div class="flex items-center justify-between gap-2">
+								<p class="text-xs font-semibold text-[var(--gw-color-text-muted)]">
+									Categorías ({categories.length}) — selecciona las que quieres importar
+								</p>
+								<label class="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--gw-color-text-muted)]">
+									<input type="checkbox" checked={allCategoriesSelected} onchange={toggleAllCategories} />
+									Todo
+								</label>
+							</div>
+							<div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+								{#each categories as cat, i (cat.name)}
+									<label
+										class="flex cursor-pointer items-center gap-2 rounded-[var(--gw-radius-md)]
+											border px-2 py-1.5 text-xs
+											transition-colors duration-[150ms] ease-[cubic-bezier(0.32,0.72,0,1)]
+											{cat.selected
+												? 'border-[var(--gw-color-primary)] bg-[var(--gw-color-primary-subtle)] text-[var(--gw-color-text)]'
+												: 'border-[var(--gw-color-border-subtle)] text-[var(--gw-color-text-muted)]'}"
+									>
+										<input type="checkbox" class="shrink-0" bind:checked={categories[i].selected} />
+										<span class="min-w-0 flex-1 truncate font-[family-name:var(--gw-font-mono)]">{cat.name}</span>
+										<span class="shrink-0 tabular-nums opacity-50">{cat.count}</span>
+									</label>
+								{/each}
+							</div>
+							<div class="flex items-center justify-between gap-2 pt-1">
+								<p class="text-xs text-[var(--gw-color-text-muted)]">
+									{categories.filter(c => c.selected).reduce((s, c) => s + c.count, 0)} skills seleccionadas
+								</p>
+								<Button
+									type="button"
+									disabled={loadingCategories || categories.filter(c => c.selected).length === 0}
+									onclick={loadSelectedCategories}
+								>
+									{loadingCategories ? 'Cargando…' : 'Cargar skills seleccionadas'}
 								</Button>
 							</div>
 						</div>
-						<div class="grid grid-cols-2 gap-2 lg:grid-cols-3">
-							{#each discovered as d, i (d.path)}
-								<div
-									class={[
-										'relative flex flex-col gap-1 rounded border p-3 transition-colors',
-										d.selected ? 'border-primary-500 bg-primary-500/5' : 'border-surface-500/20 opacity-50'
-									].join(' ')}
-								>
-									<!-- Checkbox + group badge en el header de la card -->
-									<div class="flex items-start justify-between gap-2">
-										<input
-											type="checkbox"
-											class="mt-0.5 shrink-0"
-											bind:checked={discovered[i].selected}
-										/>
-										<input
-											class="input h-5 min-w-0 flex-1 px-1 text-right font-mono text-[10px] opacity-60"
-											title="grupo"
-											bind:value={discovered[i].group}
-										/>
-									</div>
-									<!-- Nombre -->
-									<p class="font-mono text-xs font-semibold leading-tight">{d.name}</p>
-									<!-- Descripción -->
-									{#if d.description}
-										<p class="line-clamp-2 text-xs opacity-60">{d.description}</p>
-									{/if}
-									<!-- Ruta -->
-									<p class="mt-auto pt-1 font-mono text-[10px] opacity-30 truncate">{d.path}</p>
+					{/if}
+
+					{#if discovered.length > 0}
+						<div class="mt-[var(--gw-space-3)] space-y-[var(--gw-space-3)]">
+							<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
+								<label class="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--gw-color-text-muted)]">
+									<input type="checkbox" checked={allSelected} onchange={toggleAll} />
+									<span>Seleccionar todo ({discovered.filter(d => d.selected).length}/{discovered.length})</span>
+								</label>
+								<label class="flex items-center gap-1.5 text-xs text-[var(--gw-color-text-muted)]">
+									<span class="shrink-0">Grupo:</span>
+									<input
+										class="input w-32 text-xs"
+										placeholder="taste-skill"
+										value={discovered[0]?.group ?? ''}
+										oninput={(e) => setGroupAll((e.target as HTMLInputElement).value)}
+									/>
+								</label>
+								<div class="ml-auto flex items-center gap-[var(--gw-space-2)]">
+									<select class="select text-xs" bind:value={importRole}>
+										<option value="">Solo registrar</option>
+										{#each ROLES as role (role)}<option value={role}>{role}</option>{/each}
+									</select>
+									<Button
+										type="button"
+										disabled={busy || missingGroup}
+										title={missingGroup ? 'Asigna grupo a todas las skills seleccionadas' : ''}
+										onclick={importSelected}
+									>
+										{importRole ? `Importar y cargar → ${importRole}` : 'Importar seleccionadas'}
+									</Button>
 								</div>
-							{/each}
+							</div>
+							<div class="grid grid-cols-2 gap-[var(--gw-space-2)] lg:grid-cols-3">
+								{#each discovered as d, i (d.path)}
+									<div
+										class="flex flex-col gap-1.5 rounded-[var(--gw-radius-lg)] border p-[var(--gw-space-3)]
+											transition-colors duration-[150ms] ease-[cubic-bezier(0.32,0.72,0,1)]
+											{d.selected
+												? 'border-[var(--gw-color-primary)] bg-[var(--gw-color-primary-subtle)]'
+												: 'border-[var(--gw-color-border-subtle)] opacity-50'}"
+									>
+										<div class="flex items-start justify-between gap-2">
+											<input type="checkbox" class="mt-0.5 shrink-0" bind:checked={discovered[i].selected} />
+											<input
+												class="input h-5 min-w-0 flex-1 px-1 text-right
+													font-[family-name:var(--gw-font-mono)] text-[10px] opacity-60"
+												title="grupo"
+												bind:value={discovered[i].group}
+											/>
+										</div>
+										<p class="font-[family-name:var(--gw-font-mono)] text-xs font-semibold
+											leading-tight text-[var(--gw-color-text)]">{d.name}</p>
+										{#if d.description}
+											<p class="line-clamp-2 text-xs text-[var(--gw-color-text-muted)]">{d.description}</p>
+										{/if}
+										<p class="mt-auto truncate pt-1 font-[family-name:var(--gw-font-mono)]
+											text-[10px] text-[var(--gw-color-text-muted)] opacity-40">{d.path}</p>
+									</div>
+								{/each}
+							</div>
 						</div>
-					</div>
-				{/if}
+					{/if}
+				</div>
 			</div>
 
-			<!-- Manual registration -->
-			<form class="flex flex-col gap-2 rounded border border-surface-500/20 p-3" onsubmit={registerSkill}>
-				<div class="flex flex-wrap items-end gap-2">
-					<input class="input w-40" placeholder="id (graphify)" bind:value={newSkill.skill} required />
-					<input class="input w-36" placeholder="label" bind:value={newSkill.label} required />
-					<input class="input w-36" placeholder="group" bind:value={newSkill.group} required />
-					<input class="input flex-1" placeholder="description" bind:value={newSkill.description} />
-					<input
-						class="input w-56"
-						placeholder="scopes (graph.read, …)"
-						bind:value={newSkill.default_scopes_csv}
-					/>
+			<!-- Manual registration form — Double-Bezel -->
+			<form class="entry entry-4 bezel" onsubmit={registerSkill}>
+				<div class="bezel-core p-[var(--gw-space-4)]">
+					<p class="mb-[var(--gw-space-3)] text-[10px] font-semibold uppercase
+						tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+						Register skill
+					</p>
+					<div class="flex flex-wrap items-end gap-[var(--gw-space-2)]">
+						<input class="input w-40" placeholder="id (graphify)" bind:value={newSkill.skill} required />
+						<input class="input w-36" placeholder="label" bind:value={newSkill.label} required />
+						<input class="input w-36" placeholder="group" bind:value={newSkill.group} required />
+						<input class="input flex-1" placeholder="description" bind:value={newSkill.description} />
+						<input
+							class="input w-56"
+							placeholder="scopes (graph.read, …)"
+							bind:value={newSkill.default_scopes_csv}
+						/>
+					</div>
+					<textarea
+						class="textarea mt-[var(--gw-space-3)] font-[family-name:var(--gw-font-mono)] text-xs"
+						rows="4"
+						placeholder="SKILL.md body — la definición que claude carga para el rol…"
+						bind:value={newSkill.body}
+					></textarea>
+					<div class="mt-[var(--gw-space-3)]"><Button type="submit" disabled={busy}>Register skill</Button></div>
 				</div>
-				<textarea
-					class="textarea font-mono text-xs"
-					rows="4"
-					placeholder="SKILL.md body — la definición que claude carga para el rol…"
-					bind:value={newSkill.body}
-				></textarea>
-				<div><Button type="submit" disabled={busy}>Register skill</Button></div>
 			</form>
 		{/if}
+
 		{#if data.skills.length === 0}
-			<p class="opacity-60">No skills registered.</p>
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">No skills registered.</p>
 		{:else}
 			{@const grouped = data.skills.reduce((acc, s) => {
 				const g = s.group || '';
@@ -542,195 +696,266 @@
 			}, new Map<string, typeof data.skills>())}
 			{#each [...grouped.entries()] as [group, skills] (group)}
 				{#if group}
-				<div class="mt-3 flex items-center gap-2">
-					<p class="text-[10px] font-semibold uppercase tracking-widest opacity-40">{group}</p>
-					{#if canWriteSkills}
-						<button
-							class="text-[10px] text-error-500 opacity-30 hover:opacity-100 hover:underline transition-opacity"
-							title="Eliminar grupo completo"
-							onclick={() => deleteGroup(group, skills.map(s => s.id))}
-						>eliminar grupo</button>
-					{/if}
-				</div>
-			{/if}
-			<ul class="space-y-2">
-				{#each skills as s (s.id)}
-					{@const enabledRoles = ROLES.filter((r) => hasSkill(r, s.id)).length}
-					<li>
-						<Card>
-							<!-- Compact header: label · description · actions. Roles/body collapse under Ver. -->
-							<div class="flex items-start justify-between gap-3">
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-2">
-										<span class="font-medium">{s.label}</span>
-										<span class="font-mono text-xs opacity-50">{s.id}</span>
-										{#if s.body}<Badge variant="success">SKILL.md</Badge>{/if}
-										{#if enabledRoles > 0}<Badge variant="primary">{enabledRoles} roles</Badge>{/if}
-									</div>
-									<p class="mt-0.5 line-clamp-1 text-sm opacity-70">{s.description || '—'}</p>
-								</div>
-								<div class="flex shrink-0 items-center gap-1">
-									<Button variant="tonal" onclick={() => toggleExpand(s.id)}>
-										{expanded[s.id] ? 'Ocultar' : 'Ver'}
-									</Button>
-									{#if canWriteSkills}
-										<Button variant="tonal" onclick={() => startEdit(s)}>Editar</Button>
-										<button
-											class="px-1 text-error-500 hover:underline"
-											title="Retire skill"
-											onclick={() => retireSkill(s.id)}>✕</button
-										>
-									{/if}
-								</div>
-							</div>
+					<div class="flex items-center gap-[var(--gw-space-3)]">
+						<span
+							class="inline-flex shrink-0 items-center rounded-full
+								border border-[var(--gw-color-border-subtle)]
+								bg-[var(--gw-color-surface-3)]
+								px-[var(--gw-space-3)] py-[3px]
+								text-[10px] font-semibold uppercase tracking-[0.14em]
+								text-[var(--gw-color-text-muted)]"
+						>{group}</span>
+						<div class="group-rule"></div>
+						{#if canWriteSkills}
+							<button
+								class="shrink-0 text-[10px] text-[var(--gw-color-error)] opacity-40
+									transition-opacity duration-[150ms] hover:opacity-100 hover:underline"
+								onclick={() => deleteGroup(group, skills.map(s => s.id))}
+							>delete group</button>
+						{/if}
+					</div>
+				{/if}
+				<ul class="space-y-[var(--gw-space-2)]">
+					{#each skills as s (s.id)}
+						{@const enabledRoles = ROLES.filter((r) => hasSkill(r, s.id)).length}
+						<li class="bezel">
+							<div class="bezel-core p-[var(--gw-space-4)]">
 
-							{#if editing === s.id}
-								<!-- Inline edit (hq-skills-edit.2): label/description/SKILL.md body. -->
-								<div class="mt-3 space-y-2 border-t border-surface-500/10 pt-3">
-									<div class="flex gap-2">
-										<input class="input flex-1" placeholder="label" bind:value={editForm.label} />
-										<input class="input w-36" placeholder="group" bind:value={editForm.group} />
+								<!-- Skill header -->
+								<div class="flex items-start justify-between gap-3">
+									<div class="min-w-0 flex-1">
+										<div class="flex flex-wrap items-center gap-2">
+											<span class="font-semibold text-[var(--gw-color-text)]">{s.label}</span>
+											<span class="font-[family-name:var(--gw-font-mono)] text-xs text-[var(--gw-color-text-muted)]">{s.id}</span>
+											{#if s.body}<Badge variant="success">SKILL.md</Badge>{/if}
+											{#if enabledRoles > 0}<Badge variant="primary">{enabledRoles} roles</Badge>{/if}
+										</div>
+										<p class="mt-0.5 line-clamp-1 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+											{s.description || '—'}
+										</p>
 									</div>
-									<input class="input w-full" placeholder="description" bind:value={editForm.description} />
-									<textarea class="textarea font-mono text-xs" rows="8" placeholder="SKILL.md body" bind:value={editForm.body}></textarea>
-									<div class="flex gap-2">
-										<Button disabled={busy} onclick={() => saveEdit(s.id)}>Save</Button>
-										<Button variant="tonal" onclick={() => (editing = null)}>Cancel</Button>
+									<div class="flex shrink-0 items-center gap-1">
+										<Button variant="tonal" onclick={() => toggleExpand(s.id)}>
+											{expanded[s.id] ? 'Ocultar' : 'Ver'}
+										</Button>
+										{#if canWriteSkills}
+											<Button variant="tonal" onclick={() => startEdit(s)}>Editar</Button>
+											<button
+												class="px-1 text-[var(--gw-color-error)] opacity-50
+													transition-opacity hover:opacity-100 hover:underline"
+												title="Retire skill"
+												onclick={() => retireSkill(s.id)}
+											>✕</button>
+										{/if}
 									</div>
 								</div>
-							{:else if expanded[s.id]}
-								<div class="mt-3 space-y-2 border-t border-surface-500/10 pt-3">
-									{#if s.default_scopes.length}
-										<div class="flex flex-wrap gap-1">
-											{#each s.default_scopes as sc (sc)}<Badge variant="surface">{sc}</Badge>{/each}
+
+								{#if editing === s.id}
+									<!-- Inline edit -->
+									<div class="mt-[var(--gw-space-4)] space-y-[var(--gw-space-2)]
+										border-t border-[var(--gw-color-border-subtle)] pt-[var(--gw-space-4)]">
+										<div class="flex gap-[var(--gw-space-2)]">
+											<input class="input flex-1" placeholder="label" bind:value={editForm.label} />
+											<input class="input w-36" placeholder="group" bind:value={editForm.group} />
 										</div>
-									{/if}
-									{#if s.body}
-										<pre class="max-h-64 overflow-auto rounded bg-surface-200-800 p-2 text-xs whitespace-pre-wrap">{s.body}</pre>
-									{:else}
-										<p class="text-xs opacity-50">No SKILL.md body.</p>
-									{/if}
-									{#if canWriteSkills}
-										<div class="flex flex-wrap items-center gap-1">
-											<span class="text-[10px] uppercase opacity-40">roles</span>
-											{#each ROLES as role (role)}
-												<button
-													type="button"
-													class="rounded border px-1.5 py-0.5 text-[10px]"
-													class:preset-tonal-primary={hasSkill(role, s.id)}
-													class:border-primary-500={hasSkill(role, s.id)}
-													class:border-surface-500={!hasSkill(role, s.id)}
-													class:opacity-50={!hasSkill(role, s.id)}
-													disabled={busy}
-													onclick={() => toggleRole(s.id, role)}
-												>
-													{role}
-												</button>
-											{/each}
+										<input class="input w-full" placeholder="description" bind:value={editForm.description} />
+										<textarea
+											class="textarea font-[family-name:var(--gw-font-mono)] text-xs"
+											rows="8"
+											placeholder="SKILL.md body"
+											bind:value={editForm.body}
+										></textarea>
+										<div class="flex gap-[var(--gw-space-2)]">
+											<Button disabled={busy} onclick={() => saveEdit(s.id)}>Save</Button>
+											<Button variant="tonal" onclick={() => (editing = null)}>Cancel</Button>
 										</div>
-									{/if}
-								</div>
-							{/if}
-						</Card>
-					</li>
-				{/each}
-			</ul>
+									</div>
+
+								{:else if expanded[s.id]}
+									<div class="mt-[var(--gw-space-4)] space-y-[var(--gw-space-3)]
+										border-t border-[var(--gw-color-border-subtle)] pt-[var(--gw-space-4)]">
+										{#if s.default_scopes.length}
+											<div class="flex flex-wrap gap-1">
+												{#each s.default_scopes as sc (sc)}<Badge variant="surface">{sc}</Badge>{/each}
+											</div>
+										{/if}
+										{#if s.body}
+											<pre class="max-h-64 overflow-auto rounded-[var(--gw-radius-md)]
+												bg-[var(--gw-color-surface-3)] p-[var(--gw-space-3)]
+												font-[family-name:var(--gw-font-mono)] text-xs
+												text-[var(--gw-color-text)] whitespace-pre-wrap">{s.body}</pre>
+										{:else}
+											<p class="text-xs text-[var(--gw-color-text-muted)]">No SKILL.md body.</p>
+										{/if}
+										{#if canWriteSkills}
+											<div class="flex flex-wrap items-center gap-1.5">
+												<span class="text-[10px] font-semibold uppercase tracking-[0.12em]
+													text-[var(--gw-color-text-muted)]">Roles</span>
+												{#each ROLES as role (role)}
+													<button
+														type="button"
+														class="rounded-full border px-2.5 py-0.5 text-[10px] font-medium
+															transition-all duration-[150ms] ease-[cubic-bezier(0.32,0.72,0,1)]
+															{hasSkill(role, s.id)
+																? 'border-[var(--gw-color-primary)] bg-[var(--gw-color-primary-subtle)] text-[var(--gw-color-primary)]'
+																: 'border-[var(--gw-color-border)] text-[var(--gw-color-text-muted)] hover:border-[var(--gw-color-primary)] hover:text-[var(--gw-color-primary)]'}"
+														disabled={busy}
+														onclick={() => toggleRole(s.id, role)}
+													>{role}</button>
+												{/each}
+											</div>
+										{/if}
+									</div>
+								{/if}
+
+							</div>
+						</li>
+					{/each}
+				</ul>
 			{/each}
 		{/if}
+
+	<!-- ══ PROMPTS ════════════════════════════════════════════════════════ -->
 	{:else if tab === 'prompts'}
-		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
-		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
-		<p class="text-sm opacity-60">
-			The system prompt a role's terminal loads as <code>CLAUDE.md</code> (hq-role-skills-term.4).
+		{#if data.skillsError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.skillsError}</p>
+		{/if}
+		{#if skillError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{skillError}</p>
+		{/if}
+
+		<p class="entry entry-3 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+			The system prompt a role's terminal loads as
+			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
+				font-[family-name:var(--gw-font-mono)] text-xs">CLAUDE.md</code>
+			(hq-role-skills-term.4).
 		</p>
+
 		{#if canWriteSkills}
-			<div class="grid grid-cols-2 gap-2">
+			<div class="entry entry-4 grid grid-cols-2 gap-[var(--gw-space-3)]">
 				{#each ROLES as role (role)}
-					<div class="rounded border border-surface-500/20 p-2">
-						<div class="mb-1 flex items-center justify-between">
-							<span class="font-mono text-xs">{role}</span>
-							<Button type="button" disabled={busy} onclick={() => saveRolePrompt(role)}>Save</Button>
+					<div class="bezel">
+						<div class="bezel-core p-[var(--gw-space-3)]">
+							<div class="mb-[var(--gw-space-2)] flex items-center justify-between">
+								<span class="font-[family-name:var(--gw-font-mono)] text-xs font-medium
+									text-[var(--gw-color-text)]">{role}</span>
+								<Button type="button" disabled={busy} onclick={() => saveRolePrompt(role)}>Save</Button>
+							</div>
+							<textarea
+								class="textarea text-xs"
+								rows="4"
+								placeholder="prompt for {role}…"
+								bind:value={rolePrompts[role]}
+							></textarea>
 						</div>
-						<textarea
-							class="textarea text-xs"
-							rows="4"
-							placeholder="prompt for {role}…"
-							bind:value={rolePrompts[role]}
-						></textarea>
 					</div>
 				{/each}
 			</div>
 		{:else}
-			<p class="opacity-60">Need <code>skills.write</code> to edit role prompts.</p>
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+				Need <code class="font-[family-name:var(--gw-font-mono)]">skills.write</code> to edit role prompts.
+			</p>
 		{/if}
+
+	<!-- ══ MODELS ═════════════════════════════════════════════════════════ -->
 	{:else if tab === 'models'}
-		{#if data.skillsError}<p class="text-sm text-error-500">{data.skillsError}</p>{/if}
-		{#if skillError}<p class="text-sm text-error-500">{skillError}</p>{/if}
-		<p class="text-sm opacity-60">
-			The model config a role's session launches <code>claude</code> with (hq-role-model.1):
-			<code>--model</code>, <code>--permission-mode</code>, and <code>--effort</code>. Leave a field
-			blank to fall back to the account default.
+		{#if data.skillsError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.skillsError}</p>
+		{/if}
+		{#if skillError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{skillError}</p>
+		{/if}
+
+		<p class="entry entry-3 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+			The model config a role's session launches
+			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
+				font-[family-name:var(--gw-font-mono)] text-xs">claude</code>
+			with (hq-role-model.1):
+			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
+				font-[family-name:var(--gw-font-mono)] text-xs">--model</code>,
+			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
+				font-[family-name:var(--gw-font-mono)] text-xs">--permission-mode</code>, and
+			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
+				font-[family-name:var(--gw-font-mono)] text-xs">--effort</code>.
+			Leave a field blank to fall back to the account default.
 		</p>
+
 		{#if canWriteSkills}
-			<div class="grid grid-cols-2 gap-2">
+			<div class="entry entry-4 grid grid-cols-2 gap-[var(--gw-space-3)]">
 				{#each ROLES as role (role)}
 					{#if roleModels[role]}
-						<div class="rounded border border-surface-500/20 p-2">
-							<div class="mb-2 flex items-center justify-between">
-								<span class="font-mono text-xs">{role}</span>
-								<Button type="button" disabled={busy} onclick={() => saveRoleModel(role)}>Save</Button>
-							</div>
-							<div class="grid grid-cols-3 gap-2">
-								<label class="text-xs">
-									<span class="opacity-60">Model</span>
-									<select class="select text-xs" bind:value={roleModels[role].model}>
-										{#each MODELS as m (m)}
-											<option value={m}>{m === '' ? 'default' : m}</option>
-										{/each}
-									</select>
-								</label>
-								<label class="text-xs">
-									<span class="opacity-60">Permission</span>
-									<select class="select text-xs" bind:value={roleModels[role].permission_mode}>
-										<option value="">unset</option>
-										{#each PERMISSION_MODES as pm (pm)}
-											<option value={pm}>{pm}</option>
-										{/each}
-									</select>
-								</label>
-								<label class="text-xs">
-									<span class="opacity-60">Effort</span>
-									<select class="select text-xs" bind:value={roleModels[role].effort}>
-										<option value="">default</option>
-										{#each EFFORT_LEVELS as e (e)}
-											<option value={e}>{e}</option>
-										{/each}
-									</select>
-								</label>
+						<div class="bezel">
+							<div class="bezel-core p-[var(--gw-space-3)]">
+								<div class="mb-[var(--gw-space-3)] flex items-center justify-between">
+									<span class="font-[family-name:var(--gw-font-mono)] text-xs font-medium
+										text-[var(--gw-color-text)]">{role}</span>
+									<Button type="button" disabled={busy} onclick={() => saveRoleModel(role)}>Save</Button>
+								</div>
+								<div class="grid grid-cols-3 gap-[var(--gw-space-2)]">
+									<label class="space-y-1 text-xs">
+										<span class="text-[var(--gw-color-text-muted)]">Model</span>
+										<select class="select text-xs" bind:value={roleModels[role].model}>
+											{#each MODELS as m (m)}<option value={m}>{m === '' ? 'default' : m}</option>{/each}
+										</select>
+									</label>
+									<label class="space-y-1 text-xs">
+										<span class="text-[var(--gw-color-text-muted)]">Permission</span>
+										<select class="select text-xs" bind:value={roleModels[role].permission_mode}>
+											<option value="">unset</option>
+											{#each PERMISSION_MODES as pm (pm)}<option value={pm}>{pm}</option>{/each}
+										</select>
+									</label>
+									<label class="space-y-1 text-xs">
+										<span class="text-[var(--gw-color-text-muted)]">Effort</span>
+										<select class="select text-xs" bind:value={roleModels[role].effort}>
+											<option value="">default</option>
+											{#each EFFORT_LEVELS as e (e)}<option value={e}>{e}</option>{/each}
+										</select>
+									</label>
+								</div>
 							</div>
 						</div>
 					{/if}
 				{/each}
 			</div>
 		{:else}
-			<p class="opacity-60">Need <code>skills.write</code> to edit role model config.</p>
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+				Need <code class="font-[family-name:var(--gw-font-mono)]">skills.write</code> to edit role model config.
+			</p>
 		{/if}
+
+	<!-- ══ FEED ═══════════════════════════════════════════════════════════ -->
 	{:else}
-		{#if data.feedError}<p class="text-sm text-error-500">{data.feedError}</p>{/if}
+		{#if data.feedError}
+			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.feedError}</p>
+		{/if}
 		{#if data.feed.length === 0}
-			<p class="opacity-60">No recent events.</p>
+			<p class="entry entry-3 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
+				No recent events.
+			</p>
 		{:else}
-			<ul class="space-y-1 text-sm">
-				{#each data.feed as e (e.event_id)}
-					<li class="flex items-center gap-2">
-						<Badge variant="primary">{e.kind}</Badge>
-						<span class="opacity-60">{new Date(e.ts).toLocaleString()}</span>
-						<span class="truncate font-mono text-xs opacity-50">{e.correlation_id}</span>
-					</li>
-				{/each}
-			</ul>
+			<div class="entry entry-3 bezel">
+				<div class="bezel-core-overflow">
+					<ul class="divide-y divide-[var(--gw-color-border-subtle)]">
+						{#each data.feed as e (e.event_id)}
+							<li class="feed-row flex items-center gap-[var(--gw-space-3)]
+								px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
+								<Badge variant="primary">{e.kind}</Badge>
+								<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+									{new Date(e.ts).toLocaleString()}
+								</span>
+								<span class="truncate font-[family-name:var(--gw-font-mono)]
+									text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)] opacity-50">
+									{e.correlation_id}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			</div>
 		{/if}
 	{/if}
+
 </div>
 
 {#if showCreate}
