@@ -27,7 +27,7 @@
   /* Pure-neutral greyscale (hue/chroma 0) so state + priority are the only hues. */
   --gw-color-surface:        oklch(1 0 0);       /* #FFFFFF — cards / app / header */
   --gw-color-surface-2:      oklch(0.985 0 0);   /* #FAFAFA — sidebar */
-  --gw-color-surface-3:      oklch(0.97 0 0);    /* #F4F4F5 — columns / muted / hover */
+  --gw-color-surface-3:      oklch(0.985 0 0);   /* #FAFAFA — one muted grey everywhere */
   --gw-color-border:         oklch(0.922 0 0);   /* #E5E5E5 — all borders/separators */
   --gw-color-border-subtle:  oklch(0.922 0 0);   /* #E5E5E5 */
   --gw-color-text:           oklch(0.145 0 0);   /* #252525 — primary text */
