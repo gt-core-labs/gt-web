@@ -7,12 +7,15 @@ const reason = (r: PromiseSettledResult<unknown>): string | null =>
 
 export const load: PageServerLoad = async (event) => {
 	const o = serverOrch(event);
-	const { activeRig, rigs } = await event.parent();
-	// The agent store filters by rig PREFIX (e.g. "hq"), not rig name ("gt_core").
-	const activePrefix = rigs.find((r: { name: string }) => r.name === activeRig)?.prefix ?? '';
+	// Sessions are stored with EITHER the rig prefix (e.g. "hq") OR the canonical name
+	// (e.g. "gt_core") depending on how they were spawned (UI form vs orchd/MCP). A
+	// server-side ?rig= filter only matches one form and silently drops the other
+	// (hq-rig-isolation.8/.9). Fetch all sessions and let the client-side rigOf mapping
+	// handle the prefix↔canonical resolution correctly.
+	await event.parent();
 	// Each tab degrades independently — a missing scope on one shouldn't blank the page.
 	const [agents, merges, quotas, convoys, quotaCatalog, skills] = await Promise.allSettled([
-		o.agents(activePrefix || undefined),
+		o.agents(undefined),
 		o.merges(),
 		o.quotas(),
 		o.convoys(),
