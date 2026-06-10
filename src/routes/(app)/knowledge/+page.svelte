@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
+	import { Markdown } from '$lib/components/ui';
 	import CreateDocModal from '$lib/components/knowledge/CreateDocModal.svelte';
 	import {
 		browserSkills,
@@ -780,10 +781,10 @@
 											</div>
 										{/if}
 										{#if s.body}
-											<pre class="max-h-64 overflow-auto rounded-[var(--gw-radius-md)]
-												bg-[var(--gw-color-surface-3)] p-[var(--gw-space-3)]
-												font-[family-name:var(--gw-font-mono)] text-xs
-												text-[var(--gw-color-text)] whitespace-pre-wrap">{s.body}</pre>
+											<div class="max-h-64 overflow-auto rounded-[var(--gw-radius-md)]
+												bg-[var(--gw-color-surface-3)] p-[var(--gw-space-3)]">
+												<Markdown text={s.body} />
+											</div>
 										{:else}
 											<p class="text-xs text-[var(--gw-color-text-muted)]">No SKILL.md body.</p>
 										{/if}
