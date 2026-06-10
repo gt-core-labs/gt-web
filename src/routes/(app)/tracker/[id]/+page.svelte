@@ -3,7 +3,7 @@
 	import { browserTracker, parseJsonArray, TrackerError, type IssueStatus } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Input } from '$lib/ui';
-	import { Spinner } from '$lib/components/ui';
+	import { Markdown, Spinner } from '$lib/components/ui';
 	import OperatorBadge from '$lib/components/tracker/OperatorBadge.svelte';
 	import type { PageData } from './$types';
 
@@ -197,11 +197,13 @@
 		{#if text}
 			<section class="flex flex-col gap-3">
 				<h2 class="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--gw-color-text-muted)]">{label}</h2>
-				<pre
-					class="overflow-x-auto whitespace-pre-wrap rounded-2xl
+				<div
+					class="overflow-x-auto rounded-2xl
 						border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)]
 						px-5 py-4 text-sm leading-relaxed text-[var(--gw-color-text)]"
-				>{text}</pre>
+				>
+					<Markdown {text} />
+				</div>
 			</section>
 		{/if}
 	{/snippet}
