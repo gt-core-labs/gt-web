@@ -9,14 +9,15 @@ import type { PageServerLoad } from './$types';
 const msg = (e: unknown) => (e instanceof TrackerError ? `${e.status}: ${e.message}` : String(e));
 
 /**
- * Agents — per-role composition (gtweb-agents-page). Admin-only (skills.write): it edits the role
- * template, not live sessions. Loads the skill library + per-role bindings (the same `/api/v1/skills`
- * the Knowledge library reads) and the grantable scope catalog (best-effort: `/meta/scopes` needs
- * `meta.read`, which a skills.write admin normally holds — a reject degrades the Scopes editor to a
- * free-text fallback instead of failing the page).
+ * Agents — per-role composition (gtweb-agents-page). View gate is `tokens.read`, the SAME as
+ * Security (gtweb-agents-scope-align): editing the role template is gated client-side by `canWrite`
+ * (skills.write) and server-side by the skills.* write endpoints, so a view-only caller sees the
+ * page but cannot mutate. Loads the skill library + per-role bindings (the same `/api/v1/skills` the
+ * Knowledge library reads) and the grantable scope catalog (best-effort: `/meta/scopes` needs
+ * `meta.read` — a reject degrades the Scopes editor to a free-text fallback instead of failing the page).
  */
 export const load: PageServerLoad = async (event) => {
-	if (!hasScope(event.locals.user?.scopes, 'skills.write')) throw error(403, 'Requires skills.write');
+	if (!hasScope(event.locals.user?.scopes, 'tokens.read')) throw error(403, 'Requires tokens.read');
 
 	const [sk, sc] = await Promise.allSettled([
 		serverSkills(event).list(),
