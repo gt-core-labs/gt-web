@@ -87,7 +87,7 @@
 		background-color: var(--gw-color-surface-3);
 	}
 
-	/* Progress bar track */
+	/* Progress bar track (table only) */
 	.bar-track {
 		height: 4px;
 		border-radius: 9999px;
@@ -100,6 +100,14 @@
 		border-radius: 9999px;
 		background-color: var(--gw-color-primary);
 		transition: width 600ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+
+	/* Stat chip — number-only variant */
+	.stat-number {
+		font-size: 2.25rem;
+		font-weight: var(--gw-font-semibold);
+		line-height: 1;
+		letter-spacing: -0.02em;
 	}
 
 	/* Workspace select — minimal inline styling */
@@ -205,42 +213,36 @@
 			</div>
 
 			<!-- Open -->
-			<div class="stat-chip flex flex-col justify-between gap-2">
-				<span class="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
+			<div class="stat-chip flex flex-col justify-center gap-[var(--gw-space-2)] px-[var(--gw-space-5)] py-[var(--gw-space-5)]">
+				<span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
 					Open
 				</span>
-				<span class="text-[var(--gw-text-3xl)] font-semibold leading-none text-[var(--gw-color-text)]">
-					{t.open}
+				<span class="stat-number text-[var(--gw-color-text)]">{t.open}</span>
+				<span class="text-[10px] text-[var(--gw-color-text-muted)]">
+					{t.total ? Math.round(t.open / t.total * 100) : 0}% of total
 				</span>
-				<div class="bar-track">
-					<div class="bar-fill" style="width: {t.total ? Math.round(t.open / t.total * 100) : 0}%"></div>
-				</div>
 			</div>
 
 			<!-- Working -->
-			<div class="stat-chip flex flex-col justify-between gap-2">
-				<span class="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
+			<div class="stat-chip flex flex-col justify-center gap-[var(--gw-space-2)] px-[var(--gw-space-5)] py-[var(--gw-space-5)]">
+				<span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
 					Working
 				</span>
-				<span class="text-[var(--gw-text-3xl)] font-semibold leading-none text-[var(--gw-color-warning)]">
-					{t.working}
+				<span class="stat-number text-[var(--gw-color-warning)]">{t.working}</span>
+				<span class="text-[10px] text-[var(--gw-color-text-muted)]">
+					{t.total ? Math.round(t.working / t.total * 100) : 0}% of total
 				</span>
-				<div class="bar-track" style="background-color: color-mix(in oklab, var(--gw-color-warning) 15%, transparent)">
-					<div class="bar-fill" style="width: {t.total ? Math.round(t.working / t.total * 100) : 0}%; background-color: var(--gw-color-warning)"></div>
-				</div>
 			</div>
 
 			<!-- Closed -->
-			<div class="stat-chip flex flex-col justify-between gap-2">
-				<span class="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
+			<div class="stat-chip flex flex-col justify-center gap-[var(--gw-space-2)] px-[var(--gw-space-5)] py-[var(--gw-space-5)]">
+				<span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--gw-color-text-muted)]">
 					Closed
 				</span>
-				<span class="text-[var(--gw-text-3xl)] font-semibold leading-none text-[var(--gw-color-success)]">
-					{t.closed}
+				<span class="stat-number text-[var(--gw-color-success)]">{t.closed}</span>
+				<span class="text-[10px] text-[var(--gw-color-text-muted)]">
+					{p}% of total
 				</span>
-				<div class="bar-track" style="background-color: color-mix(in oklab, var(--gw-color-success) 15%, transparent)">
-					<div class="bar-fill" style="width: {p}%; background-color: var(--gw-color-success)"></div>
-				</div>
 			</div>
 		</div>
 
