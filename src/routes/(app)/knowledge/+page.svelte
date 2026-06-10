@@ -304,6 +304,7 @@
 		for (const b of data.bindings) seed[b.role] = b.prompt ?? '';
 		rolePrompts = seed;
 	});
+	let promptEditing = $state<Record<string, boolean>>({});
 	const saveRolePrompt = (role: string) =>
 		run(() => browserSkills().setRolePrompt(role, rolePrompts[role] ?? ''));
 
@@ -840,14 +841,42 @@
 							<div class="mb-[var(--gw-space-2)] flex items-center justify-between">
 								<span class="font-[family-name:var(--gw-font-mono)] text-xs font-medium
 									text-[var(--gw-color-text)]">{role}</span>
-								<Button type="button" disabled={busy} onclick={() => saveRolePrompt(role)}>Save</Button>
+								{#if promptEditing[role]}
+									<div class="flex shrink-0 items-center gap-1">
+										<Button
+											type="button"
+											disabled={busy}
+											onclick={() => {
+												saveRolePrompt(role);
+												promptEditing[role] = false;
+											}}
+										>Save</Button>
+										<Button
+											type="button"
+											variant="tonal"
+											onclick={() => {
+												rolePrompts[role] =
+													data.bindings.find((b) => b.role === role)?.prompt ?? '';
+												promptEditing[role] = false;
+											}}
+										>Cancel</Button>
+									</div>
+								{:else}
+									<Button type="button" onclick={() => (promptEditing[role] = true)}>Edit</Button>
+								{/if}
 							</div>
-							<textarea
-								class="textarea text-xs"
-								rows="4"
-								placeholder="prompt for {role}…"
-								bind:value={rolePrompts[role]}
-							></textarea>
+							{#if promptEditing[role]}
+								<textarea
+									class="textarea text-xs"
+									rows="4"
+									placeholder="prompt for {role}…"
+									bind:value={rolePrompts[role]}
+								></textarea>
+							{:else if rolePrompts[role]}
+								<Markdown text={rolePrompts[role]} />
+							{:else}
+								<p class="text-xs text-[var(--gw-color-text-muted)]">No prompt.</p>
+							{/if}
 						</div>
 					</div>
 				{/each}
