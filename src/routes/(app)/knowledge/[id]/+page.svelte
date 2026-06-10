@@ -4,6 +4,7 @@
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
+	import { Markdown } from '$lib/components/ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -207,8 +208,7 @@
 		<!-- Body viewer — Double-Bezel -->
 		<div class="entry entry-3 bezel">
 			<div class="bezel-core p-[var(--gw-space-4)]">
-				<pre class="whitespace-pre-wrap font-[family-name:var(--gw-font-mono)]
-					text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">{doc.body_md}</pre>
+				<Markdown text={doc.body_md} />
 			</div>
 		</div>
 
@@ -220,8 +220,7 @@
 			</p>
 			<div class="bezel">
 				<div class="bezel-core p-[var(--gw-space-4)]">
-					<pre class="whitespace-pre-wrap font-[family-name:var(--gw-font-mono)]
-						text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">{doc.extracted_text}</pre>
+					<Markdown text={doc.extracted_text} />
 				</div>
 			</div>
 		</div>
