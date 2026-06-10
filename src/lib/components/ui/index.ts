@@ -4,3 +4,4 @@ export { default as EmptyState } from './EmptyState.svelte';
 export { default as Alert } from './Alert.svelte';
 export { default as Spinner } from './Spinner.svelte';
 export { default as ThemeToggle } from './ThemeToggle.svelte';
+export { default as Markdown } from './Markdown.svelte';

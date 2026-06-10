@@ -7,6 +7,9 @@
    --gw-* aliases can reference the resolved --color-* cerberus vars. */
 @import '$lib/styles/tokens.css';
 
+/* Markdown content styling for <Markdown> output (gw-markdown-native.1). */
+@import '$lib/styles/prose.css';
+
 /* Tailwind 4 content scan: include Skeleton's Svelte components so their
    utility classes are emitted. */
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
