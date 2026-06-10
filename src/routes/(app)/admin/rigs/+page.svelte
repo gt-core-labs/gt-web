@@ -19,12 +19,23 @@
 		return url.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
 	}
 
+	// Rig names can't contain hyphens (they're the bead-id delimiter, docs/15), so
+	// the name is the repo slug with hyphens stripped. The standard is prefix == name
+	// (hq-bead-id-standard.4), so the prefix defaults to the same value — not the old
+	// shorthand initials, which would re-create a prefix≠name split.
 	function onGitUrlInput(e: Event) {
 		const url = (e.target as HTMLInputElement).value;
 		gitUrl = url;
-		const slug = slugFromUrl(url);
-		if (!nameTouched) nameValue = slug.replace(/-/g, '');
-		if (!prefixTouched) prefixValue = slug.split('-').map((p) => p[0] ?? '').join('');
+		const name = slugFromUrl(url).replace(/-/g, '');
+		if (!nameTouched) nameValue = name;
+		if (!prefixTouched) prefixValue = name;
+	}
+
+	// Keep the prefix mirroring the name as it's typed, until the user overrides it.
+	function onNameInput(e: Event) {
+		nameValue = (e.target as HTMLInputElement).value;
+		nameTouched = true;
+		if (!prefixTouched) prefixValue = nameValue;
 	}
 
 	const enhancer = () => {
@@ -249,7 +260,7 @@
 								name="name"
 								required
 								bind:value={nameValue}
-								oninput={() => (nameTouched = true)}
+								oninput={onNameInput}
 								placeholder="myrepo"
 							/>
 						</div>
@@ -267,7 +278,7 @@
 								type="text"
 								name="prefix"
 								required
-								placeholder="hq"
+								placeholder="myrepo"
 								bind:value={prefixValue}
 								oninput={() => (prefixTouched = true)}
 							/>
