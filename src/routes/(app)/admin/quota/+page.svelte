@@ -482,25 +482,29 @@
 								</td>
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 									{#if acct.window}
-										<div class="flex min-w-[100px] items-center gap-[var(--gw-space-2)]">
-											<div class="bar-track">
-												<div
-													class="bar-fill {p >= 90 ? 'bar-fill-danger' : p >= 70 ? 'bar-fill-warn' : ''}"
-													style="width: {p}%"
-												></div>
+										<div class="space-y-[2px]">
+											<div class="flex w-[120px] items-center gap-[var(--gw-space-2)]">
+												<div class="bar-track">
+													<div
+														class="bar-fill {p >= 90 ? 'bar-fill-danger' : p >= 70 ? 'bar-fill-warn' : ''}"
+														style="width: {p}%"
+													></div>
+												</div>
+												<span class="w-8 shrink-0 text-right font-[family-name:var(--gw-font-mono)]
+													text-[10px] font-semibold text-[var(--gw-color-text)]">
+													{p}%
+												</span>
 											</div>
-											<span
-												class="w-[3.5rem] shrink-0 text-right font-[family-name:var(--gw-font-mono)]
-													text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]"
-											>
-												{acct.window.consumed}/{acct.window.limit}
-											</span>
+											<p class="whitespace-nowrap font-[family-name:var(--gw-font-mono)] text-[10px]
+												text-[var(--gw-color-text-muted)]">
+												{acct.window.consumed} / {acct.window.limit}
+											</p>
 										</div>
 									{:else}
 										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 									{/if}
 								</td>
-								<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
+								<td class="hidden whitespace-nowrap px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
 									<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
 										text-[var(--gw-color-text-muted)]">
 										{acct.window ? fmtTime(acct.window.resets_at_secs) : '—'}
