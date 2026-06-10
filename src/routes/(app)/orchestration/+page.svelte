@@ -30,10 +30,12 @@
 	// accounts the admin can attach here. Assigned ones live in the table below (data.quotas).
 	const unassigned = $derived(data.quotaCatalog.filter((a) => !a.assigned));
 
-	// Map a stored session rig (the prefix, e.g. "hq", "gw") to the display rig name (e.g.
-	// "gt_core", "gtweb") by looking up the rig catalog.  Falls back to the raw value so
-	// sessions spawned before a rig was registered still surface rather than disappear.
-	const rigOf = (rig: string) => data.rigs.find((r) => r.prefix === rig)?.name ?? rig;
+	// Map a stored session rig to its display name. Sessions store EITHER the rig
+	// prefix (orchd sets GT_RIG=prefix, e.g. "hq" for gt_core) OR the canonical name,
+	// so match on either and resolve to the canonical name. Falls back to the raw
+	// value so sessions spawned before a rig was registered still surface.
+	const rigOf = (rig: string) =>
+		data.rigs.find((r) => r.name === rig || r.prefix === rig)?.name ?? rig;
 
 	// The agent's configured skills: its own spawn manifest if present, else the skills its ROLE
 	// has in the catalog (hq-sessions-role-info.1). `fromRole` flags the catalog fallback.
@@ -149,8 +151,10 @@
 			error = 'no active rig selected';
 			return;
 		}
-		// Use the rig's PREFIX as the session rig field — this matches what orchd stores
-		// (GT_RIG = prefix) and the ?rig=<prefix> filter the session loader sends.
+		// Store the rig PREFIX as the session rig field, matching what orchd writes
+		// (GT_RIG = prefix, e.g. "hq" for gt_core which stays prefix≠name). rigOf maps
+		// it back to the canonical name for display. The loader fetches all sessions
+		// and resolves client-side, so no ?rig filter has to agree on the form.
 		const rig = data.rigs.find((r) => r.name === data.activeRig)?.prefix ?? data.activeRig;
 		run(async () => {
 			await o.spawnAgent({
