@@ -9,7 +9,6 @@
 		type IssueStatus
 	} from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
-	import { beadInRig } from '$lib/rig';
 	import { Spinner } from '$lib/components/ui';
 	import IssueCard from '$lib/components/tracker/IssueCard.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
@@ -24,14 +23,12 @@
 
 	const canWrite = $derived(hasScope(data.user?.scopes, 'issues.write'));
 
-	// A bead belongs to the active rig when its canonical `rig` column matches.
-	// The id-prefix fallback (beadInRig) covers any row that predates the rig
-	// column; an empty active rig is the "all rigs" view.
-	const visible = $derived(
-		issues.filter(
-			(i) => !data.activeRig || i.rig === data.activeRig || beadInRig(i.id, data.activeRig)
-		)
-	);
+	// The active rig's bead prefix (what the store filters issues.rig by).
+	const activePrefix = $derived(data.rigs.find((r) => r.name === data.activeRig)?.prefix);
+	// The server load already narrows rows to the active rig, so trust them as-is.
+	// (Re-filtering by id-prefix client-side would wrongly hide beads whose id
+	// predates a prefix rename, e.g. old gw-* ids that now belong to rig "gtweb".)
+	const visible = $derived(issues);
 	let error = $state('');
 	let showCreate = $state(false);
 	let dragged = $state<string | null>(null);
@@ -47,8 +44,8 @@
 	const byStatus = (s: IssueStatus) => visible.filter((i) => i.status === s);
 
 	$effect(() => {
-		const url = data.activeRig
-			? `/stream?channel=issues&rig=${encodeURIComponent(data.activeRig)}`
+		const url = activePrefix
+			? `/stream?channel=issues&rig=${encodeURIComponent(activePrefix)}`
 			: '/stream?channel=issues';
 		const es = new EventSource(url, { withCredentials: true });
 		let timer: ReturnType<typeof setTimeout> | null = null;
@@ -95,7 +92,7 @@
 				Tracker
 			</h1>
 			<span class="rounded-full border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-3)] px-2.5 py-0.5 text-xs font-medium text-[var(--gw-color-text-muted)]">
-				{data.activeRig ? visible.length : data.total}
+				{activePrefix ? visible.length : data.total}
 			</span>
 			{#if loading}
 				<Spinner size={1} label="Actualizando tracker" />
@@ -136,7 +133,7 @@
 			<div class="flex flex-col gap-1">
 				<p class="text-sm font-medium text-[var(--gw-color-text)]">Sin beads</p>
 				<p class="max-w-xs text-xs text-[var(--gw-color-text-muted)]">
-					{data.activeRig
+					{activePrefix
 						? 'Este rig no tiene beads todavía.'
 						: 'No hay beads en el tracker. Crea el primero para empezar.'}
 				</p>

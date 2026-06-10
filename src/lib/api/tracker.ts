@@ -52,8 +52,6 @@ export interface IssueOperator {
 /** A tracker row as returned by the list endpoint (no heavy text bodies). */
 export interface IssueRow {
 	id: string;
-	/** Canonical rig name this bead belongs to (issues.rig == rigs.name). */
-	rig: string;
 	title: string;
 	status: IssueStatus;
 	priority: number;

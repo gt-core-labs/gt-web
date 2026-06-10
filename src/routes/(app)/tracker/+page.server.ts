@@ -2,13 +2,15 @@ import { serverTracker } from '$lib/server/api';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	const { activeRig } = await event.parent();
-	// Beads filter by the canonical rig name (issues.rig == rigs.name, the bead-id
-	// standard hq-bead-id-standard). Pass the active rig straight through — no
-	// prefix resolution, so it keeps working even if a rig's prefix ≠ its name.
+	const { activeRig, rigs } = await event.parent();
+	// Beads are stored under the rig's bead PREFIX (issues.rig == prefix): "gtweb"
+	// for gtweb, "hq" for gt_core (the gt_core backfill to a canonical name never
+	// ran, so the prefix is the only key that matches every rig). Resolve the active
+	// rig's canonical name to its prefix for the ?rig= filter.
+	const activePrefix = rigs.find((r: { name: string }) => r.name === activeRig)?.prefix ?? '';
 	const page = await serverTracker(event).list({
 		limit: 500,
-		...(activeRig ? { rig: activeRig } : {})
+		...(activePrefix ? { rig: activePrefix } : {})
 	});
 	return { issues: page.rows, total: page.total };
 };
