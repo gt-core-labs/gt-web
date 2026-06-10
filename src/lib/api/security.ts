@@ -64,6 +64,8 @@ const SCOPE_LABELS: Record<string, string> = {
 	'issues.write': 'Write issues',
 	'documents.read': 'Read documents',
 	'documents.write': 'Write documents',
+	'memory.read': 'Read memory',
+	'memory.write': 'Write memory',
 	'rig.read': 'Read rigs',
 	'rig.write': 'Write rigs',
 	'merge.read': 'Read merges',
