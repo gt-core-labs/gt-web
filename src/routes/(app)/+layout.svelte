@@ -42,6 +42,7 @@
 		{ href: '/agents', label: 'Agents', scope: 'tokens.read', icon: 'lucide:bot' },
 		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec', icon: 'lucide:terminal' },
 		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read', icon: 'lucide:book-open' },
+		{ href: '/complementos', label: 'Complementos', scope: 'connection.read', icon: 'lucide:puzzle' },
 		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write', icon: 'lucide:webhook' },
 		{ href: '/stats', label: 'Statistics', scope: 'issues.read', icon: 'lucide:bar-chart-3' },
 		{ href: '/security', label: 'Security', scope: 'tokens.read', icon: 'lucide:shield' },
