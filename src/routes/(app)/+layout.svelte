@@ -48,7 +48,9 @@
 		{ href: '/security', label: 'Security', scope: 'tokens.read', icon: 'lucide:shield' },
 		{ href: '/admin/users', label: 'Users', scope: 'users.read', icon: 'lucide:users' },
 		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read', icon: 'lucide:layout-grid' },
-		{ href: '/admin/rigs', label: 'Rigs', scope: 'rig.read', icon: 'lucide:server' },
+		// Rigs CRUD now lives in the GitHub complemento (/complementos/github), so the
+		// standalone Rigs nav item is removed (epic hq-vcs-connections.6). /admin/rigs
+		// redirects there.
 		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read', icon: 'lucide:gauge' },
 		{ href: '/admin/providers', label: 'Providers', scope: '*', icon: 'lucide:plug' },
 		{ href: '/system', label: 'System', scope: 'system.read', icon: 'lucide:cpu' },

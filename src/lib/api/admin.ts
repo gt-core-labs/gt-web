@@ -41,6 +41,12 @@ export interface Rig {
 	registered_at_secs: number;
 	/** Absolute worktree-root override; absent ⇒ the convention default. */
 	worktree_root?: string | null;
+	/**
+	 * Soft reference to the `vcs_connections.id` this rig clones with
+	 * (hq-vcs-connections.3). Absent ⇒ the rig is cloned with no connection (a public
+	 * repo, or the legacy free-text URL).
+	 */
+	git_connection_ref?: string | null;
 }
 
 /** `POST /api/v1/workspace/` body. */
@@ -57,6 +63,8 @@ export interface AddRigBody {
 	default_branch: string;
 	push_url?: string;
 	upstream_url?: string;
+	/** Soft reference to the `vcs_connections.id` to clone with (hq-vcs-connections.3). */
+	git_connection_ref?: string;
 	now_secs: number;
 }
 

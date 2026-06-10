@@ -7,6 +7,7 @@ import { skills, feed } from '$lib/api/knowledge';
 import { stats } from '$lib/api/stats';
 import { meta } from '$lib/api/meta';
 import { serverSystem } from '$lib/api/system';
+import { connection } from '$lib/api/connection';
 import { backendFetch } from './backend';
 
 /**
@@ -64,4 +65,10 @@ export function serverMeta(event: RequestEvent) {
 export function serverSystemApi(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return serverSystem((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side VCS-connection client (connection.* CRUD + GitHub helpers) bound to the backend + cookie. */
+export function serverConnection(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return connection((path, init) => backendFetch(path, cookie, init));
 }
