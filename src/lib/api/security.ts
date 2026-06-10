@@ -102,6 +102,10 @@ const NON_GRANTABLE = new Set(['*', 'workspace.admin', 'workspace.member']);
  */
 export function buildGrantable(userScopes: string[] | undefined): ScopeOption[] {
 	if (!userScopes) return [];
+	// Wildcard admins can grant any known scope — fall back to the full catalog.
+	if (userScopes.includes('*')) {
+		return Object.entries(SCOPE_LABELS).map(([scope, label]) => ({ scope, label }));
+	}
 	return userScopes
 		.filter((s) => !NON_GRANTABLE.has(s))
 		.map((s) => ({ scope: s, label: SCOPE_LABELS[s] ?? s }));
