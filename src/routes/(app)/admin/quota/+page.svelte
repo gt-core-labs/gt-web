@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { browserAdmin } from '$lib/api/admin';
+	import { browserAdmin, type QuotaWindow } from '$lib/api/admin';
 	import { hasScope } from '$lib/api/auth';
 	import { TrackerError } from '$lib/api/tracker';
 	import type { ActionData, PageData } from './$types';
@@ -454,7 +454,7 @@
 					</thead>
 					<tbody class="divide-y divide-[var(--gw-color-border-subtle)]">
 						{#each data.accounts as acct (acct.id)}
-							{@const p = acct.window ? pct(acct.window) : 0}
+							{@const wins = [acct.window, acct.weekly_window].filter((w) => !!w) as QuotaWindow[]}
 							<tr class="data-row">
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 									<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-sm)]
@@ -476,39 +476,63 @@
 									{/if}
 								</td>
 								<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] sm:table-cell">
-									<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-										{acct.window?.kind ?? '—'}
-									</span>
+									{#if wins.length}
+										<div class="flex flex-col gap-[var(--gw-space-3)]">
+											{#each wins as w}
+												<span class="flex min-h-[2.25rem] flex-col justify-center text-[var(--gw-text-xs)]
+													text-[var(--gw-color-text-muted)]">
+													{w.kind}
+												</span>
+											{/each}
+										</div>
+									{:else}
+										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
+									{/if}
 								</td>
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
-									{#if acct.window}
-										<div class="space-y-[2px]">
-											<div class="flex w-[120px] items-center gap-[var(--gw-space-2)]">
-												<div class="bar-track">
-													<div
-														class="bar-fill {p >= 90 ? 'bar-fill-danger' : p >= 70 ? 'bar-fill-warn' : ''}"
-														style="width: {p}%"
-													></div>
+									{#if wins.length}
+										<div class="flex flex-col gap-[var(--gw-space-3)]">
+											{#each wins as w}
+												{@const p = pct(w)}
+												<div class="flex min-h-[2.25rem] flex-col justify-center gap-[2px]">
+													<div class="flex w-[120px] items-center gap-[var(--gw-space-2)]">
+														<div class="bar-track">
+															<div
+																class="bar-fill {p >= 90 ? 'bar-fill-danger' : p >= 70 ? 'bar-fill-warn' : ''}"
+																style="width: {p}%"
+															></div>
+														</div>
+														<span class="w-8 shrink-0 text-right font-[family-name:var(--gw-font-mono)]
+															text-[10px] font-semibold text-[var(--gw-color-text)]">
+															{p}%
+														</span>
+													</div>
+													<p class="whitespace-nowrap font-[family-name:var(--gw-font-mono)] text-[10px]
+														text-[var(--gw-color-text-muted)]">
+														{w.consumed} / {w.limit}
+													</p>
 												</div>
-												<span class="w-8 shrink-0 text-right font-[family-name:var(--gw-font-mono)]
-													text-[10px] font-semibold text-[var(--gw-color-text)]">
-													{p}%
-												</span>
-											</div>
-											<p class="whitespace-nowrap font-[family-name:var(--gw-font-mono)] text-[10px]
-												text-[var(--gw-color-text-muted)]">
-												{acct.window.consumed} / {acct.window.limit}
-											</p>
+											{/each}
 										</div>
 									{:else}
 										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 									{/if}
 								</td>
 								<td class="hidden whitespace-nowrap px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
-									<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
-										text-[var(--gw-color-text-muted)]">
-										{acct.window ? fmtTime(acct.window.resets_at_secs) : '—'}
-									</span>
+									{#if wins.length}
+										<div class="flex flex-col gap-[var(--gw-space-3)]">
+											{#each wins as w}
+												<span class="flex min-h-[2.25rem] flex-col justify-center
+													font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
+													text-[var(--gw-color-text-muted)]">
+													{fmtTime(w.resets_at_secs)}
+												</span>
+											{/each}
+										</div>
+									{:else}
+										<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
+											text-[var(--gw-color-text-muted)]">—</span>
+									{/if}
 								</td>
 								{#if canWrite}
 									<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
