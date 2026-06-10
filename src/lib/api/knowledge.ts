@@ -25,6 +25,8 @@ export interface SkillBinding {
 	prompt?: string;
 	/** The role's model config (hq-role-model.1); stamped onto the session's claude launch. */
 	model_config?: ModelConfig;
+	/** The role's gt-rbac scopes (hq-role-scopes); the role's MCP permission set, decoupled from skills. */
+	scopes?: string[];
 }
 
 /** Per-role model config (hq-role-model.1): the claude launch levers a session of the role uses. */
@@ -169,6 +171,18 @@ export function skills(doFetch: Fetcher) {
 					method: 'PUT',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify(config)
+				})
+			);
+		},
+		// Set (or clear) a role's gt-rbac scopes (hq-role-scopes) → the role's MCP permission set.
+		// `scopes` is the full intended set; an empty array clears the grant. The backend validates
+		// every entry against the closed scope vocabulary (422 on an unknown verb).
+		async setRoleScopes(role: string, scopes: string[]): Promise<void> {
+			await unwrap(
+				await doFetch(`/api/v1/skills/roles/${encodeURIComponent(role)}/scopes`, {
+					method: 'PUT',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ scopes })
 				})
 			);
 		}

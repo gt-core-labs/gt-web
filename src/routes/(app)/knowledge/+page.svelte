@@ -4,13 +4,7 @@
 	import { Badge, Button } from '$lib/ui';
 	import { Markdown } from '$lib/components/ui';
 	import CreateDocModal from '$lib/components/knowledge/CreateDocModal.svelte';
-	import {
-		browserSkills,
-		EFFORT_LEVELS,
-		PERMISSION_MODES,
-		type ModelConfig,
-		type RegisterSkillBody
-	} from '$lib/api/knowledge';
+	import { browserSkills, type RegisterSkillBody } from '$lib/api/knowledge';
 	import { TrackerError } from '$lib/api/tracker';
 	import type { PageData } from './$types';
 
@@ -290,44 +284,15 @@
 			editing = null;
 		});
 
-	const toggleRole = (skill: string, role: string) =>
-		run(() =>
-			hasSkill(role, skill)
-				? browserSkills().disableForRole(skill, role)
-				: browserSkills().enableForRole(skill, role)
-		);
+	// Per-role config (skill toggles, prompt, model, scopes) lives in the dedicated Agents page
+	// (gtweb-agents-page) now — Knowledge is the library: authoring skills + docs. The role list here
+	// stays only to (a) the import-time role assignment and (b) the read-only "N roles" badge.
 
-	// Role prompts (hq-role-skills-term.4): seeded from the SSR bindings, editable per role.
-	let rolePrompts = $state<Record<string, string>>({});
-	$effect(() => {
-		const seed: Record<string, string> = {};
-		for (const b of data.bindings) seed[b.role] = b.prompt ?? '';
-		rolePrompts = seed;
-	});
-	let promptEditing = $state<Record<string, boolean>>({});
-	const saveRolePrompt = (role: string) =>
-		run(() => browserSkills().setRolePrompt(role, rolePrompts[role] ?? ''));
-
-	// Role model config (hq-role-model.1): seeded from the SSR bindings, editable per role. An empty
-	// model/mode/effort clears the config (the role rides the account default).
-	const MODELS = ['', 'opus', 'sonnet', 'haiku'];
-	const blankModel = (): ModelConfig => ({ model: '', permission_mode: '', effort: '' });
-	let roleModels = $state<Record<string, ModelConfig>>({});
-	$effect(() => {
-		const seed: Record<string, ModelConfig> = {};
-		for (const b of data.bindings) seed[b.role] = b.model_config ?? blankModel();
-		roleModels = seed;
-	});
-	const saveRoleModel = (role: string) =>
-		run(() => browserSkills().setRoleModel(role, roleModels[role] ?? blankModel()));
-
-	type Tab = 'documents' | 'skills' | 'prompts' | 'models' | 'feed';
+	type Tab = 'documents' | 'skills' | 'feed';
 	let tab = $state<Tab>('documents');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'documents', label: 'Documents' },
 		{ id: 'skills', label: 'Skills' },
-		{ id: 'prompts', label: 'Prompts' },
-		{ id: 'models', label: 'Models' },
 		{ id: 'feed', label: 'Feed' }
 	];
 </script>
@@ -422,7 +387,7 @@
 
 	<!-- ── Full-width segmented tab control (inverted active) ────────── -->
 	<nav
-		class="entry entry-2 grid grid-cols-5 gap-[3px] rounded-[var(--gw-radius-xl)]
+		class="entry entry-2 grid grid-cols-3 gap-[3px] rounded-[var(--gw-radius-xl)]
 			bg-[var(--gw-color-surface-3)] p-[3px] ring-1 ring-[var(--gw-color-border-subtle)]"
 		aria-label="Knowledge views"
 	>
@@ -789,24 +754,9 @@
 										{:else}
 											<p class="text-xs text-[var(--gw-color-text-muted)]">No SKILL.md body.</p>
 										{/if}
-										{#if canWriteSkills}
-											<div class="flex flex-wrap items-center gap-1.5">
-												<span class="text-[10px] font-semibold uppercase tracking-[0.12em]
-													text-[var(--gw-color-text-muted)]">Roles</span>
-												{#each ROLES as role (role)}
-													<button
-														type="button"
-														class="rounded-full border px-2.5 py-0.5 text-[10px] font-medium
-															transition-all duration-[150ms] ease-[cubic-bezier(0.32,0.72,0,1)]
-															{hasSkill(role, s.id)
-																? 'border-[var(--gw-color-primary)] bg-[var(--gw-color-primary-subtle)] text-[var(--gw-color-primary)]'
-																: 'border-[var(--gw-color-border)] text-[var(--gw-color-text-muted)] hover:border-[var(--gw-color-primary)] hover:text-[var(--gw-color-primary)]'}"
-														disabled={busy}
-														onclick={() => toggleRole(s.id, role)}
-													>{role}</button>
-												{/each}
-											</div>
-										{/if}
+										<p class="text-[10px] text-[var(--gw-color-text-muted)]">
+											Enable this skill for a role in <a class="underline" href="/agents">Agents</a>.
+										</p>
 									</div>
 								{/if}
 
@@ -815,143 +765,6 @@
 					{/each}
 				</ul>
 			{/each}
-		{/if}
-
-	<!-- ══ PROMPTS ════════════════════════════════════════════════════════ -->
-	{:else if tab === 'prompts'}
-		{#if data.skillsError}
-			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.skillsError}</p>
-		{/if}
-		{#if skillError}
-			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{skillError}</p>
-		{/if}
-
-		<p class="entry entry-3 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-			The system prompt a role's terminal loads as
-			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
-				font-[family-name:var(--gw-font-mono)] text-xs">CLAUDE.md</code>
-			(hq-role-skills-term.4).
-		</p>
-
-		{#if canWriteSkills}
-			<div class="entry entry-4 grid grid-cols-2 gap-[var(--gw-space-3)]">
-				{#each ROLES as role (role)}
-					<div class="bezel">
-						<div class="bezel-core p-[var(--gw-space-3)]">
-							<div class="mb-[var(--gw-space-2)] flex items-center justify-between">
-								<span class="font-[family-name:var(--gw-font-mono)] text-xs font-medium
-									text-[var(--gw-color-text)]">{role}</span>
-								{#if promptEditing[role]}
-									<div class="flex shrink-0 items-center gap-1">
-										<Button
-											type="button"
-											disabled={busy}
-											onclick={() => {
-												saveRolePrompt(role);
-												promptEditing[role] = false;
-											}}
-										>Save</Button>
-										<Button
-											type="button"
-											variant="tonal"
-											onclick={() => {
-												rolePrompts[role] =
-													data.bindings.find((b) => b.role === role)?.prompt ?? '';
-												promptEditing[role] = false;
-											}}
-										>Cancel</Button>
-									</div>
-								{:else}
-									<Button type="button" onclick={() => (promptEditing[role] = true)}>Edit</Button>
-								{/if}
-							</div>
-							{#if promptEditing[role]}
-								<textarea
-									class="textarea text-xs"
-									rows="4"
-									placeholder="prompt for {role}…"
-									bind:value={rolePrompts[role]}
-								></textarea>
-							{:else if rolePrompts[role]}
-								<Markdown text={rolePrompts[role]} />
-							{:else}
-								<p class="text-xs text-[var(--gw-color-text-muted)]">No prompt.</p>
-							{/if}
-						</div>
-					</div>
-				{/each}
-			</div>
-		{:else}
-			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-				Need <code class="font-[family-name:var(--gw-font-mono)]">skills.write</code> to edit role prompts.
-			</p>
-		{/if}
-
-	<!-- ══ MODELS ═════════════════════════════════════════════════════════ -->
-	{:else if tab === 'models'}
-		{#if data.skillsError}
-			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{data.skillsError}</p>
-		{/if}
-		{#if skillError}
-			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{skillError}</p>
-		{/if}
-
-		<p class="entry entry-3 text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-			The model config a role's session launches
-			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
-				font-[family-name:var(--gw-font-mono)] text-xs">claude</code>
-			with (hq-role-model.1):
-			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
-				font-[family-name:var(--gw-font-mono)] text-xs">--model</code>,
-			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
-				font-[family-name:var(--gw-font-mono)] text-xs">--permission-mode</code>, and
-			<code class="rounded-[var(--gw-radius-sm)] bg-[var(--gw-color-surface-3)] px-1 py-0.5
-				font-[family-name:var(--gw-font-mono)] text-xs">--effort</code>.
-			Leave a field blank to fall back to the account default.
-		</p>
-
-		{#if canWriteSkills}
-			<div class="entry entry-4 grid grid-cols-2 gap-[var(--gw-space-3)]">
-				{#each ROLES as role (role)}
-					{#if roleModels[role]}
-						<div class="bezel">
-							<div class="bezel-core p-[var(--gw-space-3)]">
-								<div class="mb-[var(--gw-space-3)] flex items-center justify-between">
-									<span class="font-[family-name:var(--gw-font-mono)] text-xs font-medium
-										text-[var(--gw-color-text)]">{role}</span>
-									<Button type="button" disabled={busy} onclick={() => saveRoleModel(role)}>Save</Button>
-								</div>
-								<div class="grid grid-cols-3 gap-[var(--gw-space-2)]">
-									<label class="space-y-1 text-xs">
-										<span class="text-[var(--gw-color-text-muted)]">Model</span>
-										<select class="select text-xs" bind:value={roleModels[role].model}>
-											{#each MODELS as m (m)}<option value={m}>{m === '' ? 'default' : m}</option>{/each}
-										</select>
-									</label>
-									<label class="space-y-1 text-xs">
-										<span class="text-[var(--gw-color-text-muted)]">Permission</span>
-										<select class="select text-xs" bind:value={roleModels[role].permission_mode}>
-											<option value="">unset</option>
-											{#each PERMISSION_MODES as pm (pm)}<option value={pm}>{pm}</option>{/each}
-										</select>
-									</label>
-									<label class="space-y-1 text-xs">
-										<span class="text-[var(--gw-color-text-muted)]">Effort</span>
-										<select class="select text-xs" bind:value={roleModels[role].effort}>
-											<option value="">default</option>
-											{#each EFFORT_LEVELS as e (e)}<option value={e}>{e}</option>{/each}
-										</select>
-									</label>
-								</div>
-							</div>
-						</div>
-					{/if}
-				{/each}
-			</div>
-		{:else}
-			<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-				Need <code class="font-[family-name:var(--gw-font-mono)]">skills.write</code> to edit role model config.
-			</p>
 		{/if}
 
 	<!-- ══ FEED ═══════════════════════════════════════════════════════════ -->
