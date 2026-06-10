@@ -18,6 +18,23 @@ export interface HelpTool {
 	inputSchema?: unknown;
 }
 
+/**
+ * One grantable scope in the discovery catalog (`hq-scope-catalog`): a `<namespace>.<verb>` scope
+ * with a backend-derived human label and its owning namespace. The token-permission picker reads
+ * these instead of a hardcoded label map, so a newly-registered backend namespace appears with no
+ * frontend edit.
+ */
+export interface ScopeCatalogEntry {
+	scope: string;
+	label: string;
+	namespace: string;
+}
+
+/** `GET /api/v1/meta/scopes` body. */
+export interface ScopesResponse {
+	scopes: ScopeCatalogEntry[];
+}
+
 /** `GET /api/v1/meta/help` body. The catalog shape is dynamic — render defensively. */
 export interface HelpResponse {
 	tools: HelpTool[];
@@ -58,6 +75,15 @@ export function meta(doFetch: Fetcher) {
 		async help(): Promise<HelpTool[]> {
 			const j = await unwrap<HelpResponse>(await doFetch('/api/v1/meta/help'));
 			return Array.isArray(j?.tools) ? j.tools : [];
+		},
+		/**
+		 * The grantable scope catalog (`hq-scope-catalog`): every `<namespace>.<verb>` scope a token
+		 * may be granted, derived backend-side from the closed verb vocabulary × the registered
+		 * namespaces. Returns a safe empty list if the body is malformed. Requires scope `meta.read`.
+		 */
+		async scopes(): Promise<ScopeCatalogEntry[]> {
+			const j = await unwrap<ScopesResponse>(await doFetch('/api/v1/meta/scopes'));
+			return Array.isArray(j?.scopes) ? j.scopes : [];
 		},
 		/** File a missing-operation gap; the backend mints a `hq-gap-*` bead. */
 		async reportGap(body: ReportGapBody): Promise<ReportGapResult> {

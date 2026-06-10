@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import type { PatToken } from '$lib/api/security';
+import type { ScopeCatalogEntry, ScopesResponse } from '$lib/api/meta';
 import { backendFetch } from '$lib/server/backend';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -18,7 +19,21 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 	const res = await backendFetch('/auth/tokens', cookie);
 	if (!res.ok) throw error(res.status, `Failed to list tokens (${res.status})`);
 	const tokens = (await res.json()) as PatToken[];
-	return { tokens };
+
+	// Best-effort grantable-scope catalog (hq-scope-catalog). Requires `meta.read`, which a
+	// `tokens.read` caller may lack — so a non-ok/throw degrades to `null` and the picker falls back
+	// to its offline labels rather than failing the page.
+	let scopeCatalog: ScopeCatalogEntry[] | null = null;
+	try {
+		const sres = await backendFetch('/api/v1/meta/scopes', cookie);
+		if (sres.ok) {
+			const body = (await sres.json()) as ScopesResponse;
+			scopeCatalog = Array.isArray(body?.scopes) ? body.scopes : null;
+		}
+	} catch {
+		scopeCatalog = null;
+	}
+	return { tokens, scopeCatalog };
 };
 
 export const actions: Actions = {

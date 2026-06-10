@@ -8,7 +8,7 @@
 	const canWrite = $derived(hasScope(data.user?.scopes, 'tokens.write'));
 	let saving = $state(false);
 
-	const grantable = $derived(buildGrantable(data.user?.scopes));
+	const grantable = $derived(buildGrantable(data.user?.scopes, data.scopeCatalog ?? undefined));
 	let picked = $state(new Set<string>());
 	function toggle(scope: string, on: boolean) {
 		const next = new Set(picked);

@@ -10,6 +10,7 @@
  * browser; SSR forwards the incoming cookie via `$lib/server/backend`'s `backendFetch`.
  */
 import type { Fetch } from './auth';
+import type { ScopeCatalogEntry } from './meta';
 
 /**
  * A Personal Access Token's non-secret record (GET /auth/tokens, and the `info` of a freshly
@@ -53,9 +54,12 @@ export interface ScopeOption {
 }
 
 /**
- * Human-readable labels for known scopes. The security page derives the grantable list from
- * the caller's own scopes (what the server says they hold), so this map never gates which scopes
- * appear — it only improves readability. Unknown scopes fall back to the raw scope string.
+ * Minimal OFFLINE FALLBACK labels (`gtweb-scope-catalog-consume`). The source of truth is now the
+ * backend `GET /api/v1/meta/scopes` catalog (`hq-scope-catalog`), consumed by `buildGrantable`; this
+ * map is used ONLY when that catalog is unavailable (e.g. the caller lacks `meta.read`, or the
+ * endpoint did not respond) so the picker still renders readable labels rather than raw strings.
+ * It is no longer the source of which scopes appear, and no longer needs hand-editing when a backend
+ * namespace is added.
  */
 const SCOPE_LABELS: Record<string, string> = {
 	'tokens.read': 'Read tokens',
@@ -98,29 +102,45 @@ const SCOPE_LABELS: Record<string, string> = {
 /** Role-label scopes that are not grantable as discrete PAT scopes. */
 const NON_GRANTABLE = new Set(['*', 'workspace.admin', 'workspace.member']);
 
-/**
- * Build the grantable scope options from the caller's own scopes. This replaces the old static
- * SCOPE_CATALOG so new backend scopes appear automatically without a frontend update.
- */
-export function buildGrantable(userScopes: string[] | undefined): ScopeOption[] {
-	if (!userScopes) return [];
-	// Wildcard admins can grant any known scope — fall back to the full catalog.
-	if (userScopes.includes('*')) {
-		return Object.entries(SCOPE_LABELS).map(([scope, label]) => ({ scope, label }));
-	}
-	return userScopes
-		.filter((s) => !NON_GRANTABLE.has(s))
-		.map((s) => ({ scope: s, label: SCOPE_LABELS[s] ?? s }));
+/** Resolve a human label for `scope`: the backend catalog first, then the offline map, then raw. */
+function labelFor(scope: string, catalogLabels: Map<string, string>): string {
+	return catalogLabels.get(scope) ?? SCOPE_LABELS[scope] ?? scope;
 }
 
 /**
- * @deprecated Use `buildGrantable(userScopes)` instead. Kept for any callers that import this
- * symbol directly; will be removed once the security page is the only consumer.
+ * Build the grantable scope options (`gtweb-scope-catalog-consume`).
+ *
+ * The list + labels come from the backend `GET /api/v1/meta/scopes` catalog when available, so a
+ * newly-registered backend namespace appears with no frontend edit:
+ * - A wildcard admin (`*`) can grant ANY scope ⇒ the whole backend catalog (or the offline map when
+ *   the catalog is unavailable).
+ * - A normal caller can grant only the scopes they hold ⇒ their own scopes, labelled from the
+ *   catalog (then the offline map, then the raw string — an unknown scope never breaks the form).
+ *
+ * `catalog` is best-effort: pass `undefined` when the endpoint did not respond (e.g. no `meta.read`)
+ * and the function degrades to the offline `SCOPE_LABELS`.
  */
-export const SCOPE_CATALOG: ScopeOption[] = Object.entries(SCOPE_LABELS).map(([scope, label]) => ({
-	scope,
-	label
-}));
+export function buildGrantable(
+	userScopes: string[] | undefined,
+	catalog?: ScopeCatalogEntry[]
+): ScopeOption[] {
+	if (!userScopes) return [];
+	const entries = catalog ?? [];
+	const catalogLabels = new Map(entries.map((e) => [e.scope, e.label]));
+
+	// Wildcard admins can grant any scope — prefer the backend catalog; fall back to the offline map.
+	if (userScopes.includes('*')) {
+		const source: [string, string][] = entries.length
+			? entries.map((e) => [e.scope, e.label])
+			: Object.entries(SCOPE_LABELS);
+		return source
+			.filter(([scope]) => !NON_GRANTABLE.has(scope))
+			.map(([scope, label]) => ({ scope, label }));
+	}
+	return userScopes
+		.filter((s) => !NON_GRANTABLE.has(s))
+		.map((s) => ({ scope: s, label: labelFor(s, catalogLabels) }));
+}
 
 function f(fetch?: Fetch): Fetch {
 	return fetch ?? globalThis.fetch;
