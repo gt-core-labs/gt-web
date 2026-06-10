@@ -8,6 +8,7 @@ import { stats } from '$lib/api/stats';
 import { meta } from '$lib/api/meta';
 import { serverSystem } from '$lib/api/system';
 import { connection } from '$lib/api/connection';
+import { graphClient } from '$lib/api/graph';
 import { backendFetch } from './backend';
 
 /**
@@ -71,4 +72,10 @@ export function serverSystemApi(event: RequestEvent) {
 export function serverConnection(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return connection((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side knowledge-graph client (graph.list/status/refresh) bound to the backend + cookie. */
+export function serverGraph(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return graphClient((path, init) => backendFetch(path, cookie, init));
 }

@@ -2,7 +2,8 @@ import { error, fail } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import { TrackerError } from '$lib/api/tracker';
 import type { Connection } from '$lib/api/connection';
-import { serverAdmin, serverConnection } from '$lib/server/api';
+import type { GraphCustody } from '$lib/api/graph';
+import { serverAdmin, serverConnection, serverGraph } from '$lib/server/api';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -44,7 +45,31 @@ export const load: PageServerLoad = async (event) => {
 		}
 	}
 
-	return { connections, connError, rigs, rigError, canReadRigs };
+	// Per-repo graph freshness (hq-vcs-connections.9): one `GET /api/v1/graph` lists every rig under
+	// warden custody with its freshness, keyed by rig name. The page maps it onto each repo row's
+	// chip (built/stale/behind, or `—` when the rig has no custody / the backend predates the
+	// surface). Best-effort + scope-gated on `graph.read`; a 404 (older backend) degrades to `—`.
+	const canReadGraph = hasScope(event.locals.user?.scopes, 'graph.read');
+	let graphCustody: GraphCustody[] = [];
+	if (canReadRigs && canReadGraph) {
+		try {
+			graphCustody = await serverGraph(event).list();
+		} catch {
+			// Silent degrade: the chip falls back to `—`. No banner — the graph surface is optional.
+			graphCustody = [];
+		}
+	}
+	const canRefreshGraph = hasScope(event.locals.user?.scopes, 'graph.write');
+
+	return {
+		connections,
+		connError,
+		rigs,
+		rigError,
+		canReadRigs,
+		graphCustody,
+		canRefreshGraph
+	};
 };
 
 function failFrom(err: unknown) {
@@ -145,6 +170,24 @@ export const actions: Actions = {
 		if (!name) return fail(400, { error: 'Missing rig name.', formScope: 'rig' });
 		try {
 			await serverAdmin(event).removeRig(name);
+			return { ok: true };
+		} catch (err) {
+			return failFrom(err);
+		}
+	},
+
+	// ── Graph (hq-vcs-connections.9) ─────────────────────────────────────────
+	// The per-repo "Refresh" button: trigger a `graph.refresh` for one rig (clone/fetch the default
+	// branch at the server-derived path + re-index). Default-branch-only — no branch selector. Needs
+	// `graph.write`; on success the page reloads and the chip reflects the new freshness.
+	refreshGraph: async (event) => {
+		if (!hasScope(event.locals.user?.scopes, 'graph.write')) {
+			return fail(403, { error: 'Requires graph.write', formScope: 'graph' });
+		}
+		const rig = str(await event.request.formData(), 'rig');
+		if (!rig) return fail(400, { error: 'Missing rig name.', formScope: 'graph' });
+		try {
+			await serverGraph(event).refresh(rig);
 			return { ok: true };
 		} catch (err) {
 			return failFrom(err);

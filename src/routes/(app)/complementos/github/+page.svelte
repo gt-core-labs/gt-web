@@ -98,6 +98,29 @@
 		if (!c) return id;
 		return c.account_login ? `${id} (${c.account_login})` : id;
 	}
+
+	// ── Per-repo graph freshness (hq-vcs-connections.9) ──────────────────────
+	// The warden custody is keyed by rig name; map each repo row to its freshness chip. The state is
+	// derived from custody exactly as the backend does: not stale → built; stale + indexed before →
+	// behind; stale + never indexed → stale. A rig with no custody (never refreshed) shows `—`.
+	type GraphChip = { state: 'built' | 'behind' | 'stale'; commit: string | null } | null;
+	function graphChip(rigName: string): GraphChip {
+		const c = data.graphCustody.find((g) => g.rig === rigName);
+		if (!c) return null;
+		const state = !c.stale ? 'built' : c.last_indexed_commit ? 'behind' : 'stale';
+		return { state, commit: c.last_indexed_commit };
+	}
+	const CHIP_LABEL = { built: 'Construido', behind: 'Atrasado', stale: 'Sin construir' } as const;
+
+	// One in-flight rig at a time for the Refresh button's spinner.
+	let refreshing = $state<string | null>(null);
+	const refreshEnhancer = (rigName: string) => () => {
+		refreshing = rigName;
+		return async ({ update }: { update: () => Promise<void> }) => {
+			await update();
+			refreshing = null;
+		};
+	};
 </script>
 
 <style>
@@ -248,6 +271,56 @@
 		border-radius: 9999px;
 		background-color: var(--gw-color-text-muted);
 		opacity: 0.6;
+	}
+	/* Graph freshness dot colors (hq-vcs-connections.9). */
+	.dot-built {
+		background-color: oklch(65% 0.18 150);
+		opacity: 1;
+	}
+	.dot-behind {
+		background-color: oklch(75% 0.16 80);
+		opacity: 1;
+	}
+	.dot-stale {
+		background-color: var(--gw-color-error);
+		opacity: 1;
+	}
+
+	.graph-cell {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.btn-refresh {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		border-radius: 9999px;
+		border: 1px solid var(--gw-color-border);
+		background-color: var(--gw-color-surface-3);
+		color: var(--gw-color-text-muted);
+		font-size: 11px;
+		font-weight: 500;
+		padding: 2px 8px;
+		cursor: pointer;
+		transition: border-color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+			color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.btn-refresh:hover:not(:disabled) {
+		border-color: var(--gw-color-text-muted);
+		color: var(--gw-color-text);
+	}
+	.btn-refresh:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.spin {
+		animation: spin 0.8s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.warn-banner {
@@ -591,10 +664,46 @@
 											{/if}
 										</td>
 										<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
-											<!-- Graph status placeholder — bead hq-vcs-connections.9 wires the real status. -->
-											<span class="chip" title="El estado real del grafo lo entrega hq-vcs-connections.9">
-												<span class="dot"></span>—
-											</span>
+											<!-- Per-repo graph freshness chip + Refresh (hq-vcs-connections.9). The state
+											     comes from the warden custody (built/behind/stale), or `—` when the rig
+											     has no custody yet (never refreshed). Default-branch-only. -->
+											{#key data.graphCustody}
+												{@const chip = graphChip(rig.name)}
+												<div class="graph-cell">
+													{#if chip}
+														<span
+															class="chip chip-status"
+															title={chip.commit
+																? `Último commit indexado: ${chip.commit}`
+																: 'Aún sin commit indexado'}
+														>
+															<span class="dot dot-{chip.state}"></span>{CHIP_LABEL[chip.state]}
+														</span>
+													{:else}
+														<span class="chip" title="Sin custodia del grafo — ejecuta Refresh para construirlo">
+															<span class="dot"></span>—
+														</span>
+													{/if}
+													{#if data.canRefreshGraph}
+														<form method="POST" action="?/refreshGraph" use:enhance={refreshEnhancer(rig.name)}>
+															<input type="hidden" name="rig" value={rig.name} />
+															<button
+																type="submit"
+																class="btn-refresh"
+																disabled={refreshing === rig.name}
+																title="Reconstruir el grafo de este repo"
+															>
+																<Icon
+																	icon="lucide:refresh-cw"
+																	size={12}
+																	class={refreshing === rig.name ? 'spin' : ''}
+																/>
+																Refresh
+															</button>
+														</form>
+													{/if}
+												</div>
+											{/key}
 										</td>
 										{#if canRigWrite}
 											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right">
