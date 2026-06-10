@@ -19,8 +19,6 @@
 	let message = $state('');
 	let isError = $state(false);
 
-	const s = browserSystem();
-
 	async function run(fn: () => Promise<unknown>, success: string) {
 		busy = true;
 		message = '';
@@ -40,7 +38,7 @@
 	function saveConfig() {
 		run(
 			() =>
-				s.updateConfig({
+				browserSystem().updateConfig({
 					enabled,
 					archive_after_days: archiveAfterDays,
 					interval_minutes: intervalMinutes
@@ -51,7 +49,7 @@
 
 	function runNow() {
 		run(async () => {
-			const result = await s.runArchiveNow();
+			const result = await browserSystem().runArchiveNow();
 			message = `Archived ${result.archived} issue(s).`;
 		}, '');
 	}
