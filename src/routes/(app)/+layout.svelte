@@ -37,7 +37,6 @@
 	type NavItem = { href: string; label: string; scope: string | null; icon: string };
 	const NAV: NavItem[] = [
 		{ href: '/', label: 'Home', scope: null, icon: 'lucide:home' },
-		{ href: '/tracker', label: 'Tracker', scope: 'issues.read', icon: 'lucide:list-todo' },
 		{ href: '/kanban', label: 'Kanban', scope: 'issues.read', icon: 'lucide:kanban' },
 		{ href: '/planning', label: 'Planning', scope: 'issues.read', icon: 'lucide:calendar-range' },
 		{ href: '/analytics', label: 'Analytics', scope: 'issues.read', icon: 'lucide:line-chart' },
@@ -50,7 +49,6 @@
 		// item is the direct entry, scoped to the active workspace (switch in the header to change it).
 		{ href: '/rigs', label: 'Rigs', scope: 'rig.read', icon: 'lucide:git-branch' },
 		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write', icon: 'lucide:webhook' },
-		{ href: '/stats', label: 'Statistics', scope: 'issues.read', icon: 'lucide:bar-chart-3' },
 		{ href: '/security', label: 'Security', scope: 'tokens.read', icon: 'lucide:shield' },
 		{ href: '/admin/users', label: 'Users', scope: 'users.read', icon: 'lucide:users' },
 		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read', icon: 'lucide:layout-grid' },
