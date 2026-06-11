@@ -264,17 +264,29 @@ export const actions: Actions = {
 			now_secs: Math.floor(Date.now() / 1000)
 		};
 		const cookie = event.request.headers.get('cookie') ?? '';
-		// A one-off admin client targeting `target` via the sanctioned workspace header. Works for a
-		// caller with rig.write in the target (system admin `*` spans every workspace).
+		// The backend ties every request to the token's workspace claim and REJECTS an X-GT-Workspace
+		// that disagrees (anti-spoof) — so we cannot just set a header. Instead mint a token scoped to
+		// the target via /auth/switch (it validates membership), use THAT bearer for the create, and
+		// never propagate its Set-Cookie so the user's active session is untouched.
+		const sw = await backendFetch('/auth/switch', cookie, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ workspace: target })
+		});
+		if (!sw.ok) {
+			const msg = sw.status === 403 ? `No eres miembro de ${target}.` : `Switch a ${target} falló (${sw.status}).`;
+			return fail(sw.status, { error: msg, formScope: 'rig' });
+		}
+		const { access_token } = (await sw.json()) as { access_token: string };
 		const targetAdmin = adminClient((path, init) =>
-			backendFetch(path, cookie, {
+			backendFetch(path, '', {
 				...init,
-				headers: { ...(init?.headers ?? {}), 'X-GT-Workspace': target }
+				headers: { ...(init?.headers ?? {}), authorization: `Bearer ${access_token}` }
 			})
 		);
 		try {
-			await targetAdmin.addRig(body); // create in target FIRST
-			await serverAdmin(event).removeRig(name); // then drop from origin (active ws)
+			await targetAdmin.addRig(body); // create in target FIRST (token claim == target)
+			await serverAdmin(event).removeRig(name); // then drop from origin (active session ws)
 			return { ok: true };
 		} catch (err) {
 			return failFrom(err);
