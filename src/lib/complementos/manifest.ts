@@ -41,7 +41,7 @@ export const COMPLEMENTOS: Complemento[] = [
 		slug: 'github',
 		name: 'GitHub',
 		icon: 'lucide:github',
-		description: 'Conecta una GitHub App y registra repos privados para indexar su grafo.',
+		description: 'Connect a GitHub App and register private repos to index their graph.',
 		status: 'available',
 		scope: 'connection.read'
 	}

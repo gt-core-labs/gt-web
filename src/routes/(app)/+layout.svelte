@@ -42,10 +42,10 @@
 		{ href: '/agents', label: 'Agents', scope: 'tokens.read', icon: 'lucide:bot' },
 		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec', icon: 'lucide:terminal' },
 		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read', icon: 'lucide:book-open' },
-		{ href: '/complementos', label: 'Complementos', scope: 'connection.read', icon: 'lucide:puzzle' },
+		{ href: '/complementos', label: 'Add-ons', scope: 'connection.read', icon: 'lucide:puzzle' },
 		// Rigs (repos) per workspace — the CRUD lives in the GitHub complemento (Repos zone); this
 		// item is the direct entry, scoped to the active workspace (switch in the header to change it).
-		{ href: '/complementos/github', label: 'Rigs', scope: 'rig.read', icon: 'lucide:git-branch' },
+		{ href: '/rigs', label: 'Rigs', scope: 'rig.read', icon: 'lucide:git-branch' },
 		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write', icon: 'lucide:webhook' },
 		{ href: '/stats', label: 'Statistics', scope: 'issues.read', icon: 'lucide:bar-chart-3' },
 		{ href: '/security', label: 'Security', scope: 'tokens.read', icon: 'lucide:shield' },

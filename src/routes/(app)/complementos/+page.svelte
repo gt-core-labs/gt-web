@@ -7,9 +7,9 @@
 	const scopes = $derived(page.data.user?.scopes);
 
 	const STATUS_LABEL: Record<ComplementoStatus, string> = {
-		available: 'Disponible',
+		available: 'Available',
 		beta: 'Beta',
-		'coming-soon': 'Próximamente'
+		'coming-soon': 'Coming soon'
 	};
 	const STATUS_VARIANT: Record<ComplementoStatus, 'success' | 'warning' | 'surface'> = {
 		available: 'success',
@@ -22,9 +22,9 @@
 
 <div class="mx-auto max-w-5xl">
 	<header class="mb-8">
-		<h1 class="text-2xl font-semibold tracking-tight text-[var(--gw-color-text)]">Complementos</h1>
+		<h1 class="text-2xl font-semibold tracking-tight text-[var(--gw-color-text)]">Add-ons</h1>
 		<p class="mt-1 text-sm text-[var(--gw-color-text-muted)]">
-			Conecta servicios externos a tu workspace. Cada complemento aporta su propia configuración.
+			Connect external services to your workspace. Each add-on brings its own configuration.
 		</p>
 	</header>
 

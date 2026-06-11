@@ -2,26 +2,13 @@ import { error, fail } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import { TrackerError } from '$lib/api/tracker';
 import type { Connection } from '$lib/api/connection';
-import type { GraphCustody } from '$lib/api/graph';
-import { serverAdmin, serverConnection, serverGraph } from '$lib/server/api';
-import { admin as adminClient, type AddRigBody } from '$lib/api/admin';
-import { backendFetch } from '$lib/server/backend';
-import type { WorkspaceMembership } from '$lib/api/auth';
+import { serverConnection } from '$lib/server/api';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * The GitHub complemento detail page (epic hq-vcs-connections.6). Two zones:
- *   1. CONEXIONES — list the workspace's VCS connections (GET /api/v1/connection),
- *      Connect-GitHub (the App install flow, a browser navigation), and a PAT fallback.
- *   2. REPOS — the rig CRUD moved here from /admin/rigs, with a connection-aware
- *      register form (connection picker → repo dropdown → fills git_url +
- *      git_connection_ref; free-text git_url kept as the fallback).
- *
- * Gated on `connection.read` for the page; the repo zone additionally honours
- * `rig.read` / `rig.write`, and the connection writes honour `connection.write`.
- * Both backend surfaces degrade instead of white-screening: a freshly switched-into
- * tenant whose schema is not yet provisioned, or a backend that predates the
- * connection bead, surfaces an empty list + a banner rather than a hard error.
+ * The GitHub add-on page: the platform GitHub App config (DB-backed) + the workspace's VCS
+ * connections (the App installs that clone private repos). Registering repos as rigs lives on the
+ * dedicated /rigs page. Gated on `connection.read`; writes honour `connection.write`.
  */
 export const load: PageServerLoad = async (event) => {
 	if (!hasScope(event.locals.user?.scopes, 'connection.read')) {
@@ -36,8 +23,7 @@ export const load: PageServerLoad = async (event) => {
 		connError = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
 	}
 
-	// The platform GitHub App config (hq-61ea43) — DB-backed, secret-free. `null` ⇒ not configured
-	// yet (the form prompts to set it). Best-effort: a backend that predates it degrades to null.
+	// The platform GitHub App config (hq-61ea43) — DB-backed, secret-free. `null` ⇒ not configured.
 	const canWriteConn = hasScope(event.locals.user?.scopes, 'connection.write');
 	let githubApp = null;
 	try {
@@ -46,59 +32,7 @@ export const load: PageServerLoad = async (event) => {
 		githubApp = null;
 	}
 
-	// The repo zone is only shown when the caller can read rigs; load them best-effort.
-	let rigs: Awaited<ReturnType<ReturnType<typeof serverAdmin>['rigs']>> = [];
-	let rigError: string | null = null;
-	const canReadRigs = hasScope(event.locals.user?.scopes, 'rig.read');
-	if (canReadRigs) {
-		try {
-			rigs = await serverAdmin(event).rigs();
-		} catch (err) {
-			rigError = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
-		}
-	}
-
-	// Per-repo graph freshness (hq-vcs-connections.9): one `GET /api/v1/graph` lists every rig under
-	// warden custody with its freshness, keyed by rig name. The page maps it onto each repo row's
-	// chip (built/stale/behind, or `—` when the rig has no custody / the backend predates the
-	// surface). Best-effort + scope-gated on `graph.read`; a 404 (older backend) degrades to `—`.
-	const canReadGraph = hasScope(event.locals.user?.scopes, 'graph.read');
-	let graphCustody: GraphCustody[] = [];
-	if (canReadRigs && canReadGraph) {
-		try {
-			graphCustody = await serverGraph(event).list();
-		} catch {
-			// Silent degrade: the chip falls back to `—`. No banner — the graph surface is optional.
-			graphCustody = [];
-		}
-	}
-	const canRefreshGraph = hasScope(event.locals.user?.scopes, 'graph.write');
-
-	// The workspaces the caller can switch into — the target list for the per-rig "Mover a workspace"
-	// action. Best-effort: a single-tenant deploy / older backend degrades to just the active one.
-	const activeWorkspace = event.locals.user?.workspace ?? 'default';
-	let workspaces: WorkspaceMembership[] = [];
-	try {
-		const cookie = event.request.headers.get('cookie') ?? '';
-		const res = await backendFetch('/auth/workspaces', cookie);
-		if (res.ok) workspaces = (await res.json()) as WorkspaceMembership[];
-	} catch {
-		workspaces = [];
-	}
-
-	return {
-		connections,
-		connError,
-		githubApp,
-		canWriteConn,
-		rigs,
-		rigError,
-		canReadRigs,
-		graphCustody,
-		canRefreshGraph,
-		activeWorkspace,
-		workspaces
-	};
+	return { connections, connError, githubApp, canWriteConn };
 };
 
 function failFrom(err: unknown) {
@@ -106,22 +40,18 @@ function failFrom(err: unknown) {
 	return fail(500, { error: String(err) });
 }
 
-/** Trimmed form value; empty string when absent. */
 function str(form: FormData, key: string): string {
 	return String(form.get(key) ?? '').trim();
 }
 
-/** Optional text field → undefined when blank (so it is omitted from the body). */
 function opt(form: FormData, key: string): string | undefined {
 	const v = str(form, key);
 	return v || undefined;
 }
 
 export const actions: Actions = {
-	// ── Connections ──────────────────────────────────────────────────────────
-	// A PAT fallback connection. The GitHub App install flow is NOT an action —
-	// it is a top-level browser navigation to GET /api/v1/connection/github/install
-	// (the backend 302-redirects to the App install page), handled client-side.
+	// A PAT fallback connection. The GitHub App install flow is NOT an action — it is a top-level
+	// browser navigation / popup to GET /api/v1/connection/github/install (backend 302-redirects).
 	connectPat: async (event) => {
 		if (!hasScope(event.locals.user?.scopes, 'connection.write')) {
 			return fail(403, { error: 'Requires connection.write' });
@@ -142,8 +72,7 @@ export const actions: Actions = {
 	},
 
 	// The platform GitHub App config (hq-61ea43): App ID + slug + private key (PEM) + webhook secret.
-	// Secrets are write-only — a blank PEM/secret on update keeps the stored one. DB-backed, so this
-	// configures the App with no redeploy and lights up the install flow + webhook.
+	// Secrets are write-only — a blank PEM/secret on update keeps the stored one.
 	saveGithubApp: async (event) => {
 		if (!hasScope(event.locals.user?.scopes, 'connection.write')) {
 			return fail(403, { error: 'Requires connection.write', formScope: 'ghapp' });
@@ -178,133 +107,6 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'Missing connection id.' });
 		try {
 			await serverConnection(event).remove(id);
-			return { ok: true };
-		} catch (err) {
-			return failFrom(err);
-		}
-	},
-
-	// ── Repos (moved from /admin/rigs) ───────────────────────────────────────
-	addRig: async (event) => {
-		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
-			return fail(403, { error: 'Requires rig.write', formScope: 'rig' });
-		}
-		const form = await event.request.formData();
-		const name = str(form, 'name');
-		const prefix = str(form, 'prefix');
-		const git_url = str(form, 'git_url');
-		const default_branch = str(form, 'default_branch') || 'main';
-		if (!name || !prefix || !git_url) {
-			return fail(400, {
-				error: 'Name, prefix and git URL are required.',
-				formScope: 'rig',
-				name,
-				prefix,
-				git_url
-			});
-		}
-		try {
-			await serverAdmin(event).addRig({
-				name,
-				prefix,
-				git_url,
-				default_branch,
-				push_url: opt(form, 'push_url'),
-				upstream_url: opt(form, 'upstream_url'),
-				git_connection_ref: opt(form, 'git_connection_ref'),
-				now_secs: Math.floor(Date.now() / 1000)
-			});
-			return { ok: true };
-		} catch (err) {
-			return failFrom(err);
-		}
-	},
-
-	removeRig: async (event) => {
-		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
-			return fail(403, { error: 'Requires rig.write', formScope: 'rig' });
-		}
-		const name = str(await event.request.formData(), 'name');
-		if (!name) return fail(400, { error: 'Missing rig name.', formScope: 'rig' });
-		try {
-			await serverAdmin(event).removeRig(name);
-			return { ok: true };
-		} catch (err) {
-			return failFrom(err);
-		}
-	},
-
-	// Move a rig to another workspace. Rigs are strictly per-tenant with no backend "move" op, so
-	// this is re-create-then-remove: ADD in the target workspace (via the sanctioned X-GT-Workspace
-	// header) carrying the rig's git config, then REMOVE from the origin (the active session ws). Add
-	// goes first so a failure never loses the rig. The graph custody does not travel — re-index after.
-	moveRig: async (event) => {
-		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
-			return fail(403, { error: 'Requires rig.write', formScope: 'rig' });
-		}
-		const form = await event.request.formData();
-		const name = str(form, 'name');
-		const target = str(form, 'workspace');
-		const git_url = str(form, 'git_url');
-		const prefix = str(form, 'prefix');
-		if (!name || !target || !git_url || !prefix) {
-			return fail(400, { error: 'Missing rig fields for move.', formScope: 'rig' });
-		}
-		if (target === (event.locals.user?.workspace ?? 'default')) {
-			return fail(400, { error: 'The rig is already in that workspace.', formScope: 'rig' });
-		}
-		const body: AddRigBody = {
-			name,
-			prefix,
-			git_url,
-			default_branch: str(form, 'default_branch') || 'main',
-			push_url: opt(form, 'push_url'),
-			upstream_url: opt(form, 'upstream_url'),
-			git_connection_ref: opt(form, 'git_connection_ref'),
-			now_secs: Math.floor(Date.now() / 1000)
-		};
-		const cookie = event.request.headers.get('cookie') ?? '';
-		// The backend ties every request to the token's workspace claim and REJECTS an X-GT-Workspace
-		// that disagrees (anti-spoof) — so we cannot just set a header. Instead mint a token scoped to
-		// the target via /auth/switch (it validates membership), use THAT bearer for the create, and
-		// never propagate its Set-Cookie so the user's active session is untouched.
-		const sw = await backendFetch('/auth/switch', cookie, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ workspace: target })
-		});
-		if (!sw.ok) {
-			const msg = sw.status === 403 ? `No eres miembro de ${target}.` : `Switch a ${target} falló (${sw.status}).`;
-			return fail(sw.status, { error: msg, formScope: 'rig' });
-		}
-		const { access_token } = (await sw.json()) as { access_token: string };
-		const targetAdmin = adminClient((path, init) =>
-			backendFetch(path, '', {
-				...init,
-				headers: { ...(init?.headers ?? {}), authorization: `Bearer ${access_token}` }
-			})
-		);
-		try {
-			await targetAdmin.addRig(body); // create in target FIRST (token claim == target)
-			await serverAdmin(event).removeRig(name); // then drop from origin (active session ws)
-			return { ok: true };
-		} catch (err) {
-			return failFrom(err);
-		}
-	},
-
-	// ── Graph (hq-vcs-connections.9) ─────────────────────────────────────────
-	// The per-repo "Refresh" button: trigger a `graph.refresh` for one rig (clone/fetch the default
-	// branch at the server-derived path + re-index). Default-branch-only — no branch selector. Needs
-	// `graph.write`; on success the page reloads and the chip reflects the new freshness.
-	refreshGraph: async (event) => {
-		if (!hasScope(event.locals.user?.scopes, 'graph.write')) {
-			return fail(403, { error: 'Requires graph.write', formScope: 'graph' });
-		}
-		const rig = str(await event.request.formData(), 'rig');
-		if (!rig) return fail(400, { error: 'Missing rig name.', formScope: 'graph' });
-		try {
-			await serverGraph(event).refresh(rig);
 			return { ok: true };
 		} catch (err) {
 			return failFrom(err);
