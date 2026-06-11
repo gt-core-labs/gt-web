@@ -21,14 +21,9 @@
 import type { Fetcher, IssueRow, IssueStatus } from './tracker';
 import { TrackerError } from './tracker';
 
-/** A board card: the tracker row plus the kanban columns (hq-62130a). */
-export interface BoardCard extends IssueRow {
-	workspace: string;
-	board_rank: string;
-	estimated_hours: number | null;
-	start_date: string | null;
-	due_date: string | null;
-}
+/** A board card: the tracker row (which already carries the hq-62130a board
+ * columns — workspace, board_rank, planning fields). */
+export type BoardCard = IssueRow;
 
 export interface BoardLane {
 	/** Lane key: assignee, epic id, or priority (`"0"`…); `""` = ungrouped tail. */

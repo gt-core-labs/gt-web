@@ -73,6 +73,14 @@ export interface IssueRow {
 	delivered_sha: string | null;
 	/** The agent operating this bead right now (hq-agent-observability.3); absent when none is. */
 	operated_by?: IssueOperator | null;
+	/** Board project key (hq-62130a (rig, workspace) scope); legacy rows = `default`. */
+	workspace?: string;
+	/** Lexorank intra-column order (hq-62130a); `''` = unranked tail. */
+	board_rank?: string;
+	/** Planning fields (hq-62130a): mockup Horas Est. / Fecha Inicio / Fecha Fin. */
+	estimated_hours?: number | null;
+	start_date?: string | null;
+	due_date?: string | null;
 }
 
 /** A full issue (list row + the heavy text bodies), from GET /api/v1/issues/{id}. */
@@ -101,6 +109,8 @@ export interface ListQuery {
 	full?: boolean;
 	/** Narrow to a single rig (hq-rig-isolation.1). Absent ⇒ workspace-wide. */
 	rig?: string;
+	/** Narrow to one board project (hq-62130a (rig, workspace) scope key). */
+	workspace?: string;
 }
 
 export interface CreateIssueBody {
@@ -134,6 +144,11 @@ export interface UpdateIssueBody {
 	assignee?: string;
 	/** Optimistic concurrency: rejected with 422 if the row moved on. */
 	expected_version?: number;
+	/** Planning fields (hq-62130a): mockup Horas Est. / Fecha Inicio / Fecha Fin. */
+	estimated_hours?: number;
+	/** `YYYY-MM-DD`; empty string clears. */
+	start_date?: string;
+	due_date?: string;
 }
 
 export interface CloseIssueBody {
