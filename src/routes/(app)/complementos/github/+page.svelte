@@ -18,11 +18,15 @@
 	const formScope = $derived(fv.formScope);
 
 	let saving = $state(false);
+	// Whether the (collapsed-when-configured) GitHub App form is open for editing.
+	let editingApp = $state(false);
 	const enhancer = () => {
 		saving = true;
 		return async ({ update }: { update: () => Promise<void> }) => {
 			await update();
 			saving = false;
+			// After a save the reloaded data carries the config → collapse the form again.
+			editingApp = false;
 		};
 	};
 
@@ -439,47 +443,73 @@
 					<aside class="warn-banner" role="alert">{fv.error}</aside>
 				{/if}
 
-				<form method="POST" action="?/saveGithubApp" use:enhance={enhancer} class="space-y-[var(--gw-space-3)]">
-					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-2">
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="gh-app-id">App ID <span class="normal-case tracking-normal opacity-60">(numérico)</span></label>
-							<input id="gh-app-id" class="gw-input" type="text" name="app_id" required
-								value={data.githubApp?.app_id ?? ''} placeholder="4028779" />
+				{#if data.githubApp && !editingApp}
+					<!-- Configurada: form colapsado. Siguiente paso = instalar la App (trae repos). -->
+					<div class="flex flex-wrap items-center gap-[var(--gw-space-3)]">
+						<button
+							type="button"
+							class="cta"
+							onclick={() => (window.location.href = GITHUB_INSTALL_URL)}
+						>
+							<Icon icon="lucide:github" size={15} />
+							<span>Connect GitHub — instalar + elegir repos</span>
+							<span class="cta-arrow" aria-hidden="true">→</span>
+						</button>
+						<button type="button" class="btn-secondary" onclick={() => (editingApp = true)}>
+							Editar configuración
+						</button>
+					</div>
+					<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+						Tras instalar, los repos se eligen abajo en <strong>Repos</strong> (elige la conexión → desplegable de repos).
+					</p>
+				{:else}
+					<form method="POST" action="?/saveGithubApp" use:enhance={enhancer} class="space-y-[var(--gw-space-3)]">
+						<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-2">
+							<div class="space-y-[var(--gw-space-1)]">
+								<label class="label" for="gh-app-id">App ID <span class="normal-case tracking-normal opacity-60">(numérico)</span></label>
+								<input id="gh-app-id" class="gw-input" type="text" name="app_id" required
+									value={data.githubApp?.app_id ?? ''} placeholder="4028779" />
+							</div>
+							<div class="space-y-[var(--gw-space-1)]">
+								<label class="label" for="gh-app-slug">Slug <span class="normal-case tracking-normal opacity-60">(github.com/apps/&lt;slug&gt;)</span></label>
+								<input id="gh-app-slug" class="gw-input" type="text" name="app_slug" required
+									value={data.githubApp?.app_slug ?? ''} placeholder="gt-core-2026-06-11" />
+							</div>
 						</div>
 						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="gh-app-slug">Slug <span class="normal-case tracking-normal opacity-60">(github.com/apps/&lt;slug&gt;)</span></label>
-							<input id="gh-app-slug" class="gw-input" type="text" name="app_slug" required
-								value={data.githubApp?.app_slug ?? ''} placeholder="gt-core-2026-06-11" />
+							<label class="label" for="gh-pem">
+								Private key (PEM)
+								<span class="normal-case tracking-normal opacity-60">
+									({data.githubApp?.has_private_key ? 'configurada — dejar vacío para conservar' : 'requerida'})
+								</span>
+							</label>
+							<textarea id="gh-pem" class="gw-input" name="private_key_pem" rows="4"
+								placeholder="-----BEGIN RSA PRIVATE KEY-----"></textarea>
 						</div>
-					</div>
-					<div class="space-y-[var(--gw-space-1)]">
-						<label class="label" for="gh-pem">
-							Private key (PEM)
-							<span class="normal-case tracking-normal opacity-60">
-								({data.githubApp?.has_private_key ? 'configurada — dejar vacío para conservar' : 'requerida'})
-							</span>
-						</label>
-						<textarea id="gh-pem" class="gw-input" name="private_key_pem" rows="4"
-							placeholder="-----BEGIN RSA PRIVATE KEY-----"></textarea>
-					</div>
-					<div class="space-y-[var(--gw-space-1)]">
-						<label class="label" for="gh-hook">
-							Webhook secret
-							<span class="normal-case tracking-normal opacity-60">
-								({data.githubApp?.has_webhook_secret ? 'configurado — dejar vacío para conservar' : 'opcional'})
-							</span>
-						</label>
-						<input id="gh-hook" class="gw-input" type="password" name="webhook_secret"
-							placeholder="webhook HMAC secret" autocomplete="off" />
-						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-							Sellados en reposo (AES-GCM), nunca se devuelven. Debe coincidir con el Secret del webhook en la GitHub App.
-						</p>
-					</div>
-					<button type="submit" class="cta" disabled={saving}>
-						<span>Guardar GitHub App</span>
-						<span class="cta-arrow" aria-hidden="true">→</span>
-					</button>
-				</form>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="gh-hook">
+								Webhook secret
+								<span class="normal-case tracking-normal opacity-60">
+									({data.githubApp?.has_webhook_secret ? 'configurado — dejar vacío para conservar' : 'opcional'})
+								</span>
+							</label>
+							<input id="gh-hook" class="gw-input" type="password" name="webhook_secret"
+								placeholder="webhook HMAC secret" autocomplete="off" />
+							<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+								Sellados en reposo (AES-GCM), nunca se devuelven. Debe coincidir con el Secret del webhook en la GitHub App.
+							</p>
+						</div>
+						<div class="flex items-center gap-[var(--gw-space-3)]">
+							<button type="submit" class="cta" disabled={saving}>
+								<span>Guardar GitHub App</span>
+								<span class="cta-arrow" aria-hidden="true">→</span>
+							</button>
+							{#if data.githubApp}
+								<button type="button" class="btn-secondary" onclick={() => (editingApp = false)}>Cancelar</button>
+							{/if}
+						</div>
+					</form>
+				{/if}
 			</div>
 		</section>
 	{/if}
