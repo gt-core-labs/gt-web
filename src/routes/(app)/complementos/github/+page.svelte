@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { hasScope } from '$lib/api/auth';
@@ -32,6 +33,26 @@
 
 	// GitHub App connections are the ones whose repos we can list; a PAT is a fallback.
 	const appConnections = $derived(data.connections.filter((c) => c.kind === 'github_app'));
+
+	// Open the App install flow in a popup. NO `noopener` — the callback page (loaded in the popup)
+	// needs `window.opener` to refresh this page once the connection is created.
+	function openInstall() {
+		window.open(GITHUB_INSTALL_URL, 'gh-install', 'width=920,height=820');
+	}
+
+	// When the install callback redirects back here (?gh_connected=<id>): if we are the popup, reload
+	// the opener (so its connection list updates) and close; otherwise strip the param for a clean URL.
+	onMount(() => {
+		const u = new URL(window.location.href);
+		if (!u.searchParams.get('gh_connected')) return;
+		if (window.opener && !window.opener.closed) {
+			window.opener.location.reload();
+			window.close();
+		} else {
+			u.searchParams.delete('gh_connected');
+			history.replaceState(null, '', u.pathname + u.search);
+		}
+	});
 
 	// The webhook URL the admin pastes into the GitHub App (hq-61ea43); the callback shares the host.
 	const webhookUrl = $derived(`${page.url.origin}/api/v1/connection/github/webhook`);
@@ -452,7 +473,7 @@
 						<button
 							type="button"
 							class="cta"
-							onclick={() => (window.open(GITHUB_INSTALL_URL, '_blank', 'noopener'))}
+							onclick={() => (openInstall())}
 						>
 							<Icon icon="lucide:github" size={15} />
 							<span>Connect GitHub — instalar + elegir repos</span>
@@ -528,7 +549,7 @@
 					<button
 						type="button"
 						class="btn-secondary"
-						onclick={() => (window.open(GITHUB_INSTALL_URL, '_blank', 'noopener'))}
+						onclick={() => (openInstall())}
 					>
 						<Icon icon="lucide:github" size={15} />
 						Connect GitHub
