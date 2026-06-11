@@ -786,7 +786,8 @@
 				<!-- Repos table -->
 				<div class="bezel-core-overflow border border-[var(--gw-color-border-subtle)]">
 					{#if data.rigs.length > 0}
-						<table class="w-full text-left">
+						<div class="overflow-x-auto">
+						<table class="w-full min-w-[760px] text-left">
 							<thead>
 								<tr class="border-b border-[var(--gw-color-border-subtle)]">
 									<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Name</th>
@@ -879,6 +880,7 @@
 								{/each}
 							</tbody>
 						</table>
+						</div>
 					{:else}
 						<div class="flex flex-col items-center justify-center gap-[var(--gw-space-2)] px-[var(--gw-space-6)] py-[var(--gw-space-10)]">
 							<Icon icon="lucide:git-branch" size={20} />
