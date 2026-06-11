@@ -122,6 +122,10 @@
 		if (!c) return id;
 		return c.account_login ? `${id} (${c.account_login})` : id;
 	}
+	// A rig whose git_connection_ref points at a connection that no longer exists has "lost" its
+	// connection (the JIT clone would fail) — flag it and offer a one-click reconnect.
+	const connExists = (id: string | null | undefined) =>
+		!!id && data.connections.some((c) => c.id === id);
 
 	// ── Repos management table (active workspace) ────────────────────────────
 	type GraphChip = { state: 'built' | 'behind' | 'stale'; commit: string | null } | null;
@@ -283,6 +287,10 @@
 	}
 	.chip-status {
 		text-transform: uppercase;
+	}
+	.chip-warn {
+		color: var(--gw-color-error);
+		border-color: var(--gw-color-error);
 	}
 	.dot {
 		width: 6px;
@@ -797,7 +805,11 @@
 											</td>
 											<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] lg:table-cell">
 												{#if rig.git_connection_ref}
-													<span class="chip" title="git_connection_ref">{rig.git_connection_ref}</span>
+													{#if connExists(rig.git_connection_ref)}
+														<span class="chip" title="git_connection_ref">{rig.git_connection_ref}</span>
+													{:else}
+														<span class="chip chip-warn" title="Connection lost — reconnect in Actions">⚠ {rig.git_connection_ref}</span>
+													{/if}
 												{:else}
 													<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 												{/if}
@@ -826,17 +838,45 @@
 												{/key}
 											</td>
 											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right">
-												<form
-													method="POST"
-													action="?/removeRig"
-													use:enhance={enhancer}
-													onsubmit={(e) => {
-														if (!confirm(`Delete repo ${rig.name}?`)) e.preventDefault();
-													}}
-												>
-													<input type="hidden" name="name" value={rig.name} />
-													<button type="submit" class="btn-danger" disabled={saving}>Delete</button>
-												</form>
+												<div class="flex items-center justify-end gap-[var(--gw-space-2)]">
+													{#if rig.git_connection_ref && !connExists(rig.git_connection_ref) && appConnections.length > 0}
+														<!-- One-click reconnect: pick a connection → remove + re-add with the new ref. -->
+														<form method="POST" action="?/reconnectRig" use:enhance={enhancer} class="inline-flex">
+															<input type="hidden" name="name" value={rig.name} />
+															<input type="hidden" name="prefix" value={rig.prefix} />
+															<input type="hidden" name="git_url" value={rig.git_url} />
+															<input type="hidden" name="default_branch" value={rig.default_branch} />
+															<input type="hidden" name="push_url" value={rig.push_url ?? ''} />
+															<input type="hidden" name="upstream_url" value={rig.upstream_url ?? ''} />
+															<select
+																name="git_connection_ref"
+																disabled={saving}
+																class="rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-xs)] text-[var(--gw-color-text)]"
+																title="Reconnect this repo to a connection"
+																onchange={(e) => {
+																	const sel = e.currentTarget as HTMLSelectElement;
+																	if (sel.value) sel.form?.requestSubmit();
+																}}
+															>
+																<option value="">Reconnect…</option>
+																{#each appConnections as c (c.id)}
+																	<option value={c.id}>{connLabel(c.id)}</option>
+																{/each}
+															</select>
+														</form>
+													{/if}
+													<form
+														method="POST"
+														action="?/removeRig"
+														use:enhance={enhancer}
+														onsubmit={(e) => {
+															if (!confirm(`Delete repo ${rig.name}?`)) e.preventDefault();
+														}}
+													>
+														<input type="hidden" name="name" value={rig.name} />
+														<button type="submit" class="btn-danger" disabled={saving}>Delete</button>
+													</form>
+												</div>
 											</td>
 										</tr>
 									{/each}

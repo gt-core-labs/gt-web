@@ -2,7 +2,8 @@ import { error } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import { TrackerError } from '$lib/api/tracker';
 import type { GraphCustody } from '$lib/api/graph';
-import { serverAdmin, serverGraph } from '$lib/server/api';
+import type { Connection } from '$lib/api/connection';
+import { serverAdmin, serverConnection, serverGraph } from '$lib/server/api';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -35,5 +36,14 @@ export const load: PageServerLoad = async (event) => {
 	}
 	const activeWorkspace = event.locals.user?.workspace ?? 'default';
 
-	return { rigs, rigError, graphCustody, activeWorkspace };
+	// Connections (global) — only to flag a rig whose git_connection_ref no longer exists ("lost").
+	// Reconnecting is done in Add-ons → GitHub; this page just warns. Best-effort.
+	let connections: Connection[] = [];
+	try {
+		connections = await serverConnection(event).list();
+	} catch {
+		connections = [];
+	}
+
+	return { rigs, rigError, graphCustody, activeWorkspace, connections };
 };

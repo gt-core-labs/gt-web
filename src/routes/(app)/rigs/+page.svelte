@@ -14,6 +14,10 @@
 		return { state, commit: c.last_indexed_commit };
 	}
 	const CHIP_LABEL = { built: 'Built', behind: 'Behind', stale: 'Not built' } as const;
+
+	// A rig whose git_connection_ref points at a connection that no longer exists has "lost" it.
+	const connExists = (id: string | null | undefined) =>
+		!!id && data.connections.some((c) => c.id === id);
 </script>
 
 <div class="mx-auto max-w-4xl space-y-6">
@@ -74,7 +78,11 @@
 										</td>
 										<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] lg:table-cell">
 											{#if rig.git_connection_ref}
-												<span class="chip" title="git_connection_ref">{rig.git_connection_ref}</span>
+												{#if connExists(rig.git_connection_ref)}
+													<span class="chip" title="git_connection_ref">{rig.git_connection_ref}</span>
+												{:else}
+													<span class="chip chip-warn" title="Connection lost — reconnect in Add-ons → GitHub">⚠ {rig.git_connection_ref}</span>
+												{/if}
 											{:else}
 												<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 											{/if}
@@ -209,6 +217,10 @@
 	}
 	.chip-status {
 		text-transform: uppercase;
+	}
+	.chip-warn {
+		color: var(--gw-color-error);
+		border-color: var(--gw-color-error);
 	}
 	.dot {
 		width: 6px;

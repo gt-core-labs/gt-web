@@ -278,5 +278,55 @@ export const actions: Actions = {
 		} catch (err) {
 			return failFrom(err);
 		}
+	},
+
+	// Reconnect a rig whose VCS connection was lost (the connection was deleted/disconnected, leaving
+	// an orphaned git_connection_ref) to a chosen connection — one click from the warning row. Rigs
+	// have no "set connection" op, so this is remove + re-add with the new ref (same git config, active
+	// ws). Reachability is validated FIRST so the re-add succeeds before the remove.
+	reconnectRig: async (event) => {
+		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
+			return fail(403, { error: 'Requires rig.write', formScope: 'rig' });
+		}
+		const form = await event.request.formData();
+		const name = str(form, 'name');
+		const git_url = str(form, 'git_url');
+		const prefix = str(form, 'prefix');
+		const git_connection_ref = str(form, 'git_connection_ref');
+		if (!name || !git_url || !prefix || !git_connection_ref) {
+			return fail(400, { error: 'Missing fields for reconnect.', formScope: 'rig' });
+		}
+		const full = repoFullName(git_url);
+		try {
+			const repos = await serverConnection(event).githubRepos(git_connection_ref);
+			if (!full || !repos.some((r) => r.full_name.toLowerCase() === full.toLowerCase())) {
+				return fail(422, {
+					error: `Repo "${full ?? git_url}" is not reachable with connection ${git_connection_ref}.`,
+					formScope: 'rig'
+				});
+			}
+		} catch (err) {
+			return fail(422, {
+				error: `Could not verify the repo against connection ${git_connection_ref}: ${err instanceof TrackerError ? err.message : String(err)}`,
+				formScope: 'rig'
+			});
+		}
+		const body: AddRigBody = {
+			name,
+			prefix,
+			git_url,
+			default_branch: str(form, 'default_branch') || 'main',
+			push_url: opt(form, 'push_url'),
+			upstream_url: opt(form, 'upstream_url'),
+			git_connection_ref,
+			now_secs: Math.floor(Date.now() / 1000)
+		};
+		try {
+			await serverAdmin(event).removeRig(name);
+			await serverAdmin(event).addRig(body);
+			return { ok: true };
+		} catch (err) {
+			return failFrom(err);
+		}
 	}
 };
