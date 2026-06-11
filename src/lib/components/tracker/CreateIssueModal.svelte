@@ -84,7 +84,7 @@
 							transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]
 							hover:border-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]
 							focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]"
-						aria-label="Cerrar"
+						aria-label="Close"
 					>
 						<svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
 							<path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
