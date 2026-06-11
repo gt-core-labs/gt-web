@@ -43,14 +43,16 @@
 		{ href: '/terminal', label: 'Terminal', scope: 'terminal.exec', icon: 'lucide:terminal' },
 		{ href: '/knowledge', label: 'Knowledge', scope: 'documents.read', icon: 'lucide:book-open' },
 		{ href: '/complementos', label: 'Complementos', scope: 'connection.read', icon: 'lucide:puzzle' },
+		// Rigs (repos) per workspace — the CRUD lives in the GitHub complemento (Repos zone); this
+		// item is the direct entry, scoped to the active workspace (switch in the header to change it).
+		{ href: '/complementos/github', label: 'Rigs', scope: 'rig.read', icon: 'lucide:git-branch' },
 		{ href: '/hooks', label: 'Hooks', scope: 'hooks.write', icon: 'lucide:webhook' },
 		{ href: '/stats', label: 'Statistics', scope: 'issues.read', icon: 'lucide:bar-chart-3' },
 		{ href: '/security', label: 'Security', scope: 'tokens.read', icon: 'lucide:shield' },
 		{ href: '/admin/users', label: 'Users', scope: 'users.read', icon: 'lucide:users' },
 		{ href: '/admin/workspaces', label: 'Workspaces', scope: 'workspace.read', icon: 'lucide:layout-grid' },
-		// Rigs CRUD now lives in the GitHub complemento (/complementos/github), so the
-		// standalone Rigs nav item is removed (epic hq-vcs-connections.6). /admin/rigs
-		// redirects there.
+		// Rigs CRUD lives in the GitHub complemento (/complementos/github); the "Rigs" item above
+		// links straight to it. /admin/rigs is a legacy 308 redirect to the same place.
 		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read', icon: 'lucide:gauge' },
 		{ href: '/admin/providers', label: 'Providers', scope: '*', icon: 'lucide:plug' },
 		{ href: '/system', label: 'System', scope: 'system.read', icon: 'lucide:cpu' },
