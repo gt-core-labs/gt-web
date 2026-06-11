@@ -452,7 +452,7 @@
 						<button
 							type="button"
 							class="cta"
-							onclick={() => (window.location.href = GITHUB_INSTALL_URL)}
+							onclick={() => (window.open(GITHUB_INSTALL_URL, '_blank', 'noopener'))}
 						>
 							<Icon icon="lucide:github" size={15} />
 							<span>Connect GitHub — instalar + elegir repos</span>
@@ -528,7 +528,7 @@
 					<button
 						type="button"
 						class="btn-secondary"
-						onclick={() => (window.location.href = GITHUB_INSTALL_URL)}
+						onclick={() => (window.open(GITHUB_INSTALL_URL, '_blank', 'noopener'))}
 					>
 						<Icon icon="lucide:github" size={15} />
 						Connect GitHub
