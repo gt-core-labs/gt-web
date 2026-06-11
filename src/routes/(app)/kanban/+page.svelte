@@ -32,9 +32,9 @@
 	let reportMsg = $state('');
 
 	const COLUMNS: { status: IssueStatus; label: string; accent: string }[] = [
-		{ status: 'open', label: 'Pendiente', accent: 'var(--gw-color-primary)' },
-		{ status: 'working', label: 'En curso', accent: 'var(--gw-color-warning)' },
-		{ status: 'closed', label: 'Hecho', accent: 'var(--gw-color-success)' }
+		{ status: 'open', label: 'Pending', accent: 'var(--gw-color-primary)' },
+		{ status: 'working', label: 'In progress', accent: 'var(--gw-color-warning)' },
+		{ status: 'closed', label: 'Done', accent: 'var(--gw-color-success)' }
 	];
 
 	const col = (s: IssueStatus) => columns.find((c) => c.status === s);
@@ -138,12 +138,12 @@
 		reportMsg = '';
 		try {
 			const r = await browserReport().generate({ ...scopeKey, format: 'xlsx' });
-			reportMsg = `Reporte ${r.filename} generado (${r.rows} tareas, TOTAL ${r.total_horas}h) — documento ${r.document_id}`;
+			reportMsg = `Report ${r.filename} generated (${r.rows} tasks, TOTAL ${r.total_horas}h) — document ${r.document_id}`;
 		} catch (e) {
 			// xlsx needs the object store; csv always works.
 			try {
 				const r = await browserReport().generate({ ...scopeKey, format: 'csv' });
-				reportMsg = `Reporte CSV ${r.filename} generado (${r.rows} tareas, TOTAL ${r.total_horas}h)`;
+				reportMsg = `CSV report ${r.filename} generated (${r.rows} tasks, TOTAL ${r.total_horas}h)`;
 			} catch (e2) {
 				reportMsg = e2 instanceof TrackerError ? e2.message : String(e2);
 			}
@@ -163,27 +163,27 @@
 		<div class="min-w-0 flex-1">
 			<h1 class="text-lg font-semibold">Kanban · {data.rig}</h1>
 			<p class="text-xs text-[var(--gw-color-text-muted)]">
-				Tablero {data.rig}/{data.boardWorkspace} — arrastra para mover; el orden persiste (lexorank).
+				Board {data.rig}/{data.boardWorkspace} — drag to move; order persists (lexorank).
 			</p>
 		</div>
 
 		<label class="text-xs">
-			Agrupar
+			Group by
 			<select
 				class="ml-1 rounded border border-[var(--gw-color-border)] bg-transparent px-2 py-1 text-sm"
 				value={data.groupBy}
 				onchange={(e) => setParam('group_by', (e.currentTarget as HTMLSelectElement).value)}
 			>
 				<option value="">—</option>
-				<option value="assignee">Responsable</option>
-				<option value="epic">Módulo (epic)</option>
-				<option value="priority">Prioridad</option>
+				<option value="assignee">Assignee</option>
+				<option value="epic">Module (epic)</option>
+				<option value="priority">Priority</option>
 			</select>
 		</label>
 
 		<input
 			class="w-40 rounded border border-[var(--gw-color-border)] bg-transparent px-2 py-1 text-sm"
-			placeholder="Filtrar por epic…"
+			placeholder="Filter by epic…"
 			value={data.epic}
 			onchange={(e) => setParam('epic', (e.currentTarget as HTMLInputElement).value.trim())}
 		/>
@@ -192,13 +192,17 @@
 			<button
 				class="rounded bg-[var(--gw-color-primary)] px-3 py-1.5 text-sm text-white"
 				onclick={() => (showCreate = true)}
-			>Reportar tarea</button>
+			>New task</button>
 		{/if}
 		<button
 			class="rounded border border-[var(--gw-color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
 			disabled={reportBusy}
 			onclick={generateReport}
-		>{reportBusy ? 'Generando…' : 'Reporte'}</button>
+		>{reportBusy ? 'Generating…' : 'Report'}</button>
+		<button
+			class="rounded border border-[var(--gw-color-border)] px-3 py-1.5 text-sm {data.archived ? 'bg-[var(--gw-color-surface-2)]' : ''}"
+			onclick={() => setParam('archived', data.archived ? '' : '1')}
+		>{data.archived ? '← Back to board' : 'View archived'}</button>
 	</header>
 
 	{#if error}<p class="text-sm text-[var(--gw-color-danger)]">{error}</p>{/if}
@@ -225,7 +229,7 @@
 					{#if data.groupBy && column?.lanes}
 						{#each column.lanes as lane (lane.key)}
 							<p class="px-1 pt-1 text-[11px] font-semibold uppercase text-[var(--gw-color-text-muted)]">
-								{lane.key || 'Sin asignar'}
+								{lane.key || 'Unassigned'}
 							</p>
 							{#each lane.cards as card (card.id)}
 								<button
@@ -279,7 +283,13 @@
 </div>
 
 {#if selected}
-	<CardDrawer card={selected} onClose={() => (selected = null)} />
+	<CardDrawer
+		card={selected}
+		{canWrite}
+		users={data.users}
+		allIssues={columns.flatMap((c) => c.cards)}
+		onClose={() => (selected = null)}
+	/>
 {/if}
 
 {#if showCreate}

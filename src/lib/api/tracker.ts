@@ -142,6 +142,13 @@ export interface UpdateIssueBody {
 	priority?: number;
 	issue_type?: string;
 	assignee?: string;
+	/** Epic linkage (the sub-epic this bead belongs to). */
+	external_ref?: string;
+	/** Forward dependency edges — FULL replacement of the list. */
+	depends_on?: string[];
+	/** Board workspace re-scope (hq-62130a) — `archive` hides the card from the
+	 * default board/planning views (manual archiving, hq-039316). */
+	workspace?: string;
 	/** Optimistic concurrency: rejected with 422 if the row moved on. */
 	expected_version?: number;
 	/** Planning fields (hq-62130a): mockup Horas Est. / Fecha Inicio / Fecha Fin. */
