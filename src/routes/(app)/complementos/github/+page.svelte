@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import { hasScope } from '$lib/api/auth';
 	import { Icon } from '$lib/ui';
-	import { GITHUB_INSTALL_URL } from '$lib/api/connection';
+	import { browserConnection, GITHUB_INSTALL_URL, type GithubRepo } from '$lib/api/connection';
 	import { findComplemento } from '$lib/complementos/manifest';
 	import type { ActionData, PageData } from './$types';
 
@@ -13,6 +13,9 @@
 	const meta = findComplemento('github');
 
 	const canConnWrite = $derived(hasScope(data.user?.scopes, 'connection.write'));
+	const canRigWrite = $derived(data.canWriteRig);
+	// github_app connections feed the repo picker; a PAT is a manual-URL fallback.
+	const appConnections = $derived(data.connections.filter((c) => c.kind === 'github_app'));
 
 	const fv = $derived((form ?? {}) as Record<string, string | undefined>);
 	const formScope = $derived(fv.formScope);
@@ -61,6 +64,82 @@
 		setTimeout(() => (copied = ''), 1500);
 	};
 
+	// ── Register-repo form state ─────────────────────────────────────────────
+	let gitUrl = $state('');
+	let nameValue = $state('');
+	let prefixValue = $state('');
+	let nameTouched = $state(false);
+	let prefixTouched = $state(false);
+	let connRef = $state('');
+	let repos = $state<GithubRepo[]>([]);
+	let reposLoading = $state(false);
+	let reposError = $state<string | null>(null);
+	let selectedRepo = $state('');
+	let targetWs = $state(data.activeWorkspace);
+
+	function slugFromUrl(url: string): string {
+		return url.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
+	}
+	function fillFromUrl(url: string) {
+		gitUrl = url;
+		const name = slugFromUrl(url).replace(/-/g, '');
+		if (!nameTouched) nameValue = name;
+		if (!prefixTouched) prefixValue = name;
+	}
+	function onGitUrlInput(e: Event) {
+		fillFromUrl((e.target as HTMLInputElement).value);
+	}
+	function onNameInput(e: Event) {
+		nameValue = (e.target as HTMLInputElement).value;
+		nameTouched = true;
+		if (!prefixTouched) prefixValue = nameValue;
+	}
+	async function onConnChange(e: Event) {
+		connRef = (e.target as HTMLSelectElement).value;
+		selectedRepo = '';
+		repos = [];
+		reposError = null;
+		if (!connRef) return;
+		reposLoading = true;
+		try {
+			repos = await browserConnection().githubRepos(connRef);
+		} catch (err) {
+			reposError =
+				err && typeof err === 'object' && 'status' in err
+					? `Could not list repos (${(err as { status: number }).status}). Use the manual URL.`
+					: 'Could not list repos. Use the manual URL.';
+		} finally {
+			reposLoading = false;
+		}
+	}
+	function onRepoChange(e: Event) {
+		selectedRepo = (e.target as HTMLSelectElement).value;
+		const repo = repos.find((r) => r.full_name === selectedRepo);
+		if (repo) fillFromUrl(repo.clone_url);
+	}
+	function connLabel(id: string): string {
+		const c = data.connections.find((x) => x.id === id);
+		if (!c) return id;
+		return c.account_login ? `${id} (${c.account_login})` : id;
+	}
+
+	// ── Repos management table (active workspace) ────────────────────────────
+	type GraphChip = { state: 'built' | 'behind' | 'stale'; commit: string | null } | null;
+	function graphChip(rigName: string): GraphChip {
+		const c = data.graphCustody.find((g) => g.rig === rigName);
+		if (!c) return null;
+		const state = !c.stale ? 'built' : c.last_indexed_commit ? 'behind' : 'stale';
+		return { state, commit: c.last_indexed_commit };
+	}
+	const CHIP_LABEL = { built: 'Built', behind: 'Behind', stale: 'Not built' } as const;
+	let refreshing = $state<string | null>(null);
+	const refreshEnhancer = (rigName: string) => () => {
+		refreshing = rigName;
+		return async ({ update }: { update: () => Promise<void> }) => {
+			await update();
+			refreshing = null;
+		};
+	};
 </script>
 
 <style>
@@ -567,5 +646,212 @@
 			{/if}
 		</div>
 	</section>
+
+	<!-- ══ Register a repo (rig) ═════════════════════════════════════════════ -->
+	{#if canRigWrite}
+		<section class="bezel" aria-label="Register repo">
+			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)] space-y-[var(--gw-space-4)]">
+				<div class="flex items-baseline gap-[var(--gw-space-2)]">
+					<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">Register a repo</h2>
+				</div>
+				<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+					Pick a connection → a repo → the target workspace. The rig is created in that workspace and
+					listed under <a href="/rigs" class="underline">Rigs</a>.
+				</p>
+
+				{#if formScope === 'rig' && fv.error}
+					<aside class="warn-banner" role="alert">{fv.error}</aside>
+				{/if}
+
+				<form
+					method="POST"
+					action="?/addRig"
+					use:enhance={enhancer}
+					class="space-y-[var(--gw-space-4)] rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)] p-[var(--gw-space-4)]"
+				>
+					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-2">
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-conn">Connection</label>
+							<select id="repo-conn" class="gw-input" name="git_connection_ref" bind:value={connRef} onchange={onConnChange}>
+								<option value="">No connection (manual URL)</option>
+								{#each appConnections as c (c.id)}
+									<option value={c.id}>{connLabel(c.id)}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-pick">Repository</label>
+							<select id="repo-pick" class="gw-input" disabled={!connRef || reposLoading || repos.length === 0} bind:value={selectedRepo} onchange={onRepoChange}>
+								{#if reposLoading}
+									<option value="">Loading…</option>
+								{:else if !connRef}
+									<option value="">Pick a connection first</option>
+								{:else if repos.length === 0}
+									<option value="">No repos (use the manual URL)</option>
+								{:else}
+									<option value="">Pick a repo…</option>
+									{#each repos as r (r.full_name)}
+										<option value={r.full_name}>{r.full_name}{r.private ? ' · private' : ''}</option>
+									{/each}
+								{/if}
+							</select>
+						</div>
+					</div>
+					{#if reposError}
+						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">{reposError}</p>
+					{/if}
+
+					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-3">
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-name">Name</label>
+							<input id="repo-name" class="gw-input" type="text" name="name" required bind:value={nameValue} oninput={onNameInput} placeholder="myrepo" />
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-prefix">Bead prefix</label>
+							<input id="repo-prefix" class="gw-input" type="text" name="prefix" required bind:value={prefixValue} oninput={() => (prefixTouched = true)} placeholder="myrepo" />
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-ws">Workspace</label>
+							<select id="repo-ws" class="gw-input" name="workspace" bind:value={targetWs}>
+								{#if data.workspaces.length > 0}
+									{#each data.workspaces as w (w.workspace)}
+										<option value={w.workspace}>{w.workspace}</option>
+									{/each}
+								{:else}
+									<option value={data.activeWorkspace}>{data.activeWorkspace}</option>
+								{/if}
+							</select>
+						</div>
+					</div>
+
+					<div class="space-y-[var(--gw-space-1)]">
+						<label class="label" for="repo-git-url">
+							Git URL <span class="normal-case tracking-normal opacity-60">(auto from the repo, or manual)</span>
+						</label>
+						<input id="repo-git-url" class="gw-input" type="text" name="git_url" required value={gitUrl} oninput={onGitUrlInput} placeholder="git@github.com:org/repo.git" />
+					</div>
+
+					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-3">
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-branch">Default branch</label>
+							<input id="repo-branch" class="gw-input" type="text" name="default_branch" placeholder="main" />
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-push">Push URL <span class="normal-case tracking-normal opacity-60">(optional)</span></label>
+							<input id="repo-push" class="gw-input" type="text" name="push_url" placeholder="https://…" />
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="repo-upstream">Upstream URL <span class="normal-case tracking-normal opacity-60">(optional)</span></label>
+							<input id="repo-upstream" class="gw-input" type="text" name="upstream_url" placeholder="https://…" />
+						</div>
+					</div>
+
+					<button type="submit" class="cta" disabled={saving}>
+						<span>Register repo</span>
+						<span class="cta-arrow" aria-hidden="true">→</span>
+					</button>
+				</form>
+			</div>
+		</section>
+	{/if}
+
+	<!-- ══ Manage repos (active workspace) ═══════════════════════════════════ -->
+	{#if data.canWriteRig}
+		<section class="bezel" aria-label="Manage repos">
+			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)] space-y-[var(--gw-space-4)]">
+				<div class="flex items-baseline gap-[var(--gw-space-2)]">
+					<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">Repos</h2>
+					<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">{data.rigs.length}</span>
+					<span class="ml-auto text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+						workspace: <strong>{data.activeWorkspace}</strong>
+					</span>
+				</div>
+
+				{#if data.rigError}
+					<aside class="warn-banner" role="alert">Could not list this workspace's repos: {data.rigError}</aside>
+				{/if}
+
+				<div class="bezel-core-overflow border border-[var(--gw-color-border-subtle)]">
+					{#if data.rigs.length > 0}
+						<div class="overflow-x-auto">
+							<table class="w-full min-w-[760px] text-left">
+								<thead>
+									<tr class="border-b border-[var(--gw-color-border-subtle)]">
+										<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Name</th>
+										<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Prefix</th>
+										<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Git URL</th>
+										<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] lg:table-cell">Connection</th>
+										<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Graph</th>
+										<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Actions</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-[var(--gw-color-border-subtle)]">
+									{#each data.rigs as rig (rig.name)}
+										<tr class="data-row">
+											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
+												<span class="text-[var(--gw-text-sm)] font-medium text-[var(--gw-color-text)]">{rig.name}</span>
+											</td>
+											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]"><span class="chip">{rig.prefix}</span></td>
+											<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
+												<span class="block max-w-[260px] truncate font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]" title={rig.git_url}>{rig.git_url}</span>
+											</td>
+											<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] lg:table-cell">
+												{#if rig.git_connection_ref}
+													<span class="chip" title="git_connection_ref">{rig.git_connection_ref}</span>
+												{:else}
+													<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
+												{/if}
+											</td>
+											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
+												{#key data.graphCustody}
+													{@const chip = graphChip(rig.name)}
+													<div class="graph-cell">
+														{#if chip}
+															<span class="chip chip-status" title={chip.commit ? `Last indexed commit: ${chip.commit}` : 'No indexed commit yet'}>
+																<span class="dot dot-{chip.state}"></span>{CHIP_LABEL[chip.state]}
+															</span>
+														{:else}
+															<span class="chip" title="No graph custody — run Refresh to build it"><span class="dot"></span>—</span>
+														{/if}
+														{#if data.canRefreshGraph}
+															<form method="POST" action="?/refreshGraph" use:enhance={refreshEnhancer(rig.name)}>
+																<input type="hidden" name="rig" value={rig.name} />
+																<button type="submit" class="btn-refresh" disabled={refreshing === rig.name} title="Rebuild this repo's graph">
+																	<Icon icon="lucide:refresh-cw" size={12} class={refreshing === rig.name ? 'spin' : ''} />
+																	Refresh
+																</button>
+															</form>
+														{/if}
+													</div>
+												{/key}
+											</td>
+											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right">
+												<form
+													method="POST"
+													action="?/removeRig"
+													use:enhance={enhancer}
+													onsubmit={(e) => {
+														if (!confirm(`Delete repo ${rig.name}?`)) e.preventDefault();
+													}}
+												>
+													<input type="hidden" name="name" value={rig.name} />
+													<button type="submit" class="btn-danger" disabled={saving}>Delete</button>
+												</form>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<div class="flex flex-col items-center justify-center gap-[var(--gw-space-2)] px-[var(--gw-space-6)] py-[var(--gw-space-10)]">
+							<Icon icon="lucide:git-branch" size={20} />
+							<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">No repos registered.</p>
+						</div>
+					{/if}
+				</div>
+			</div>
+		</section>
+	{/if}
 
 </div>

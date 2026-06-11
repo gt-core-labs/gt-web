@@ -1,88 +1,11 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import { hasScope } from '$lib/api/auth';
 	import { Icon } from '$lib/ui';
-	import { browserConnection, type GithubRepo } from '$lib/api/connection';
-	import type { ActionData, PageData } from './$types';
+	import type { PageData } from './$types';
 
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data }: { data: PageData } = $props();
 
-	const canRigWrite = $derived(hasScope(data.user?.scopes, 'rig.write'));
-
-	let saving = $state(false);
-	const enhancer = () => {
-		saving = true;
-		return async ({ update }: { update: () => Promise<void> }) => {
-			await update();
-			saving = false;
-		};
-	};
-
-	// github_app connections feed the repo picker; a PAT is a manual-URL fallback.
-	const appConnections = $derived(data.connections.filter((c) => c.kind === 'github_app'));
-
-	// ── Register form state ──────────────────────────────────────────────────
-	let gitUrl = $state('');
-	let nameValue = $state('');
-	let prefixValue = $state('');
-	let nameTouched = $state(false);
-	let prefixTouched = $state(false);
-
-	let connRef = $state('');
-	let repos = $state<GithubRepo[]>([]);
-	let reposLoading = $state(false);
-	let reposError = $state<string | null>(null);
-	let selectedRepo = $state('');
-
-	function slugFromUrl(url: string): string {
-		return url.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
-	}
-	// Rig names can't contain hyphens (bead-id delimiter); name = repo slug w/o hyphens, prefix mirrors.
-	function fillFromUrl(url: string) {
-		gitUrl = url;
-		const name = slugFromUrl(url).replace(/-/g, '');
-		if (!nameTouched) nameValue = name;
-		if (!prefixTouched) prefixValue = name;
-	}
-	function onGitUrlInput(e: Event) {
-		fillFromUrl((e.target as HTMLInputElement).value);
-	}
-	function onNameInput(e: Event) {
-		nameValue = (e.target as HTMLInputElement).value;
-		nameTouched = true;
-		if (!prefixTouched) prefixValue = nameValue;
-	}
-
-	async function onConnChange(e: Event) {
-		connRef = (e.target as HTMLSelectElement).value;
-		selectedRepo = '';
-		repos = [];
-		reposError = null;
-		if (!connRef) return;
-		reposLoading = true;
-		try {
-			repos = await browserConnection().githubRepos(connRef);
-		} catch (err) {
-			reposError =
-				err && typeof err === 'object' && 'status' in err
-					? `Could not list repos (${(err as { status: number }).status}). Use the manual URL.`
-					: 'Could not list repos. Use the manual URL.';
-		} finally {
-			reposLoading = false;
-		}
-	}
-	function onRepoChange(e: Event) {
-		selectedRepo = (e.target as HTMLSelectElement).value;
-		const repo = repos.find((r) => r.full_name === selectedRepo);
-		if (repo) fillFromUrl(repo.clone_url);
-	}
-	function connLabel(id: string): string {
-		const c = data.connections.find((x) => x.id === id);
-		if (!c) return id;
-		return c.account_login ? `${id} (${c.account_login})` : id;
-	}
-
-	// ── Per-rig graph freshness chip ─────────────────────────────────────────
+	// Read-only view: rigs of the active workspace. Manage (register/delete/refresh) lives in
+	// Add-ons → GitHub. The graph freshness chip is shown for context (no actions here).
 	type GraphChip = { state: 'built' | 'behind' | 'stale'; commit: string | null } | null;
 	function graphChip(rigName: string): GraphChip {
 		const c = data.graphCustody.find((g) => g.rig === rigName);
@@ -91,15 +14,6 @@
 		return { state, commit: c.last_indexed_commit };
 	}
 	const CHIP_LABEL = { built: 'Built', behind: 'Behind', stale: 'Not built' } as const;
-
-	let refreshing = $state<string | null>(null);
-	const refreshEnhancer = (rigName: string) => () => {
-		refreshing = rigName;
-		return async ({ update }: { update: () => Promise<void> }) => {
-			await update();
-			refreshing = null;
-		};
-	};
 </script>
 
 <div class="mx-auto max-w-4xl space-y-6">
@@ -113,16 +27,12 @@
 		<div class="min-w-0">
 			<h1 class="text-2xl font-semibold tracking-tight text-[var(--gw-color-text)]">Rigs</h1>
 			<p class="mt-1 text-sm text-[var(--gw-color-text-muted)]">
-				Repos registered in the active workspace. Switch workspace in the header to manage another.
-				Connect a GitHub App under
+				Repos registered in the active workspace (switch workspace in the header to view another).
+				Register, delete or refresh them under
 				<a href="/complementos/github" class="underline">Add-ons → GitHub</a>.
 			</p>
 		</div>
 	</header>
-
-	{#if form?.error}
-		<aside class="warn-banner" role="alert">{form.error}</aside>
-	{/if}
 
 	<section class="bezel" aria-label="Rigs">
 		<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)] space-y-[var(--gw-space-4)]">
@@ -138,100 +48,6 @@
 				<aside class="warn-banner" role="alert">Could not list this workspace's repos: {data.rigError}</aside>
 			{/if}
 
-			<!-- Register repo -->
-			{#if canRigWrite}
-				<form
-					method="POST"
-					action="?/addRig"
-					use:enhance={enhancer}
-					class="space-y-[var(--gw-space-4)] rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)] p-[var(--gw-space-4)]"
-				>
-					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-2">
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-conn">Connection</label>
-							<select id="repo-conn" class="gw-input" name="git_connection_ref" bind:value={connRef} onchange={onConnChange}>
-								<option value="">No connection (manual URL)</option>
-								{#each appConnections as c (c.id)}
-									<option value={c.id}>{connLabel(c.id)}</option>
-								{/each}
-							</select>
-						</div>
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-pick">Repository</label>
-							<select
-								id="repo-pick"
-								class="gw-input"
-								disabled={!connRef || reposLoading || repos.length === 0}
-								bind:value={selectedRepo}
-								onchange={onRepoChange}
-							>
-								{#if reposLoading}
-									<option value="">Loading…</option>
-								{:else if !connRef}
-									<option value="">Pick a connection first</option>
-								{:else if repos.length === 0}
-									<option value="">No repos (use the manual URL)</option>
-								{:else}
-									<option value="">Pick a repo…</option>
-									{#each repos as r (r.full_name)}
-										<option value={r.full_name}>{r.full_name}{r.private ? ' · private' : ''}</option>
-									{/each}
-								{/if}
-							</select>
-						</div>
-					</div>
-					{#if reposError}
-						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">{reposError}</p>
-					{/if}
-
-					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-2">
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-name">Name</label>
-							<input id="repo-name" class="gw-input" type="text" name="name" required bind:value={nameValue} oninput={onNameInput} placeholder="myrepo" />
-						</div>
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-prefix">Bead prefix</label>
-							<input id="repo-prefix" class="gw-input" type="text" name="prefix" required bind:value={prefixValue} oninput={() => (prefixTouched = true)} placeholder="myrepo" />
-						</div>
-					</div>
-
-					<div class="space-y-[var(--gw-space-1)]">
-						<label class="label" for="repo-git-url">
-							Git URL <span class="normal-case tracking-normal opacity-60">(auto from the repo, or manual)</span>
-						</label>
-						<input id="repo-git-url" class="gw-input" type="text" name="git_url" required value={gitUrl} oninput={onGitUrlInput} placeholder="git@github.com:org/repo.git" />
-					</div>
-
-					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-3">
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-branch">Default branch</label>
-							<input id="repo-branch" class="gw-input" type="text" name="default_branch" placeholder="main" />
-						</div>
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-push">Push URL <span class="normal-case tracking-normal opacity-60">(optional)</span></label>
-							<input id="repo-push" class="gw-input" type="text" name="push_url" placeholder="https://…" />
-						</div>
-						<div class="space-y-[var(--gw-space-1)]">
-							<label class="label" for="repo-upstream">Upstream URL <span class="normal-case tracking-normal opacity-60">(optional)</span></label>
-							<input id="repo-upstream" class="gw-input" type="text" name="upstream_url" placeholder="https://…" />
-						</div>
-					</div>
-
-					<button type="submit" class="cta" disabled={saving}>
-						{#if saving}
-							<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-							</svg>
-							<span>Registering…</span>
-						{:else}
-							<span>Register repo</span>
-							<span class="cta-arrow" aria-hidden="true">→</span>
-						{/if}
-					</button>
-				</form>
-			{/if}
-
 			<!-- Repos table -->
 			<div class="bezel-core-overflow border border-[var(--gw-color-border-subtle)]">
 				{#if data.rigs.length > 0}
@@ -244,9 +60,6 @@
 									<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Git URL</th>
 									<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] lg:table-cell">Connection</th>
 									<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Graph</th>
-									{#if canRigWrite}
-										<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Actions</th>
-									{/if}
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-[var(--gw-color-border-subtle)]">
@@ -275,35 +88,11 @@
 															<span class="dot dot-{chip.state}"></span>{CHIP_LABEL[chip.state]}
 														</span>
 													{:else}
-														<span class="chip" title="No graph custody — run Refresh to build it"><span class="dot"></span>—</span>
-													{/if}
-													{#if data.canRefreshGraph}
-														<form method="POST" action="?/refreshGraph" use:enhance={refreshEnhancer(rig.name)}>
-															<input type="hidden" name="rig" value={rig.name} />
-															<button type="submit" class="btn-refresh" disabled={refreshing === rig.name} title="Rebuild this repo's graph">
-																<Icon icon="lucide:refresh-cw" size={12} class={refreshing === rig.name ? 'spin' : ''} />
-																Refresh
-															</button>
-														</form>
+														<span class="chip" title="No graph custody — refresh under Add-ons → GitHub"><span class="dot"></span>—</span>
 													{/if}
 												</div>
 											{/key}
 										</td>
-										{#if canRigWrite}
-											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right">
-												<form
-													method="POST"
-													action="?/removeRig"
-													use:enhance={enhancer}
-													onsubmit={(e) => {
-														if (!confirm(`Delete repo ${rig.name}?`)) e.preventDefault();
-													}}
-												>
-													<input type="hidden" name="name" value={rig.name} />
-													<button type="submit" class="btn-danger" disabled={saving}>Delete</button>
-												</form>
-											</td>
-										{/if}
 									</tr>
 								{/each}
 							</tbody>
