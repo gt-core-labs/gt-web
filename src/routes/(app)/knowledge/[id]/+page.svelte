@@ -5,6 +5,8 @@
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
 	import { Markdown } from '$lib/components/ui';
+	import BlockEditor from '$lib/components/knowledge/BlockEditor.svelte';
+	import CommentThread from '$lib/components/CommentThread.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -94,6 +96,77 @@
 
 	const shareVariant = (s: string) =>
 		s === 'active' ? 'success' : s === 'expired' ? 'warning' : 'error';
+
+	// ── hq-3ed2c3: export, file attach, live updates ─────────────────────────
+
+	/** Download/export the markdown body (MANDATORY md export). */
+	function downloadMd() {
+		const blob = new Blob([doc.body_md ?? doc.extracted_text ?? ''], {
+			type: 'text/markdown'
+		});
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(blob);
+		a.download = doc.filename.endsWith('.md') ? doc.filename : `${doc.filename}.md`;
+		a.click();
+		URL.revokeObjectURL(a.href);
+	}
+
+	/** Attach a binary file to this document's owner (bytes land in store.blob). */
+	async function attachFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		busy = true;
+		error = '';
+		try {
+			const buf = new Uint8Array(await file.arrayBuffer());
+			let bin = '';
+			for (let i = 0; i < buf.length; i += 0x8000)
+				bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+			await browserDocs().attach({
+				owner_type: doc.owner_type,
+				owner_id: doc.owner_id,
+				kind: 'blob',
+				filename: file.name,
+				content_type: file.type || 'application/octet-stream',
+				data_base64: btoa(bin),
+				created_by: data.user?.sub ?? 'gt-web'
+			});
+			await invalidateAll();
+		} catch (err) {
+			error = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		} finally {
+			busy = false;
+			input.value = '';
+		}
+	}
+
+	// Live collaboration (hq-0c8fe1): the doc:{id} SSE topic pushes block edits
+	// and comments from other clients; debounce into a reload. Conflict policy
+	// is last-write-wins per block (ADR) — the editor splices into fresh state.
+	$effect(() => {
+		const es = new EventSource(`/stream?topic=${encodeURIComponent(`doc:${doc.id}`)}`, {
+			withCredentials: true
+		});
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		const refresh = () => {
+			if (timer) clearTimeout(timer);
+			timer = setTimeout(() => invalidateAll(), 400);
+		};
+		for (const k of [
+			'documents.updated.v1',
+			'documents.attached.v1',
+			'documents.removed.v1',
+			'comments.created.v1',
+			'comments.updated.v1',
+			'comments.deleted.v1'
+		])
+			es.addEventListener(k, refresh as EventListener);
+		return () => {
+			es.close();
+			if (timer) clearTimeout(timer);
+		};
+	});
 </script>
 
 <style>
@@ -174,10 +247,19 @@
 		<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-error)]">{error}</p>
 	{/if}
 
-	{#if canWrite && !editing}
-		<div class="entry entry-3 flex gap-[var(--gw-space-2)]">
-			<Button variant="tonal" onclick={startEdit}>Edit</Button>
-			<Button variant="tonal" disabled={busy} onclick={remove}>Delete</Button>
+	{#if !editing}
+		<div class="entry entry-3 flex flex-wrap items-center gap-[var(--gw-space-2)]">
+			{#if canWrite}
+				<Button variant="tonal" onclick={startEdit}>Edit (raw)</Button>
+				<Button variant="tonal" disabled={busy} onclick={remove}>Delete</Button>
+			{/if}
+			<Button variant="tonal" onclick={downloadMd}>Descargar .md</Button>
+			{#if canWrite}
+				<label class="cursor-pointer rounded-full border border-[var(--gw-color-border-subtle)] px-3 py-1 text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)]">
+					Adjuntar archivo
+					<input type="file" class="hidden" onchange={attachFile} disabled={busy} />
+				</label>
+			{/if}
 		</div>
 	{/if}
 
@@ -204,11 +286,11 @@
 			</div>
 		</div>
 
-	{:else if doc.body_md}
-		<!-- Body viewer — Double-Bezel -->
+	{:else if doc.body_md !== null && doc.body_md !== undefined}
+		<!-- Block editor (hq-3ed2c3): double-click a block to edit; LWW per block -->
 		<div class="entry entry-3 bezel">
 			<div class="bezel-core p-[var(--gw-space-4)]">
-				<Markdown text={doc.body_md} />
+				<BlockEditor {doc} editedBy={data.user?.sub ?? 'gt-web'} {canWrite} />
 			</div>
 		</div>
 
@@ -295,5 +377,13 @@
 			</div>
 		</section>
 	{/if}
+
+
+	<!-- Comments (hq-57042e, target kind=doc) -->
+	<section class="entry entry-4 bezel">
+		<div class="bezel-core p-[var(--gw-space-4)]">
+			<CommentThread targetKind="doc" targetId={doc.id} />
+		</div>
+	</section>
 
 </div>
