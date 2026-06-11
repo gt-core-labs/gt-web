@@ -91,7 +91,7 @@
 		if (!connRef) return;
 		reposLoading = true;
 		try {
-			repos = await browserConnection().githubRepos();
+			repos = await browserConnection().githubRepos(connRef);
 		} catch (err) {
 			reposError =
 				err && typeof err === 'object' && 'status' in err

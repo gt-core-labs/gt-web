@@ -135,8 +135,14 @@ export function connection(doFetch: Fetcher) {
 		 * {@link TrackerError} with status 404 until the backend bead lands — callers degrade
 		 * to the free-text git_url fallback in that case.
 		 */
-		async githubRepos(): Promise<GithubRepo[]> {
-			return unwrap<GithubRepo[]>(await doFetch('/api/v1/connection/github/repos'));
+		async githubRepos(connectionId: string): Promise<GithubRepo[]> {
+			// The backend REQUIRES the `connection` query param (which github_app installation to list);
+			// omitting it is a 400. Pass the picked connection id.
+			return unwrap<GithubRepo[]>(
+				await doFetch(
+					`/api/v1/connection/github/repos?connection=${encodeURIComponent(connectionId)}`
+				)
+			);
 		},
 		/**
 		 * The platform GitHub App config (hq-61ea43), secret-free. `null` when no App is configured
