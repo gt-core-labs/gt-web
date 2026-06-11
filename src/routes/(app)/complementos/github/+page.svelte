@@ -34,6 +34,11 @@
 	// GitHub App connections are the ones whose repos we can list; a PAT is a fallback.
 	const appConnections = $derived(data.connections.filter((c) => c.kind === 'github_app'));
 
+	// Workspaces other than the active one — targets for the per-rig "Mover a workspace" control.
+	const otherWorkspaces = $derived(
+		(data.workspaces ?? []).filter((w) => w.workspace !== data.activeWorkspace)
+	);
+
 	// Open the App install flow in a popup. NO `noopener` — the callback page (loaded in the popup)
 	// needs `window.opener` to refresh this page once the connection is created.
 	function openInstall() {
@@ -863,17 +868,49 @@
 										</td>
 										{#if canRigWrite}
 											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right">
-												<form
-													method="POST"
-													action="?/removeRig"
-													use:enhance={enhancer}
-													onsubmit={(e) => {
-														if (!confirm(`¿Eliminar el repo ${rig.name}?`)) e.preventDefault();
-													}}
-												>
-													<input type="hidden" name="name" value={rig.name} />
-													<button type="submit" class="btn-danger" disabled={saving}>Eliminar</button>
-												</form>
+												<div class="flex items-center justify-end gap-[var(--gw-space-2)]">
+													{#if otherWorkspaces.length > 0}
+														<!-- Mover el rig a otro workspace (add en destino → remove aquí). -->
+														<form method="POST" action="?/moveRig" use:enhance={enhancer} class="inline-flex">
+															<input type="hidden" name="name" value={rig.name} />
+															<input type="hidden" name="prefix" value={rig.prefix} />
+															<input type="hidden" name="git_url" value={rig.git_url} />
+															<input type="hidden" name="default_branch" value={rig.default_branch} />
+															<input type="hidden" name="push_url" value={rig.push_url ?? ''} />
+															<input type="hidden" name="upstream_url" value={rig.upstream_url ?? ''} />
+															<input type="hidden" name="git_connection_ref" value={rig.git_connection_ref ?? ''} />
+															<select
+																name="workspace"
+																disabled={saving}
+																class="rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-xs)] text-[var(--gw-color-text)]"
+																title="Mover este repo a otro workspace"
+																onchange={(e) => {
+																	const sel = e.currentTarget as HTMLSelectElement;
+																	if (!sel.value) return;
+																	if (confirm(`¿Mover ${rig.name} a ${sel.value}? (se recrea allí y se quita de ${data.activeWorkspace})`))
+																		sel.form?.requestSubmit();
+																	else sel.value = '';
+																}}
+															>
+																<option value="">Mover a…</option>
+																{#each otherWorkspaces as w (w.workspace)}
+																	<option value={w.workspace}>{w.workspace}</option>
+																{/each}
+															</select>
+														</form>
+													{/if}
+													<form
+														method="POST"
+														action="?/removeRig"
+														use:enhance={enhancer}
+														onsubmit={(e) => {
+															if (!confirm(`¿Eliminar el repo ${rig.name}?`)) e.preventDefault();
+														}}
+													>
+														<input type="hidden" name="name" value={rig.name} />
+														<button type="submit" class="btn-danger" disabled={saving}>Eliminar</button>
+													</form>
+												</div>
 											</td>
 										{/if}
 									</tr>

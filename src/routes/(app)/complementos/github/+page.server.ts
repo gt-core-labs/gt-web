@@ -4,6 +4,9 @@ import { TrackerError } from '$lib/api/tracker';
 import type { Connection } from '$lib/api/connection';
 import type { GraphCustody } from '$lib/api/graph';
 import { serverAdmin, serverConnection, serverGraph } from '$lib/server/api';
+import { admin as adminClient, type AddRigBody } from '$lib/api/admin';
+import { backendFetch } from '$lib/server/backend';
+import type { WorkspaceMembership } from '$lib/api/auth';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -71,6 +74,18 @@ export const load: PageServerLoad = async (event) => {
 	}
 	const canRefreshGraph = hasScope(event.locals.user?.scopes, 'graph.write');
 
+	// The workspaces the caller can switch into — the target list for the per-rig "Mover a workspace"
+	// action. Best-effort: a single-tenant deploy / older backend degrades to just the active one.
+	const activeWorkspace = event.locals.user?.workspace ?? 'default';
+	let workspaces: WorkspaceMembership[] = [];
+	try {
+		const cookie = event.request.headers.get('cookie') ?? '';
+		const res = await backendFetch('/auth/workspaces', cookie);
+		if (res.ok) workspaces = (await res.json()) as WorkspaceMembership[];
+	} catch {
+		workspaces = [];
+	}
+
 	return {
 		connections,
 		connError,
@@ -80,7 +95,9 @@ export const load: PageServerLoad = async (event) => {
 		rigError,
 		canReadRigs,
 		graphCustody,
-		canRefreshGraph
+		canRefreshGraph,
+		activeWorkspace,
+		workspaces
 	};
 };
 
@@ -211,6 +228,53 @@ export const actions: Actions = {
 		if (!name) return fail(400, { error: 'Missing rig name.', formScope: 'rig' });
 		try {
 			await serverAdmin(event).removeRig(name);
+			return { ok: true };
+		} catch (err) {
+			return failFrom(err);
+		}
+	},
+
+	// Move a rig to another workspace. Rigs are strictly per-tenant with no backend "move" op, so
+	// this is re-create-then-remove: ADD in the target workspace (via the sanctioned X-GT-Workspace
+	// header) carrying the rig's git config, then REMOVE from the origin (the active session ws). Add
+	// goes first so a failure never loses the rig. The graph custody does not travel — re-index after.
+	moveRig: async (event) => {
+		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
+			return fail(403, { error: 'Requires rig.write', formScope: 'rig' });
+		}
+		const form = await event.request.formData();
+		const name = str(form, 'name');
+		const target = str(form, 'workspace');
+		const git_url = str(form, 'git_url');
+		const prefix = str(form, 'prefix');
+		if (!name || !target || !git_url || !prefix) {
+			return fail(400, { error: 'Missing rig fields for move.', formScope: 'rig' });
+		}
+		if (target === (event.locals.user?.workspace ?? 'default')) {
+			return fail(400, { error: 'The rig is already in that workspace.', formScope: 'rig' });
+		}
+		const body: AddRigBody = {
+			name,
+			prefix,
+			git_url,
+			default_branch: str(form, 'default_branch') || 'main',
+			push_url: opt(form, 'push_url'),
+			upstream_url: opt(form, 'upstream_url'),
+			git_connection_ref: opt(form, 'git_connection_ref'),
+			now_secs: Math.floor(Date.now() / 1000)
+		};
+		const cookie = event.request.headers.get('cookie') ?? '';
+		// A one-off admin client targeting `target` via the sanctioned workspace header. Works for a
+		// caller with rig.write in the target (system admin `*` spans every workspace).
+		const targetAdmin = adminClient((path, init) =>
+			backendFetch(path, cookie, {
+				...init,
+				headers: { ...(init?.headers ?? {}), 'X-GT-Workspace': target }
+			})
+		);
+		try {
+			await targetAdmin.addRig(body); // create in target FIRST
+			await serverAdmin(event).removeRig(name); // then drop from origin (active ws)
 			return { ok: true };
 		} catch (err) {
 			return failFrom(err);
