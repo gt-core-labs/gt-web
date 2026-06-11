@@ -33,6 +33,16 @@ export const load: PageServerLoad = async (event) => {
 		connError = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
 	}
 
+	// The platform GitHub App config (hq-61ea43) — DB-backed, secret-free. `null` ⇒ not configured
+	// yet (the form prompts to set it). Best-effort: a backend that predates it degrades to null.
+	const canWriteConn = hasScope(event.locals.user?.scopes, 'connection.write');
+	let githubApp = null;
+	try {
+		githubApp = await serverConnection(event).githubConfig();
+	} catch {
+		githubApp = null;
+	}
+
 	// The repo zone is only shown when the caller can read rigs; load them best-effort.
 	let rigs: Awaited<ReturnType<ReturnType<typeof serverAdmin>['rigs']>> = [];
 	let rigError: string | null = null;
@@ -64,6 +74,8 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		connections,
 		connError,
+		githubApp,
+		canWriteConn,
 		rigs,
 		rigError,
 		canReadRigs,
@@ -106,6 +118,35 @@ export const actions: Actions = {
 		}
 		try {
 			await serverConnection(event).create({ id, kind: 'pat', secret, account_login });
+			return { ok: true };
+		} catch (err) {
+			return failFrom(err);
+		}
+	},
+
+	// The platform GitHub App config (hq-61ea43): App ID + slug + private key (PEM) + webhook secret.
+	// Secrets are write-only — a blank PEM/secret on update keeps the stored one. DB-backed, so this
+	// configures the App with no redeploy and lights up the install flow + webhook.
+	saveGithubApp: async (event) => {
+		if (!hasScope(event.locals.user?.scopes, 'connection.write')) {
+			return fail(403, { error: 'Requires connection.write', formScope: 'ghapp' });
+		}
+		const form = await event.request.formData();
+		const app_id = str(form, 'app_id');
+		const app_slug = str(form, 'app_slug');
+		if (!app_id || !app_slug) {
+			return fail(400, { error: 'App ID and slug are required.', formScope: 'ghapp' });
+		}
+		const body: { app_id: string; app_slug: string; private_key_pem?: string; webhook_secret?: string } = {
+			app_id,
+			app_slug
+		};
+		const pem = str(form, 'private_key_pem');
+		if (pem) body.private_key_pem = pem;
+		const hook = str(form, 'webhook_secret');
+		if (hook) body.webhook_secret = hook;
+		try {
+			await serverConnection(event).setGithubConfig(body);
 			return { ok: true };
 		} catch (err) {
 			return failFrom(err);

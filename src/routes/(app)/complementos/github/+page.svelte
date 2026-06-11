@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { hasScope } from '$lib/api/auth';
 	import { Icon } from '$lib/ui';
 	import { browserConnection, GITHUB_INSTALL_URL, type GithubRepo } from '$lib/api/connection';
@@ -27,6 +28,16 @@
 
 	// GitHub App connections are the ones whose repos we can list; a PAT is a fallback.
 	const appConnections = $derived(data.connections.filter((c) => c.kind === 'github_app'));
+
+	// The webhook URL the admin pastes into the GitHub App (hq-61ea43); the callback shares the host.
+	const webhookUrl = $derived(`${page.url.origin}/api/v1/connection/github/webhook`);
+	const callbackUrl = $derived(`${page.url.origin}/api/v1/connection/github/callback`);
+	let copied = $state('');
+	const copy = async (text: string, which: string) => {
+		await navigator.clipboard.writeText(text);
+		copied = which;
+		setTimeout(() => (copied = ''), 1500);
+	};
 
 	// ── Repo register form state ─────────────────────────────────────────────
 	let gitUrl = $state(fv.git_url ?? '');
@@ -381,6 +392,96 @@
 
 	{#if form?.error}
 		<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-error)]">{form.error}</p>
+	{/if}
+
+	<!-- ══ ZONA 0 · GITHUB APP (PLATAFORMA) ══════════════════════════════════ -->
+	{#if data.canWriteConn}
+		<section class="bezel" aria-label="GitHub App de plataforma">
+			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)] space-y-[var(--gw-space-4)]">
+				<div class="flex items-center justify-between gap-3">
+					<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
+						GitHub App (plataforma)
+					</h2>
+					{#if data.githubApp}
+						<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							Configurada · App {data.githubApp.app_id}
+							· key {data.githubApp.has_private_key ? '✓' : '✗'}
+							· webhook secret {data.githubApp.has_webhook_secret ? '✓' : '✗'}
+						</span>
+					{:else}
+						<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">No configurada</span>
+					{/if}
+				</div>
+
+				<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+					Config en BD (no .env). En la GitHub App pega estas URLs; abajo App ID, slug, private key (PEM) y webhook secret.
+				</p>
+
+				<!-- URLs to register in the GitHub App -->
+				<div class="space-y-[var(--gw-space-2)]">
+					<div class="space-y-[var(--gw-space-1)]">
+						<span class="label">Webhook URL</span>
+						<div class="flex items-center gap-[var(--gw-space-2)]">
+							<code class="flex-1 truncate rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-xs)]">{webhookUrl}</code>
+							<button type="button" class="btn-secondary" onclick={() => copy(webhookUrl, 'hook')}>{copied === 'hook' ? 'Copiado' : 'Copiar'}</button>
+						</div>
+					</div>
+					<div class="space-y-[var(--gw-space-1)]">
+						<span class="label">Callback URL</span>
+						<div class="flex items-center gap-[var(--gw-space-2)]">
+							<code class="flex-1 truncate rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-xs)]">{callbackUrl}</code>
+							<button type="button" class="btn-secondary" onclick={() => copy(callbackUrl, 'cb')}>{copied === 'cb' ? 'Copiado' : 'Copiar'}</button>
+						</div>
+					</div>
+				</div>
+
+				{#if formScope === 'ghapp' && fv.error}
+					<aside class="warn-banner" role="alert">{fv.error}</aside>
+				{/if}
+
+				<form method="POST" action="?/saveGithubApp" use:enhance={enhancer} class="space-y-[var(--gw-space-3)]">
+					<div class="grid gap-[var(--gw-space-3)] sm:grid-cols-2">
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="gh-app-id">App ID <span class="normal-case tracking-normal opacity-60">(numérico)</span></label>
+							<input id="gh-app-id" class="gw-input" type="text" name="app_id" required
+								value={data.githubApp?.app_id ?? ''} placeholder="4028779" />
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label class="label" for="gh-app-slug">Slug <span class="normal-case tracking-normal opacity-60">(github.com/apps/&lt;slug&gt;)</span></label>
+							<input id="gh-app-slug" class="gw-input" type="text" name="app_slug" required
+								value={data.githubApp?.app_slug ?? ''} placeholder="gt-core-2026-06-11" />
+						</div>
+					</div>
+					<div class="space-y-[var(--gw-space-1)]">
+						<label class="label" for="gh-pem">
+							Private key (PEM)
+							<span class="normal-case tracking-normal opacity-60">
+								({data.githubApp?.has_private_key ? 'configurada — dejar vacío para conservar' : 'requerida'})
+							</span>
+						</label>
+						<textarea id="gh-pem" class="gw-input" name="private_key_pem" rows="4"
+							placeholder="-----BEGIN RSA PRIVATE KEY-----"></textarea>
+					</div>
+					<div class="space-y-[var(--gw-space-1)]">
+						<label class="label" for="gh-hook">
+							Webhook secret
+							<span class="normal-case tracking-normal opacity-60">
+								({data.githubApp?.has_webhook_secret ? 'configurado — dejar vacío para conservar' : 'opcional'})
+							</span>
+						</label>
+						<input id="gh-hook" class="gw-input" type="password" name="webhook_secret"
+							placeholder="webhook HMAC secret" autocomplete="off" />
+						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							Sellados en reposo (AES-GCM), nunca se devuelven. Debe coincidir con el Secret del webhook en la GitHub App.
+						</p>
+					</div>
+					<button type="submit" class="cta" disabled={saving}>
+						<span>Guardar GitHub App</span>
+						<span class="cta-arrow" aria-hidden="true">→</span>
+					</button>
+				</form>
+			</div>
+		</section>
 	{/if}
 
 	<!-- ══ ZONA 1 · CONEXIONES ═══════════════════════════════════════════════ -->

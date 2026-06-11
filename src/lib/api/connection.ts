@@ -77,6 +77,29 @@ export interface GithubRepo {
 	default_branch?: string;
 }
 
+/**
+ * The secret-free view of the platform GitHub App config (hq-61ea43),
+ * `GET /api/v1/connection/github/config`. The private key + webhook secret are never
+ * returned — only whether each is set.
+ */
+export interface GithubAppConfigView {
+	app_id: string;
+	app_slug: string;
+	has_private_key: boolean;
+	has_webhook_secret: boolean;
+}
+
+/**
+ * `PUT /api/v1/connection/github/config` body. `private_key_pem` / `webhook_secret` are
+ * WRITE-ONLY: supply to set/rotate, omit to keep. The private key is required on first configure.
+ */
+export interface GithubAppConfigInput {
+	app_id: string;
+	app_slug: string;
+	private_key_pem?: string;
+	webhook_secret?: string;
+}
+
 const JSON_POST = { method: 'POST', headers: { 'content-type': 'application/json' } } as const;
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -114,6 +137,27 @@ export function connection(doFetch: Fetcher) {
 		 */
 		async githubRepos(): Promise<GithubRepo[]> {
 			return unwrap<GithubRepo[]>(await doFetch('/api/v1/connection/github/repos'));
+		},
+		/**
+		 * The platform GitHub App config (hq-61ea43), secret-free. `null` when no App is configured
+		 * yet (the backend answers 404) so the page shows the "configure" form.
+		 */
+		async githubConfig(): Promise<GithubAppConfigView | null> {
+			const res = await doFetch('/api/v1/connection/github/config');
+			if (res.status === 404) return null;
+			return unwrap<GithubAppConfigView>(res);
+		},
+		/** Upsert the platform GitHub App config (hq-61ea43). Secrets write-only (omit to keep). */
+		async setGithubConfig(body: GithubAppConfigInput): Promise<void> {
+			const res = await doFetch('/api/v1/connection/github/config', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			if (!res.ok) {
+				const text = await res.text().catch(() => '');
+				throw new TrackerError(res.status, text || res.statusText);
+			}
 		}
 	};
 }
