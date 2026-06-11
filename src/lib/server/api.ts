@@ -1,5 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { tracker } from '$lib/api/tracker';
+import { board } from '$lib/api/board';
 import { orch } from '$lib/api/orch';
 import { documents } from '$lib/api/documents';
 import { admin } from '$lib/api/admin';
@@ -78,4 +79,10 @@ export function serverConnection(event: RequestEvent) {
 export function serverGraph(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return graphClient((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side board client (hq-95c2bb) bound to the backend + cookie. */
+export function serverBoard(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return board((path, init) => backendFetch(path, cookie, init));
 }
