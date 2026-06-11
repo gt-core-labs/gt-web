@@ -431,11 +431,14 @@
 						</div>
 					</div>
 					<div class="space-y-[var(--gw-space-1)]">
-						<span class="label">Callback URL</span>
+						<span class="label">Setup URL <span class="normal-case tracking-normal opacity-60">(GitHub App → Post installation → Setup URL)</span></span>
 						<div class="flex items-center gap-[var(--gw-space-2)]">
 							<code class="flex-1 truncate rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-xs)]">{callbackUrl}</code>
 							<button type="button" class="btn-secondary" onclick={() => copy(callbackUrl, 'cb')}>{copied === 'cb' ? 'Copiado' : 'Copiar'}</button>
 						</div>
+						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							GitHub manda aquí el <code>installation_id</code> tras instalar — va en <strong>Post installation → Setup URL</strong>, no en el Callback URL de OAuth.
+						</p>
 					</div>
 				</div>
 
