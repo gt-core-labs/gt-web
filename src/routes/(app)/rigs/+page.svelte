@@ -20,9 +20,6 @@
 
 	// github_app connections feed the repo picker; a PAT is a manual-URL fallback.
 	const appConnections = $derived(data.connections.filter((c) => c.kind === 'github_app'));
-	const otherWorkspaces = $derived(
-		(data.workspaces ?? []).filter((w) => w.workspace !== data.activeWorkspace)
-	);
 
 	// ── Register form state ──────────────────────────────────────────────────
 	let gitUrl = $state('');
@@ -294,49 +291,17 @@
 										</td>
 										{#if canRigWrite}
 											<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right">
-												<div class="flex items-center justify-end gap-[var(--gw-space-2)]">
-													{#if otherWorkspaces.length > 0}
-														<!-- Move the rig to another workspace (add in target → remove here). -->
-														<form method="POST" action="?/moveRig" use:enhance={enhancer} class="inline-flex">
-															<input type="hidden" name="name" value={rig.name} />
-															<input type="hidden" name="prefix" value={rig.prefix} />
-															<input type="hidden" name="git_url" value={rig.git_url} />
-															<input type="hidden" name="default_branch" value={rig.default_branch} />
-															<input type="hidden" name="push_url" value={rig.push_url ?? ''} />
-															<input type="hidden" name="upstream_url" value={rig.upstream_url ?? ''} />
-															<input type="hidden" name="git_connection_ref" value={rig.git_connection_ref ?? ''} />
-															<select
-																name="workspace"
-																disabled={saving}
-																class="rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-3)] px-[var(--gw-space-2)] py-[var(--gw-space-1)] text-[var(--gw-text-xs)] text-[var(--gw-color-text)]"
-																title="Move this repo to another workspace"
-																onchange={(e) => {
-																	const sel = e.currentTarget as HTMLSelectElement;
-																	if (!sel.value) return;
-																	if (confirm(`Move ${rig.name} to ${sel.value}? (re-created there and removed from ${data.activeWorkspace})`))
-																		sel.form?.requestSubmit();
-																	else sel.value = '';
-																}}
-															>
-																<option value="">Move to…</option>
-																{#each otherWorkspaces as w (w.workspace)}
-																	<option value={w.workspace}>{w.workspace}</option>
-																{/each}
-															</select>
-														</form>
-													{/if}
-													<form
-														method="POST"
-														action="?/removeRig"
-														use:enhance={enhancer}
-														onsubmit={(e) => {
-															if (!confirm(`Delete repo ${rig.name}?`)) e.preventDefault();
-														}}
-													>
-														<input type="hidden" name="name" value={rig.name} />
-														<button type="submit" class="btn-danger" disabled={saving}>Delete</button>
-													</form>
-												</div>
+												<form
+													method="POST"
+													action="?/removeRig"
+													use:enhance={enhancer}
+													onsubmit={(e) => {
+														if (!confirm(`Delete repo ${rig.name}?`)) e.preventDefault();
+													}}
+												>
+													<input type="hidden" name="name" value={rig.name} />
+													<button type="submit" class="btn-danger" disabled={saving}>Delete</button>
+												</form>
 											</td>
 										{/if}
 									</tr>

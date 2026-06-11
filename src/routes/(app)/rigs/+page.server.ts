@@ -4,15 +4,13 @@ import { TrackerError } from '$lib/api/tracker';
 import type { Connection } from '$lib/api/connection';
 import type { GraphCustody } from '$lib/api/graph';
 import { serverAdmin, serverConnection, serverGraph } from '$lib/server/api';
-import { admin as adminClient, type AddRigBody } from '$lib/api/admin';
-import { backendFetch } from '$lib/server/backend';
-import type { WorkspaceMembership } from '$lib/api/auth';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * Rigs (repos) for the ACTIVE workspace. Each workspace owns its own rig catalog; switch workspace
- * in the header to manage a different one. Connections (the GitHub App installs) are global and feed
- * the register picker. A per-rig "Move to…" re-homes a rig in another workspace.
+ * Rigs (repos) for the ACTIVE workspace — the one selected in the header switcher. Each workspace
+ * owns its own rig catalog (server-injected from the session token claim), so this page always
+ * reflects the active workspace; switch in the header to see another. Connections (the global GitHub
+ * App installs) feed the register picker.
  *
  * Gated on `rig.read`; writes honour `rig.write`, the graph refresh `graph.write`.
  */
@@ -48,19 +46,9 @@ export const load: PageServerLoad = async (event) => {
 		}
 	}
 	const canRefreshGraph = hasScope(event.locals.user?.scopes, 'graph.write');
-
-	// Target workspaces for the per-rig "Move to…" control.
 	const activeWorkspace = event.locals.user?.workspace ?? 'default';
-	let workspaces: WorkspaceMembership[] = [];
-	try {
-		const cookie = event.request.headers.get('cookie') ?? '';
-		const res = await backendFetch('/auth/workspaces', cookie);
-		if (res.ok) workspaces = (await res.json()) as WorkspaceMembership[];
-	} catch {
-		workspaces = [];
-	}
 
-	return { rigs, rigError, connections, graphCustody, canRefreshGraph, activeWorkspace, workspaces };
+	return { rigs, rigError, connections, graphCustody, canRefreshGraph, activeWorkspace };
 };
 
 function failFrom(err: unknown) {
@@ -115,62 +103,6 @@ export const actions: Actions = {
 		if (!name) return fail(400, { error: 'Missing rig name.' });
 		try {
 			await serverAdmin(event).removeRig(name);
-			return { ok: true };
-		} catch (err) {
-			return failFrom(err);
-		}
-	},
-
-	// Move a rig to another workspace. Rigs are strictly per-tenant with no backend "move" op, so this
-	// is re-create-then-remove. The backend rejects an X-GT-Workspace that disagrees with the token
-	// claim (anti-spoof), so we mint a target-scoped token via /auth/switch (validates membership),
-	// use that bearer for the create — without propagating its Set-Cookie, so the session is untouched
-	// — then remove from the origin (active session ws). Add-before-remove never loses the rig.
-	moveRig: async (event) => {
-		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
-			return fail(403, { error: 'Requires rig.write' });
-		}
-		const form = await event.request.formData();
-		const name = str(form, 'name');
-		const target = str(form, 'workspace');
-		const git_url = str(form, 'git_url');
-		const prefix = str(form, 'prefix');
-		if (!name || !target || !git_url || !prefix) {
-			return fail(400, { error: 'Missing rig fields for move.' });
-		}
-		if (target === (event.locals.user?.workspace ?? 'default')) {
-			return fail(400, { error: 'The rig is already in that workspace.' });
-		}
-		const body: AddRigBody = {
-			name,
-			prefix,
-			git_url,
-			default_branch: str(form, 'default_branch') || 'main',
-			push_url: opt(form, 'push_url'),
-			upstream_url: opt(form, 'upstream_url'),
-			git_connection_ref: opt(form, 'git_connection_ref'),
-			now_secs: Math.floor(Date.now() / 1000)
-		};
-		const cookie = event.request.headers.get('cookie') ?? '';
-		const sw = await backendFetch('/auth/switch', cookie, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ workspace: target })
-		});
-		if (!sw.ok) {
-			const msg = sw.status === 403 ? `Not a member of ${target}.` : `Switch to ${target} failed (${sw.status}).`;
-			return fail(sw.status, { error: msg });
-		}
-		const { access_token } = (await sw.json()) as { access_token: string };
-		const targetAdmin = adminClient((path, init) =>
-			backendFetch(path, '', {
-				...init,
-				headers: { ...(init?.headers ?? {}), authorization: `Bearer ${access_token}` }
-			})
-		);
-		try {
-			await targetAdmin.addRig(body); // create in target first (token claim == target)
-			await serverAdmin(event).removeRig(name); // then drop from origin (active session ws)
 			return { ok: true };
 		} catch (err) {
 			return failFrom(err);
