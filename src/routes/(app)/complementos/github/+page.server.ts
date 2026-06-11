@@ -101,6 +101,15 @@ function opt(form: FormData, key: string): string | undefined {
 	return v || undefined;
 }
 
+/** `owner/name` from a git URL (`https://github.com/owner/name(.git)` or `git@github.com:owner/name(.git)`). */
+function repoFullName(gitUrl: string): string | null {
+	const m = gitUrl
+		.trim()
+		.replace(/\.git$/, '')
+		.match(/[:/]([^/:]+\/[^/]+?)\/?$/);
+	return m ? m[1] : null;
+}
+
 export const actions: Actions = {
 	// A PAT fallback connection. The GitHub App install flow is NOT an action — it is a top-level
 	// browser navigation / popup to GET /api/v1/connection/github/install (backend 302-redirects).
@@ -178,8 +187,31 @@ export const actions: Actions = {
 		const prefix = str(form, 'prefix');
 		const git_url = str(form, 'git_url');
 		const target = str(form, 'workspace') || (event.locals.user?.workspace ?? 'default');
+		const git_connection_ref = opt(form, 'git_connection_ref');
 		if (!name || !prefix || !git_url) {
 			return fail(400, { error: 'Name, prefix and git URL are required.', formScope: 'rig', name, prefix, git_url });
+		}
+		// Validate reachability AT LINK TIME (not later at graph clone): when a github_app connection
+		// is chosen, the repo MUST be among that installation's repos — otherwise the JIT clone would
+		// 404 ("Repository not found"). Catches a wrong connection, a typo'd URL, or a repo the App
+		// can't see. No connection ⇒ skip (anonymous clone; public-only, the caller's responsibility).
+		if (git_connection_ref) {
+			const full = repoFullName(git_url);
+			try {
+				const repos = await serverConnection(event).githubRepos(git_connection_ref);
+				const ok = full && repos.some((r) => r.full_name.toLowerCase() === full.toLowerCase());
+				if (!ok) {
+					return fail(422, {
+						error: `Repo "${full ?? git_url}" is not reachable with connection ${git_connection_ref}. Pick it from the dropdown, or install the App on that account/org.`,
+						formScope: 'rig'
+					});
+				}
+			} catch (err) {
+				return fail(422, {
+					error: `Could not verify the repo against connection ${git_connection_ref}: ${err instanceof TrackerError ? err.message : String(err)}`,
+					formScope: 'rig'
+				});
+			}
 		}
 		const body: AddRigBody = {
 			name,
@@ -188,7 +220,7 @@ export const actions: Actions = {
 			default_branch: str(form, 'default_branch') || 'main',
 			push_url: opt(form, 'push_url'),
 			upstream_url: opt(form, 'upstream_url'),
-			git_connection_ref: opt(form, 'git_connection_ref'),
+			git_connection_ref,
 			now_secs: Math.floor(Date.now() / 1000)
 		};
 		try {
