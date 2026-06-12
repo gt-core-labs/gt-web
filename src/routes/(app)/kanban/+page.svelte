@@ -319,5 +319,14 @@
 {/if}
 
 {#if showCreate}
-	<CreateIssueModal createdBy={data.user?.sub ?? 'gt-web'} onclose={() => (showCreate = false)} />
+	<CreateIssueModal
+		createdBy={data.user?.sub ?? 'gt-web'}
+		rig={data.rig}
+		workspace={data.boardWorkspace}
+		epics={columns
+			.flatMap((c) => c.cards)
+			.filter((r) => r.issue_type === 'epic' && r.status !== 'closed')
+			.map((r) => ({ id: r.id, title: r.title }))}
+		onclose={() => (showCreate = false)}
+	/>
 {/if}

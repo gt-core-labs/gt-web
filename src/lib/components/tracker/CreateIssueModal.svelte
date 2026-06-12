@@ -4,12 +4,17 @@
 
 	interface Props {
 		createdBy: string;
+		/** Bead namespace — the server generates `{rig}-{6hex}` (hq-bead-id-standard.1). */
+		rig: string;
+		/** Board project key the card lands in (hq-62130a); `default` when omitted. */
+		workspace?: string;
+		/** The scope's epics for the Epic ref select (NN-16: required on non-epics). */
+		epics?: { id: string; title: string }[];
 		onclose: () => void;
 	}
 
-	let { createdBy, onclose }: Props = $props();
+	let { createdBy, rig, workspace = 'default', epics = [], onclose }: Props = $props();
 
-	let id = $state('');
 	let title = $state('');
 	let issueType = $state('task');
 	let externalRef = $state('');
@@ -19,17 +24,20 @@
 	let error = $state('');
 	let saving = $state(false);
 
+	const isEpic = $derived(issueType === 'epic');
+
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
 		saving = true;
 		error = '';
 		try {
 			await browserTracker().create({
-				id: id.trim(),
+				rig,
+				workspace,
 				title: title.trim(),
-				issue_type: issueType.trim(),
+				issue_type: issueType,
 				created_by: createdBy,
-				external_ref: externalRef.trim() || undefined,
+				external_ref: isEpic ? undefined : externalRef,
 				domain: domain
 					.split(',')
 					.map((s) => s.trim())
@@ -95,16 +103,20 @@
 				<form class="flex flex-col gap-4" onsubmit={submit}>
 					<div class="grid grid-cols-2 gap-3">
 						<div class="flex flex-col gap-1.5">
-							<label for="bead-id" class="field-label">ID</label>
-							<div class="field-wrap">
-								<input id="bead-id" class="field-input font-mono" bind:value={id} placeholder="hq-epic.1" required />
-							</div>
-						</div>
-						<div class="flex flex-col gap-1.5">
 							<label for="bead-type" class="field-label">Type</label>
 							<div class="field-wrap">
 								<select id="bead-type" class="field-input" bind:value={issueType} required>
 									{#each ISSUE_TYPES as t (t)}<option value={t}>{t}</option>{/each}
+								</select>
+							</div>
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-priority" class="field-label">Priority</label>
+							<div class="field-wrap">
+								<select id="bead-priority" class="field-input" bind:value={priority}>
+									<option value={0}>P0</option>
+									<option value={1}>P1</option>
+									<option value={2}>P2</option>
 								</select>
 							</div>
 						</div>
@@ -117,27 +129,24 @@
 						</div>
 					</div>
 
-					<div class="grid grid-cols-3 gap-3">
-						<div class="flex flex-col gap-1.5">
-							<label for="bead-epic" class="field-label">Epic <span class="normal-case tracking-normal opacity-60">ref</span></label>
-							<div class="field-wrap">
-								<input id="bead-epic" class="field-input font-mono" bind:value={externalRef} placeholder="hq-epic" />
+					<div class="grid grid-cols-2 gap-3">
+						{#if !isEpic}
+							<div class="flex flex-col gap-1.5">
+								<label for="bead-epic" class="field-label">Epic</label>
+								<div class="field-wrap">
+									<select id="bead-epic" class="field-input" bind:value={externalRef} required>
+										<option value="" disabled>— pick an epic —</option>
+										{#each epics as e (e.id)}
+											<option value={e.id}>{e.title} ({e.id})</option>
+										{/each}
+									</select>
+								</div>
 							</div>
-						</div>
-						<div class="flex flex-col gap-1.5">
+						{/if}
+						<div class="flex flex-col gap-1.5" class:col-span-2={isEpic}>
 							<label for="bead-domain" class="field-label">Domain <span class="normal-case tracking-normal opacity-60">csv</span></label>
 							<div class="field-wrap">
 								<input id="bead-domain" class="field-input" bind:value={domain} required />
-							</div>
-						</div>
-						<div class="flex flex-col gap-1.5">
-							<label for="bead-priority" class="field-label">Priority</label>
-							<div class="field-wrap">
-								<select id="bead-priority" class="field-input" bind:value={priority}>
-									<option value={0}>P0</option>
-									<option value={1}>P1</option>
-									<option value={2}>P2</option>
-								</select>
 							</div>
 						</div>
 					</div>

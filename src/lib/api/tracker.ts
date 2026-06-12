@@ -122,7 +122,12 @@ export interface ListQuery {
 }
 
 export interface CreateIssueBody {
-	id: string;
+	/** Omit to let the server generate `{rig}-{6hex}` (hq-bead-id-standard.1). */
+	id?: string;
+	/** Required when `id` is absent — the namespace the generated id is prefixed with. */
+	rig?: string;
+	/** Board project the card lands in (hq-62130a); absent ⇒ `default`. */
+	workspace?: string;
 	title: string;
 	issue_type: string;
 	created_by: string;
