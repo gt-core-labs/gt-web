@@ -4,12 +4,12 @@
 	 * icon links over the board projections — Kanban / Planning / Calendar /
 	 * Timeline. The active segment is highlighted.
 	 *
-	 * Active state is driven by the URL: seeded from `page` on mount, then kept
-	 * in sync via `afterNavigate` — the SvelteKit hook that fires after every
-	 * client-side transition with the resolved destination URL.
+	 * Active state subscribes to the `page` Svelte store so it always reflects
+	 * the live URL — the store fires immediately on subscribe (initial value)
+	 * and again on every SvelteKit navigation, regardless of whether this
+	 * component was mounted before or after the transition.
 	 */
-	import { page } from '$app/state';
-	import { afterNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { Icon } from '$lib/ui';
 
 	function urlToActive(pathname: string, search: string): 'kanban' | 'planning' | 'calendar' | 'timeline' {
@@ -21,10 +21,12 @@
 		return 'kanban';
 	}
 
-	let active = $state(urlToActive(page.url.pathname, page.url.search));
+	let active = $state<'kanban' | 'planning' | 'calendar' | 'timeline'>('kanban');
 
-	afterNavigate(({ to }) => {
-		if (to) active = urlToActive(to.url.pathname, to.url.search);
+	$effect(() => {
+		return page.subscribe((p) => {
+			active = urlToActive(p.url.pathname, p.url.search);
+		});
 	});
 
 	/** Remember the chosen view (hq-039316) — pages restore it on bare loads. */
