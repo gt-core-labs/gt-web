@@ -52,22 +52,101 @@
 		}, '');
 	}
 
-	// ── Report digest (hq-b97264) ─────────────────────────────────────────
-	let repEnabled = $state(data.reportSchedule?.enabled ?? false);
-	let repHour = $state(data.reportSchedule?.hour ?? 8);
-	let repMinute = $state(data.reportSchedule?.minute ?? 0);
-	let newSubscriber = $state('');
+	// ── Report digests (hq-25eb60, multi-schedule) ────────────────────────
+	import type { ReportSchedule, ReportSchedulePatch } from '$lib/api/system';
 
-	function saveReportSchedule() {
+	let newSubscriber = $state('');
+	// Form state — null editingId = creating.
+	let showForm = $state(false);
+	let editingId = $state<string | null>(null);
+	let fKind = $state('planning-digest');
+	let fMode = $state<'daily' | 'every_n_days' | 'once'>('daily');
+	let fNDays = $state(7);
+	let fDate = $state('');
+	let fHour = $state(8);
+	let fMinute = $state(0);
+	let fRig = $state('hq');
+	let fWorkspace = $state('default');
+	let fEnabled = $state(true);
+	let fSubscribers = $state('');
+
+	function openCreate() {
+		editingId = null;
+		fKind = data.reportKinds?.[0] ?? 'planning-digest';
+		fMode = 'daily';
+		fNDays = 7;
+		fDate = '';
+		fHour = 8;
+		fMinute = 0;
+		fRig = 'hq';
+		fWorkspace = 'default';
+		fEnabled = true;
+		fSubscribers = '';
+		showForm = true;
+	}
+
+	function openEdit(s: ReportSchedule) {
+		editingId = s.id;
+		fKind = s.kind;
+		fMode = s.mode;
+		fNDays = s.n_days;
+		fDate = s.date ?? '';
+		fHour = s.hour;
+		fMinute = s.minute;
+		fRig = s.rig;
+		fWorkspace = s.workspace;
+		fEnabled = s.enabled;
+		fSubscribers = (s.subscribers ?? []).join(', ');
+		showForm = true;
+	}
+
+	function saveSchedule() {
+		const patch: ReportSchedulePatch = {
+			kind: fKind,
+			mode: fMode,
+			n_days: fNDays,
+			date: fDate,
+			hour: fHour,
+			minute: fMinute,
+			rig: fRig,
+			workspace: fWorkspace,
+			enabled: fEnabled,
+			subscribers: fSubscribers
+				.split(',')
+				.map((e) => e.trim())
+				.filter((e) => e.length > 0)
+		};
+		run(async () => {
+			if (editingId) await browserSystem().updateReportSchedule(editingId, patch);
+			else await browserSystem().createReportSchedule(patch);
+			showForm = false;
+		}, editingId ? 'Schedule updated.' : 'Schedule created.');
+	}
+
+	function deleteSchedule(s: ReportSchedule) {
+		run(() => browserSystem().deleteReportSchedule(s.id), 'Schedule deleted.');
+	}
+
+	function toggleSchedule(s: ReportSchedule, enabled: boolean) {
 		run(
-			() =>
-				browserSystem().updateReportSchedule({
-					enabled: repEnabled,
-					hour: repHour,
-					minute: repMinute
-				}),
-			'Report schedule saved.'
+			() => browserSystem().updateReportSchedule(s.id, { enabled }),
+			enabled ? 'Schedule enabled.' : 'Schedule disabled.'
 		);
+	}
+
+	function runSchedule(s: ReportSchedule) {
+		run(async () => {
+			const result = await browserSystem().runReportSchedule(s.id);
+			message = `Queued to ${result.queued} recipient(s).`;
+		}, '');
+	}
+
+	const two = (n: number) => String(n).padStart(2, '0');
+	function modeLabel(s: ReportSchedule): string {
+		const at = `${two(s.hour)}:${two(s.minute)}`;
+		if (s.mode === 'daily') return `diario ${at}`;
+		if (s.mode === 'every_n_days') return `cada ${s.n_days} día(s) ${at}`;
+		return `el ${s.date ?? '—'} ${at}`;
 	}
 
 	function addSubscriber() {
@@ -88,13 +167,6 @@
 			() => browserSystem().toggleReportSubscriber(email, enabled),
 			enabled ? `${email} will receive the digest.` : `${email} excluded from sends.`
 		);
-	}
-
-	function sendReportNow() {
-		run(async () => {
-			const result = await browserSystem().runReportNow();
-			message = `Digest queued to ${result.queued} subscriber(s).`;
-		}, '');
 	}
 
 	type Section = 'archive' | 'reports';
@@ -480,11 +552,11 @@
 		</div>
 	{/if}
 
-	<!-- ── Email reports section (hq-b97264) ──────────────────────────────── -->
+	<!-- ── Email reports section (hq-25eb60, multi-schedule) ──────────────── -->
 	{#if section === 'reports'}
-		<div class="entry entry-3 max-w-xl space-y-[var(--gw-space-4)]">
+		<div class="entry entry-3 max-w-2xl space-y-[var(--gw-space-4)]">
 
-			<!-- Schedule card -->
+			<!-- Schedules card -->
 			<div class="bezel">
 				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
 
@@ -503,99 +575,166 @@
 								</svg>
 							</div>
 							<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
-								Report Digest
+								Report Schedules
 							</h2>
 						</div>
-						{#if repEnabled}
-							<span class="badge-enabled">
-								<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-								Enabled
-							</span>
-						{:else}
-							<span class="badge-disabled">Disabled</span>
+						{#if canWrite}
+							<button type="button" class="btn-ghost" disabled={busy} onclick={openCreate}>
+								+ New schedule
+							</button>
 						{/if}
 					</div>
 
 					<p class="mb-[var(--gw-space-4)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-						Daily HTML report (planning log + analytics KPIs) emailed at the configured local time
-						to every enabled subscriber below.
+						Each schedule emails one report (HTML) for its rig/workspace: daily, every N days,
+						or once on a date (auto-disables after sending).
 					</p>
 
 					{#if data.reportError}
 						<p class="warn-callout mb-[var(--gw-space-4)]">{data.reportError}</p>
 					{/if}
 
-					<div class="field-divider mb-[var(--gw-space-4)]"></div>
-
-					<form
-						class="space-y-[var(--gw-space-4)]"
-						onsubmit={(e) => { e.preventDefault(); saveReportSchedule(); }}
-					>
-						<label class="flex cursor-pointer items-center gap-[var(--gw-space-2)]">
-							<input
-								type="checkbox"
-								class="gw-check"
-								bind:checked={repEnabled}
-								disabled={!canWrite || busy}
-							/>
-							<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">
-								Enable scheduled sending
-							</span>
-						</label>
-
-						<div class="grid gap-[var(--gw-space-4)] sm:grid-cols-2">
-							<div class="space-y-[var(--gw-space-1)]">
-								<label for="report-hour" class="field-label">Hour (0–23)</label>
-								<input
-									id="report-hour"
-									class="gw-input-num"
-									type="number"
-									min="0"
-									max="23"
-									bind:value={repHour}
-									disabled={!canWrite || busy}
-								/>
-							</div>
-							<div class="space-y-[var(--gw-space-1)]">
-								<label for="report-minute" class="field-label">Minute (0–59)</label>
-								<input
-									id="report-minute"
-									class="gw-input-num"
-									type="number"
-									min="0"
-									max="59"
-									bind:value={repMinute}
-									disabled={!canWrite || busy}
-								/>
-							</div>
+					{#if data.reportSchedules && data.reportSchedules.length > 0}
+						<div class="space-y-[var(--gw-space-1)]">
+							{#each data.reportSchedules as s (s.id)}
+								<div class="flex flex-wrap items-center justify-between gap-[var(--gw-space-2)]
+									rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+									bg-[var(--gw-color-surface-3)] px-[var(--gw-space-3)] py-[var(--gw-space-2)]">
+									<label class="flex min-w-0 cursor-pointer items-center gap-[var(--gw-space-2)]">
+										<input
+											type="checkbox"
+											class="gw-check"
+											checked={s.enabled}
+											disabled={!canWrite || busy}
+											onchange={(e) => toggleSchedule(s, e.currentTarget.checked)}
+										/>
+										<span class="min-w-0" class:opacity-50={!s.enabled}>
+											<span class="block truncate text-[var(--gw-text-xs)] font-semibold
+												text-[var(--gw-color-text)]">
+												{s.kind} · {s.rig}/{s.workspace}
+											</span>
+											<span class="block text-[10px] text-[var(--gw-color-text-muted)]">
+												{modeLabel(s)}
+												{#if s.last_sent_date} · último: {s.last_sent_date}{/if}
+												{#if s.subscribers} · {s.subscribers.length} destinatario(s) propios{/if}
+											</span>
+										</span>
+									</label>
+									{#if canWrite}
+										<div class="flex items-center gap-[var(--gw-space-1)]">
+											<button type="button" class="btn-ghost"
+												style="padding: 0.25rem 0.625rem; font-size: 11px"
+												disabled={busy} onclick={() => runSchedule(s)}>
+												Send now
+											</button>
+											<button type="button" class="btn-ghost"
+												style="padding: 0.25rem 0.625rem; font-size: 11px"
+												disabled={busy} onclick={() => openEdit(s)}>
+												Edit
+											</button>
+											<button type="button" class="btn-ghost"
+												style="padding: 0.25rem 0.625rem; font-size: 11px"
+												disabled={busy} onclick={() => deleteSchedule(s)}>
+												Delete
+											</button>
+										</div>
+									{/if}
+								</div>
+							{/each}
 						</div>
+					{:else if !data.reportError}
+						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							No schedules yet.
+						</p>
+					{/if}
 
-						{#if data.reportSchedule?.last_sent_date}
-							<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-								Last sent: <span class="font-[family-name:var(--gw-font-mono)]">{data.reportSchedule.last_sent_date}</span>
+					{#if showForm && canWrite}
+						<div class="field-divider my-[var(--gw-space-4)]"></div>
+						<form
+							class="space-y-[var(--gw-space-4)]"
+							onsubmit={(e) => { e.preventDefault(); saveSchedule(); }}
+						>
+							<p class="text-[var(--gw-text-xs)] font-semibold text-[var(--gw-color-text)]">
+								{editingId ? 'Edit schedule' : 'New schedule'}
 							</p>
-						{/if}
-
-						{#if canWrite}
+							<div class="grid gap-[var(--gw-space-4)] sm:grid-cols-2">
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="sch-kind" class="field-label">Report</label>
+									<select id="sch-kind" class="gw-input-num" style="width: 100%"
+										bind:value={fKind} disabled={busy}>
+										{#each data.reportKinds ?? [] as k (k)}
+											<option value={k}>{k}</option>
+										{/each}
+									</select>
+								</div>
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="sch-mode" class="field-label">Mode</label>
+									<select id="sch-mode" class="gw-input-num" style="width: 100%"
+										bind:value={fMode} disabled={busy}>
+										<option value="daily">Diario</option>
+										<option value="every_n_days">Cada N días</option>
+										<option value="once">Fecha única</option>
+									</select>
+								</div>
+								{#if fMode === 'every_n_days'}
+									<div class="space-y-[var(--gw-space-1)]">
+										<label for="sch-ndays" class="field-label">Cada (días)</label>
+										<input id="sch-ndays" class="gw-input-num" type="number" min="1" max="365"
+											bind:value={fNDays} disabled={busy} />
+									</div>
+								{/if}
+								{#if fMode === 'once'}
+									<div class="space-y-[var(--gw-space-1)]">
+										<label for="sch-date" class="field-label">Fecha</label>
+										<input id="sch-date" class="gw-input-num" type="date"
+											bind:value={fDate} disabled={busy} />
+									</div>
+								{/if}
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="sch-hour" class="field-label">Hour (0–23)</label>
+									<input id="sch-hour" class="gw-input-num" type="number" min="0" max="23"
+										bind:value={fHour} disabled={busy} />
+								</div>
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="sch-minute" class="field-label">Minute (0–59)</label>
+									<input id="sch-minute" class="gw-input-num" type="number" min="0" max="59"
+										bind:value={fMinute} disabled={busy} />
+								</div>
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="sch-rig" class="field-label">Rig</label>
+									<input id="sch-rig" class="gw-input-num" type="text"
+										bind:value={fRig} disabled={busy} />
+								</div>
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="sch-ws" class="field-label">Workspace</label>
+									<input id="sch-ws" class="gw-input-num" type="text"
+										bind:value={fWorkspace} disabled={busy} />
+								</div>
+							</div>
+							<div class="space-y-[var(--gw-space-1)]">
+								<label for="sch-subs" class="field-label">
+									Destinatarios propios (coma-separados; vacío = lista global)
+								</label>
+								<input id="sch-subs" class="gw-input-num" style="width: 100%" type="text"
+									placeholder="ana@x.com, bob@x.com"
+									bind:value={fSubscribers} disabled={busy} />
+							</div>
+							<label class="flex cursor-pointer items-center gap-[var(--gw-space-2)]">
+								<input type="checkbox" class="gw-check" bind:checked={fEnabled} disabled={busy} />
+								<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">Enabled</span>
+							</label>
 							<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
 								<button type="submit" class="cta" disabled={busy}>
-									{#if busy}
-										<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
-											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-										</svg>
-										<span>Saving…</span>
-									{:else}
-										<span>Save</span>
-										<span class="cta-arrow" aria-hidden="true">→</span>
-									{/if}
+									<span>{editingId ? 'Save' : 'Create'}</span>
+									<span class="cta-arrow" aria-hidden="true">→</span>
 								</button>
-								<button type="button" class="btn-ghost" disabled={busy} onclick={sendReportNow}>
-									Send now
+								<button type="button" class="btn-ghost" disabled={busy}
+									onclick={() => (showForm = false)}>
+									Cancel
 								</button>
 							</div>
-						{/if}
-					</form>
+						</form>
+					{/if}
 
 					{#if message}
 						<p

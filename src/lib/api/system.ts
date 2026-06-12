@@ -14,16 +14,28 @@ export interface ArchiveRunResult {
 	archived: number;
 }
 
-/** Scheduled report digest config (hq-84f93b). */
+/** One scheduled report send (hq-c4f920, multi-schedule). */
 export interface ReportSchedule {
-	enabled: boolean;
+	id: string;
+	kind: string;
+	mode: 'daily' | 'every_n_days' | 'once';
+	n_days: number;
+	date: string | null;
 	hour: number;
 	minute: number;
 	tz_offset_minutes: number;
 	rig: string;
 	workspace: string;
+	enabled: boolean;
 	last_sent_date: string | null;
+	/** Per-schedule recipients; null = the workspace's global enabled list. */
+	subscribers: string[] | null;
 }
+
+/** Partial schedule write — omitted fields stay untouched. */
+export type ReportSchedulePatch = Partial<
+	Omit<ReportSchedule, 'id' | 'last_sent_date' | 'subscribers'>
+> & { subscribers?: string[] };
 
 /** One digest subscriber; `enabled` = the send-selection switch. */
 export interface ReportSubscriber {
@@ -60,20 +72,54 @@ function systemClient(fetch: Fetcher) {
 		return res.json();
 	}
 
-	async function getReportSchedule(): Promise<ReportSchedule> {
-		const res = await fetch('/api/v1/system/report/schedule');
+	async function listReportSchedules(): Promise<ReportSchedule[]> {
+		const res = await fetch('/api/v1/system/report/schedules');
+		if (!res.ok) throw new TrackerError(res.status, await res.text());
+		return (await res.json()).schedules;
+	}
+
+	async function createReportSchedule(patch: ReportSchedulePatch): Promise<ReportSchedule> {
+		const res = await fetch('/api/v1/system/report/schedules', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(patch)
+		});
 		if (!res.ok) throw new TrackerError(res.status, await res.text());
 		return res.json();
 	}
 
-	async function updateReportSchedule(patch: Partial<ReportSchedule>): Promise<ReportSchedule> {
-		const res = await fetch('/api/v1/system/report/schedule', {
+	async function updateReportSchedule(
+		id: string,
+		patch: ReportSchedulePatch
+	): Promise<ReportSchedule> {
+		const res = await fetch(`/api/v1/system/report/schedules/${encodeURIComponent(id)}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(patch)
 		});
 		if (!res.ok) throw new TrackerError(res.status, await res.text());
 		return res.json();
+	}
+
+	async function deleteReportSchedule(id: string): Promise<void> {
+		const res = await fetch(`/api/v1/system/report/schedules/${encodeURIComponent(id)}`, {
+			method: 'DELETE'
+		});
+		if (!res.ok) throw new TrackerError(res.status, await res.text());
+	}
+
+	async function runReportSchedule(id: string): Promise<ReportRunResult> {
+		const res = await fetch(`/api/v1/system/report/schedules/${encodeURIComponent(id)}/run`, {
+			method: 'POST'
+		});
+		if (!res.ok) throw new TrackerError(res.status, await res.text());
+		return res.json();
+	}
+
+	async function listReportKinds(): Promise<string[]> {
+		const res = await fetch('/api/v1/system/report/kinds');
+		if (!res.ok) throw new TrackerError(res.status, await res.text());
+		return (await res.json()).kinds;
 	}
 
 	async function listReportSubscribers(): Promise<ReportSubscriber[]> {
@@ -107,23 +153,20 @@ function systemClient(fetch: Fetcher) {
 		if (!res.ok) throw new TrackerError(res.status, await res.text());
 	}
 
-	async function runReportNow(): Promise<ReportRunResult> {
-		const res = await fetch('/api/v1/system/report/run', { method: 'POST' });
-		if (!res.ok) throw new TrackerError(res.status, await res.text());
-		return res.json();
-	}
-
 	return {
 		getConfig,
 		updateConfig,
 		runArchiveNow,
-		getReportSchedule,
+		listReportSchedules,
+		createReportSchedule,
 		updateReportSchedule,
+		deleteReportSchedule,
+		runReportSchedule,
+		listReportKinds,
 		listReportSubscribers,
 		addReportSubscriber,
 		removeReportSubscriber,
-		toggleReportSubscriber,
-		runReportNow
+		toggleReportSubscriber
 	};
 }
 

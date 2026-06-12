@@ -23,17 +23,19 @@ export const load: PageServerLoad = async (event) => {
 		configError = describe(err);
 	}
 
-	// Report digest (hq-b97264): schedule + subscribers, best-effort like config.
-	let reportSchedule = null;
+	// Report digests (hq-25eb60): schedules + kinds + subscribers, best-effort.
+	let reportSchedules = null;
+	let reportKinds: string[] = [];
 	let reportSubscribers = null;
 	let reportError: string | null = null;
 	try {
 		const api = serverSystemApi(event);
-		reportSchedule = await api.getReportSchedule();
+		reportSchedules = await api.listReportSchedules();
+		reportKinds = await api.listReportKinds();
 		reportSubscribers = await api.listReportSubscribers();
 	} catch (err) {
 		reportError = describe(err);
 	}
 
-	return { config, configError, reportSchedule, reportSubscribers, reportError };
+	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError };
 };
