@@ -107,10 +107,23 @@ function qs(params: Record<string, string | number | undefined>): string {
 	return s ? `?${s}` : '';
 }
 
+/** One real board scope: a (rig, workspace) pair that actually has beads. */
+export interface BoardScope {
+	rig: string;
+	workspace: string;
+}
+
 export function board(doFetch: Fetcher) {
 	return {
 		async snapshot(q: BoardQuery): Promise<BoardSnapshot> {
 			return unwrap(await doFetch(`/api/v1/board${qs({ ...q })}`));
+		},
+		/** Distinct (rig, workspace) pairs present in the tracker — the REAL boards. */
+		async scopes(): Promise<BoardScope[]> {
+			const body = await unwrap<{ scopes: BoardScope[] }>(
+				await doFetch('/api/v1/board/scopes')
+			);
+			return body.scopes ?? [];
 		},
 		/** Column change + placement; returns the landing rank. */
 		async move(body: BoardMoveBody): Promise<{ ok: boolean; rank: string }> {

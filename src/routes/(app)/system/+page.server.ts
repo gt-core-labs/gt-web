@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import { TrackerError } from '$lib/api/tracker';
-import { serverSystemApi, serverAdmin } from '$lib/server/api';
+import { serverSystemApi, serverAdmin, serverBoard } from '$lib/server/api';
+import type { BoardScope } from '$lib/api/board';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -37,7 +38,18 @@ export const load: PageServerLoad = async (event) => {
 		reportError = describe(err);
 	}
 
-	// Rigs + workspaces for selectors, best-effort.
+	// Real board scopes — the distinct (rig, workspace) pairs with beads
+	// (hq-c697bb). Selectors are conditioned on these, not on the catalog
+	// cross-product (which offers boardless combinations and misses bead
+	// namespaces like `hq`).
+	let scopes: BoardScope[] = [];
+	try {
+		scopes = await serverBoard(event).scopes();
+	} catch {
+		// non-fatal — selectors fall back to the catalog lists below
+	}
+
+	// Catalog rigs + workspaces, the free-text/fallback path.
 	let rigs: string[] = [];
 	let workspaces: string[] = [];
 	try {
@@ -51,5 +63,5 @@ export const load: PageServerLoad = async (event) => {
 		// non-fatal — selectors fall back to free-text inputs
 	}
 
-	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces };
+	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes };
 };

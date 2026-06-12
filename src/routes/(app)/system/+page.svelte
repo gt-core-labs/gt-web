@@ -70,10 +70,27 @@
 	let fEnabled = $state(true);
 	let fSubscribers = $state('');
 
+	// Real board scopes (hq-c697bb): selectors contrast against the distinct
+	// (rig, workspace) pairs that actually have beads, not the catalog
+	// cross-product. Catalog lists remain the fallback when scopes are empty.
+	function scopeWorkspaces(): string[] {
+		const ws = [...new Set((data.scopes ?? []).map((s) => s.workspace))];
+		return ws.length > 0 ? ws : (data.workspaces ?? []);
+	}
+	function rigOptionsFor(ws: string): string[] {
+		const rigs = (data.scopes ?? []).filter((s) => s.workspace === ws).map((s) => s.rig);
+		return rigs.length > 0 ? rigs : (data.rigs ?? []);
+	}
+	/** Keep the rig valid for the workspace: reset to the first real option. */
+	function defaultRigFor(ws: string, current?: string): string {
+		const opts = rigOptionsFor(ws);
+		return current && opts.includes(current) ? current : (opts[0] ?? current ?? 'hq');
+	}
+
 	// Test report state
 	let tKind = $state(data.reportKinds?.[0] ?? 'planning-digest');
-	let tRig = $state(data.rigs?.[0] ?? 'hq');
-	let tWorkspace = $state(data.workspaces?.[0] ?? 'default');
+	let tWorkspace = $state(scopeWorkspaces()[0] ?? 'default');
+	let tRig = $state(defaultRigFor(scopeWorkspaces()[0] ?? 'default'));
 	let tEmail = $state('');
 	let testBusy = $state(false);
 	let testMessage = $state('');
@@ -87,8 +104,8 @@
 		fDate = '';
 		fHour = 8;
 		fMinute = 0;
-		fRig = data.rigs?.[0] ?? 'hq';
-		fWorkspace = data.workspaces?.[0] ?? 'default';
+		fWorkspace = scopeWorkspaces()[0] ?? 'default';
+		fRig = defaultRigFor(fWorkspace);
 		fEnabled = true;
 		fSubscribers = '';
 		showForm = true;
@@ -638,10 +655,10 @@
 						</div>
 						<div class="space-y-[var(--gw-space-1)]">
 							<label for="test-rig" class="field-label">Rig</label>
-							{#if (data.rigs ?? []).length > 0}
+							{#if rigOptionsFor(tWorkspace).length > 0}
 								<select id="test-rig" class="gw-input-num" style="width: 100%"
 									bind:value={tRig} disabled={testBusy || !canWrite}>
-									{#each data.rigs ?? [] as r (r)}
+									{#each rigOptionsFor(tWorkspace) as r (r)}
 										<option value={r}>{r}</option>
 									{/each}
 								</select>
@@ -652,10 +669,11 @@
 						</div>
 						<div class="space-y-[var(--gw-space-1)]">
 							<label for="test-ws" class="field-label">Workspace</label>
-							{#if (data.workspaces ?? []).length > 0}
+							{#if scopeWorkspaces().length > 0}
 								<select id="test-ws" class="gw-input-num" style="width: 100%"
-									bind:value={tWorkspace} disabled={testBusy || !canWrite}>
-									{#each data.workspaces ?? [] as w (w)}
+									bind:value={tWorkspace} disabled={testBusy || !canWrite}
+									onchange={() => (tRig = defaultRigFor(tWorkspace, tRig))}>
+									{#each scopeWorkspaces() as w (w)}
 										<option value={w}>{w}</option>
 									{/each}
 								</select>
@@ -855,10 +873,10 @@
 								</div>
 								<div class="space-y-[var(--gw-space-1)]">
 									<label for="sch-rig" class="field-label">Rig</label>
-									{#if (data.rigs ?? []).length > 0}
+									{#if rigOptionsFor(fWorkspace).length > 0}
 										<select id="sch-rig" class="gw-input-num" style="width: 100%"
 											bind:value={fRig} disabled={busy}>
-											{#each data.rigs ?? [] as r (r)}
+											{#each rigOptionsFor(fWorkspace) as r (r)}
 												<option value={r}>{r}</option>
 											{/each}
 										</select>
@@ -869,10 +887,11 @@
 								</div>
 								<div class="space-y-[var(--gw-space-1)]">
 									<label for="sch-ws" class="field-label">Workspace</label>
-									{#if (data.workspaces ?? []).length > 0}
+									{#if scopeWorkspaces().length > 0}
 										<select id="sch-ws" class="gw-input-num" style="width: 100%"
-											bind:value={fWorkspace} disabled={busy}>
-											{#each data.workspaces ?? [] as w (w)}
+											bind:value={fWorkspace} disabled={busy}
+												onchange={() => (fRig = defaultRigFor(fWorkspace, fRig))}>
+											{#each scopeWorkspaces() as w (w)}
 												<option value={w}>{w}</option>
 											{/each}
 										</select>
