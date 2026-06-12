@@ -45,3 +45,5 @@ You can preview the production build with `npm run preview`.
 
 Multi-rig dispatch verified: this commit was authored by an autonomous polecat
 routed to the gtweb rig checkout by bead prefix (epic hq-554308).
+
+Role model config verified: this polecat launched with the navbar-configured model/effort flags.
