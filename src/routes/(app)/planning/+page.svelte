@@ -114,7 +114,7 @@
 		);
 	});
 	const totalHours = $derived(sections.reduce((acc, s) => acc + s.hours, 0));
-	const totalTasks = $derived(data.rows.length);
+	const totalTasks = $derived(sections.reduce((acc, s) => acc + s.items.length, 0));
 
 	const STATUS: Record<string, { label: string; cls: string }> = {
 		open: { label: 'Pending', cls: 'bg-[var(--gw-color-surface-2)] text-[var(--gw-color-text-muted)]' },
