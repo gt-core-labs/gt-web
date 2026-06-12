@@ -199,6 +199,41 @@
 		return m > 0 ? `${m}m` : '<1m';
 	}
 
+	// ── Accounts sort ────────────────────────────────────────────────────────
+	type SortKey = 'account' | 'status' | 'usage' | 'resets';
+	let sortKey = $state<SortKey | null>(null);
+	let sortDir = $state(1);
+
+	function toggleSort(k: SortKey) {
+		if (sortKey === k) sortDir = -sortDir;
+		else { sortKey = k; sortDir = 1; }
+	}
+
+	// Operational severity, not alphabetical: Healthy first ascending.
+	const STATUS_RANK: Record<string, number> = { Healthy: 0, Cooldown: 1, Limited: 2, Blocked: 3, Disabled: 4 };
+	type Acct = (typeof data.accounts)[number];
+	const acctWins = (a: Acct) => [a.window, a.weekly_window].filter((w): w is QuotaWindow => !!w);
+	const acctWarnPct = (a: Acct) => {
+		const ws = acctWins(a);
+		return ws.length ? Math.max(...ws.map((w) => warningPct(w, nowSecs))) : 0;
+	};
+	const acctNextReset = (a: Acct) => {
+		const ws = acctWins(a);
+		return ws.length ? Math.min(...ws.map((w) => w.resets_at_secs)) : Number.MAX_SAFE_INTEGER;
+	};
+
+	const sortedAccounts = $derived.by(() => {
+		const arr = [...data.accounts];
+		const dir = sortDir;
+		switch (sortKey) {
+			case 'account': arr.sort((a, b) => dir * a.id.localeCompare(b.id)); break;
+			case 'status':  arr.sort((a, b) => dir * ((STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9))); break;
+			case 'usage':   arr.sort((a, b) => dir * (acctWarnPct(a) - acctWarnPct(b))); break;
+			case 'resets':  arr.sort((a, b) => dir * (acctNextReset(a) - acctNextReset(b))); break;
+		}
+		return arr;
+	});
+
 	// ── History chart ────────────────────────────────────────────────────────
 	// Each WindowReset carries consumed tokens for one completed window period.
 	// We build a compact bar chart: x = window end time, y = consumed, colour by account.
@@ -245,7 +280,10 @@
 	});
 
 	const chartData = $derived.by(() => {
-		const resets: WindowReset[] = data.history ?? [];
+		// Idle rollovers (the actor tick emits a WindowReset every time an untouched window
+		// turns over) carry consumed≈0 — bookkeeping, not history: they render as invisible
+		// bars and inflate the recorded count, so they are dropped here.
+		const resets: WindowReset[] = (data.history ?? []).filter((r) => r.consumed >= 1);
 		if (resets.length === 0) return null;
 
 		// Unique accounts → stable colour palette
@@ -280,7 +318,20 @@
 			label: Math.round(maxConsumed * f).toLocaleString(),
 		}));
 
-		return { bars, yTicks, acctColor, accounts };
+		// X-axis time labels: first and last reset, so the index-ordered bars map to real time.
+		const fmtShort = (secs: number) =>
+			new Date(secs * 1000).toLocaleString(undefined, {
+				month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+			});
+		const xLabels =
+			n === 1
+				? [{ x: CHART_PAD.left, label: fmtShort(resets[0].resets_at_secs), anchor: 'start' }]
+				: [
+						{ x: CHART_PAD.left, label: fmtShort(resets[0].resets_at_secs), anchor: 'start' },
+						{ x: CHART_W - CHART_PAD.right, label: fmtShort(resets[n - 1].resets_at_secs), anchor: 'end' },
+					];
+
+		return { bars, yTicks, acctColor, accounts, xLabels };
 	});
 </script>
 
@@ -438,6 +489,15 @@
 
 	.data-row { transition: background-color 140ms cubic-bezier(0.32, 0.72, 0, 1); }
 	.data-row:hover { background-color: var(--gw-color-surface-3); }
+
+	/* Sortable column header — inherits the th typography */
+	.th-sort {
+		display: inline-flex; align-items: center; gap: 3px;
+		background: none; border: none; padding: 0; cursor: pointer;
+		font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
+		transition: color 120ms;
+	}
+	.th-sort:hover { color: var(--gw-color-text); }
 
 	/* Status-change notifications */
 	.notif {
@@ -738,7 +798,7 @@
 							fill={bar.color} opacity="0.8"
 							rx="1"
 						>
-							<title>{bar.r.account} · {bar.r.kind} · {Math.ceil(bar.r.consumed).toLocaleString()} tokens</title>
+							<title>{bar.r.account} · {bar.r.kind} · {Math.ceil(bar.r.consumed).toLocaleString()} units · reset {fmtTime(bar.r.resets_at_secs)}</title>
 						</rect>
 					{/each}
 					<!-- X baseline -->
@@ -747,6 +807,14 @@
 						x2={CHART_W - CHART_PAD.right} y2={CHART_H - CHART_PAD.bottom}
 						stroke="var(--gw-color-border-subtle)" stroke-width="1"
 					/>
+					<!-- X time labels -->
+					{#each chartData.xLabels as xl}
+						<text
+							x={xl.x} y={CHART_H - CHART_PAD.bottom + 12}
+							text-anchor={xl.anchor} font-size="8"
+							fill="var(--gw-color-text-muted)"
+							font-family="var(--gw-font-mono)">{xl.label}</text>
+					{/each}
 				</svg>
 				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
 					{chartData.bars.length} window reset{chartData.bars.length === 1 ? '' : 's'} recorded
@@ -838,17 +906,33 @@
 					<thead>
 						<tr class="border-b border-[var(--gw-color-border-subtle)]">
 							<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
-								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Account</th>
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+								<button type="button" class="th-sort" onclick={() => toggleSort('account')}>
+									Account{#if sortKey === 'account'}<span aria-hidden="true">{sortDir === 1 ? '▲' : '▼'}</span>{/if}
+								</button>
+							</th>
 							<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
-								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Status</th>
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+								<button type="button" class="th-sort" onclick={() => toggleSort('status')}>
+									Status{#if sortKey === 'status'}<span aria-hidden="true">{sortDir === 1 ? '▲' : '▼'}</span>{/if}
+								</button>
+							</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] sm:table-cell">Window</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] sm:table-cell">Probe</th>
 							<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
-								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Usage</th>
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+								<button type="button" class="th-sort" onclick={() => toggleSort('usage')}>
+									Usage{#if sortKey === 'usage'}<span aria-hidden="true">{sortDir === 1 ? '▲' : '▼'}</span>{/if}
+								</button>
+							</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
-								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Resets</th>
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">
+								<button type="button" class="th-sort" onclick={() => toggleSort('resets')}>
+									Resets{#if sortKey === 'resets'}<span aria-hidden="true">{sortDir === 1 ? '▲' : '▼'}</span>{/if}
+								</button>
+							</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Activates in</th>
 							{#if canWrite}
@@ -858,7 +942,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-[var(--gw-color-border-subtle)]">
-						{#each data.accounts as acct (acct.id)}
+						{#each sortedAccounts as acct (acct.id)}
 							{@const wins = [acct.window, acct.weekly_window].filter((w) => !!w) as QuotaWindow[]}
 							{@const sampled = acct.sampled_since_probe ?? 0}
 							{@const maxWarnPct = wins.length ? Math.max(...wins.map((w) => warningPct(w, nowSecs))) : 0}
