@@ -281,11 +281,17 @@
 			sums[i].set(g, (sums[i].get(g) ?? 0) + tokensOf(s));
 		}
 
+		// Stacked area (gallery pick: area-stacked, gtweb-ce0f52): the band heights show the
+		// per-group share while the top edge tracks total burn. Buckets are aligned (every
+		// series emits a value per bucket), which stacking requires.
 		const series = groups.map((g, i) => ({
 			name: g,
 			type: 'line' as const,
+			stack: 'total',
 			smooth: 0.2,
-			symbolSize: 6,
+			symbol: 'circle',
+			symbolSize: 5,
+			areaStyle: { opacity: 0.3 },
 			color: g === 'other' ? '#a1a1aa' : CHART_PALETTE[i % CHART_PALETTE.length],
 			emphasis: { focus: 'series' as const },
 			data: sums.map((m, idx) => [
