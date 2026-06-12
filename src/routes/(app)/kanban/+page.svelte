@@ -215,7 +215,7 @@
 			onclick={() => setParam('archived', data.archived ? '' : '1')}
 		><Icon icon={data.archived ? 'lucide:archive-restore' : 'lucide:archive'} size={16} /></button>
 
-		<ViewSwitcher active="kanban" />
+		<ViewSwitcher />
 	</header>
 
 	{#if error}<p class="text-sm text-[var(--gw-color-danger)]">{error}</p>{/if}

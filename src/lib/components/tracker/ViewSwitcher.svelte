@@ -3,13 +3,22 @@
 	 * Segmented view switcher (hq-039316, Plane-style): one grouped control of
 	 * icon links over the board projections — Kanban / Planning / Calendar /
 	 * Timeline. The active segment is highlighted.
+	 *
+	 * Active state is derived from the live URL (page store) so it stays correct
+	 * across SvelteKit client-side navigation without relying on the parent prop.
 	 */
+	import { page } from '$app/state';
 	import { Icon } from '$lib/ui';
 
-	interface Props {
-		active: 'kanban' | 'planning' | 'calendar' | 'timeline';
-	}
-	let { active }: Props = $props();
+	const active = $derived.by(() => {
+		const path = page.url.pathname;
+		if (path.startsWith('/calendar')) {
+			return page.url.searchParams.get('mode') === 'timeline' ? 'timeline' : 'calendar';
+		}
+		if (path.startsWith('/planning')) return 'planning';
+		if (path.startsWith('/kanban')) return 'kanban';
+		return 'kanban';
+	});
 
 	/** Remember the chosen view (hq-039316) — pages restore it on bare loads. */
 	const remember = (key: string) => {

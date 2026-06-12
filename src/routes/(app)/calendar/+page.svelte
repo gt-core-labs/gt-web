@@ -190,7 +190,7 @@
 		</div>
 		<h2 class="w-44 text-right text-sm font-semibold">{monthLabel}</h2>
 
-		<ViewSwitcher active={mode === 'timeline' ? 'timeline' : 'calendar'} />
+		<ViewSwitcher />
 	</header>
 
 	{#if mode === 'timeline'}

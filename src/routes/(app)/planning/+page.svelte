@@ -281,7 +281,7 @@
 			aria-label={data.archived ? 'Back to planning' : 'View archived'}
 		><Icon icon={data.archived ? 'lucide:archive-restore' : 'lucide:archive'} size={16} /></a>
 
-		<ViewSwitcher active="planning" />
+		<ViewSwitcher />
 	</header>
 
 	{#if error}<p class="text-sm text-[var(--gw-color-danger)]">{error}</p>{/if}
