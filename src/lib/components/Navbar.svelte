@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Icon } from '$lib/ui';
 
-	type NavItem = { href: string; label: string; scope: string | null; icon?: string };
+	type NavItem = { href: string; label: string; scope: string | null; icon?: string; matchPaths?: string[] };
 
 	interface Props {
 		items: NavItem[];
@@ -12,8 +12,11 @@
 
 	// Segment-boundary match: `/rigs` must not light up for `/rigsomething`, and a
 	// sub-route (e.g. `/admin/users/123`) keeps its parent item active. Home is exact.
-	const isActive = (href: string) =>
+	// matchPaths lets a single nav item cover multiple routes (e.g. the board section).
+	const segmentMatch = (href: string) =>
 		href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+	const isActive = (item: NavItem) =>
+		item.matchPaths ? item.matchPaths.some(segmentMatch) : segmentMatch(item.href);
 
 	const ADMIN_HREFS = new Set([
 		'/security',
@@ -55,7 +58,7 @@
 		aria-label="Main navigation"
 	>
 		{#each mainItems as item (item.href)}
-			{@const active = isActive(item.href)}
+			{@const active = isActive(item)}
 			<a
 				href={item.href}
 				aria-current={active ? 'page' : undefined}
@@ -104,7 +107,7 @@
 			</div>
 
 			{#each adminItems as item (item.href)}
-				{@const active = isActive(item.href)}
+				{@const active = isActive(item)}
 				<a
 					href={item.href}
 					aria-current={active ? 'page' : undefined}

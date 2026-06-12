@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { afterNavigate, invalidateAll } from '$app/navigation';
 	import { hasScope, switchWorkspace } from '$lib/api/auth';
 	import { setActiveRig } from '$lib/rig';
 	import { theme } from '$lib/stores/theme.svelte';
@@ -38,6 +38,22 @@
 		} catch {
 			/* storage may be unavailable (private mode) */
 		}
+		// Restore last used board view so the Navbar entry lands there, not always /planning.
+		try {
+			const saved = localStorage.getItem('gt:board-view');
+			if (saved && BOARD_HREF_MAP[saved]) boardHref = BOARD_HREF_MAP[saved];
+		} catch {
+			/* storage unavailable */
+		}
+	});
+
+	// Keep boardHref in sync as the user switches views via the ViewSwitcher.
+	afterNavigate(({ to }) => {
+		if (!to) return;
+		const p = to.url.pathname;
+		if (p.startsWith('/kanban')) boardHref = '/kanban';
+		else if (p.startsWith('/calendar')) boardHref = to.url.href.includes('mode=timeline') ? '/calendar?mode=timeline' : '/calendar?mode=month';
+		else if (p.startsWith('/planning')) boardHref = '/planning';
 	});
 
 	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
@@ -66,12 +82,23 @@
 		showToast(`Rig: ${rig || 'All rigs'}`);
 	}
 
-	type NavItem = { href: string; label: string; scope: string | null; icon: string };
+	// Board section: Navbar entry that covers all four view routes and remembers
+	// the last used one (kanban/planning/calendar/timeline) via localStorage.
+	const BOARD_ROUTES = ['/kanban', '/planning', '/calendar'];
+	const BOARD_HREF_MAP: Record<string, string> = {
+		kanban: '/kanban',
+		planning: '/planning',
+		calendar: '/calendar?mode=month',
+		timeline: '/calendar?mode=timeline'
+	};
+	let boardHref = $state('/planning');
+
+	type NavItem = { href: string; label: string; scope: string | null; icon: string; matchPaths?: string[] };
 	const NAV: NavItem[] = [
 		{ href: '/', label: 'Home', scope: null, icon: 'lucide:home' },
-		// Kanban/Calendar/Timeline ride the in-page ViewSwitcher (hq-039316);
-		// Planning is the single navbar entry into the board projections.
-		{ href: '/planning', label: 'Planning', scope: 'issues.read', icon: 'lucide:calendar-range' },
+		// Board projections — href tracks the last used view; all board routes
+		// keep this item highlighted (matchPaths covers kanban/planning/calendar).
+		{ href: boardHref, label: 'Planning', scope: 'issues.read', icon: 'lucide:calendar-range', matchPaths: BOARD_ROUTES },
 		{ href: '/analytics', label: 'Analytics', scope: 'issues.read', icon: 'lucide:line-chart' },
 		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read', icon: 'lucide:workflow' },
 		{ href: '/agents', label: 'Agents', scope: 'tokens.read', icon: 'lucide:bot' },
@@ -93,7 +120,11 @@
 		{ href: '/help', label: 'Help', scope: 'meta.read', icon: 'lucide:circle-help' }
 	];
 
-	const items = $derived(NAV.filter((i) => !i.scope || hasScope(data.user?.scopes, i.scope)));
+	const items = $derived(
+		NAV
+			.filter((i) => !i.scope || hasScope(data.user?.scopes, i.scope))
+			.map((i) => (i.matchPaths ? { ...i, href: boardHref } : i))
+	);
 	const path = $derived(page.url.pathname);
 </script>
 
