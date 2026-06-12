@@ -40,3 +40,8 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Deploy validation
+
+Multi-rig dispatch verified: this commit was authored by an autonomous polecat
+routed to the gtweb rig checkout by bead prefix (epic hq-554308).
