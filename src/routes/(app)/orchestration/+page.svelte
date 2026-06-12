@@ -185,15 +185,25 @@
 		}
 	};
 
+	// The tick also re-runs the load so server-side quota status lifts reach the pills live.
 	let nowSecs = $state(Math.floor(Date.now() / 1000));
 	$effect(() => {
-		const t = setInterval(() => { nowSecs = Math.floor(Date.now() / 1000); }, 30_000);
+		const t = setInterval(() => {
+			nowSecs = Math.floor(Date.now() / 1000);
+			void invalidateAll();
+		}, 30_000);
 		return () => clearInterval(t);
 	});
 
-	const warningPct = (w: { consumed: number; limit: number; started_at_secs: number; resets_at_secs: number }, now: number): number => {
-		if (w.limit === 0) return 0;
+	/** A window whose reset instant already passed: stale `consumed` until the next probe. */
+	const isExpired = (w: { resets_at_secs: number }, now: number) => now >= w.resets_at_secs;
+
+	// Mirrors /admin/quota (gtweb-71fa71): expired windows contribute no warning, and the
+	// rate×duration projection only makes sense for Rolling5h windows.
+	const warningPct = (w: { kind: string; consumed: number; limit: number; started_at_secs: number; resets_at_secs: number }, now: number): number => {
+		if (w.limit === 0 || isExpired(w, now)) return 0;
 		const actual = (w.consumed / w.limit) * 100;
+		if (w.kind !== 'Rolling5h') return Math.min(100, actual);
 		const elapsed = Math.max(now - w.started_at_secs, 60);
 		const rate = w.consumed / elapsed;
 		const duration = w.resets_at_secs - w.started_at_secs;
@@ -287,6 +297,12 @@
 		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
 		background-color: oklch(97% 0.03 25); border: 1px solid oklch(88% 0.1 25);
 		color: oklch(45% 0.22 25); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
+	}
+	.badge-reset {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(96% 0.04 190); border: 1px solid oklch(85% 0.08 190);
+		color: oklch(42% 0.12 190); font-size: 10px; font-weight: 600;
 		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
 	}
 </style>
@@ -677,6 +693,7 @@
 									{@const wins = [a.window, a.weekly_window].filter((w) => !!w)}
 									{@const sampledQ = a.sampled_since_probe ?? 0}
 									{@const maxWarnPct = wins.length ? Math.max(...wins.map((w) => warningPct(w, nowSecs))) : 0}
+									{@const allExpired = wins.length > 0 && wins.every((w) => isExpired(w, nowSecs))}
 									<tr class="premium-row">
 										<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{a.id}</td>
 										<td>
@@ -686,6 +703,9 @@
 											<span class="badge-warn"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
 										{:else if a.status === 'Healthy'}
 											<span class="badge-healthy"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
+										{:else if allExpired}
+											<!-- Window(s) already reset: stale block awaiting re-probe (parity with /admin/quota). -->
+											<span class="badge-reset" title="{a.status} — window reset, awaiting re-probe"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>Resetting</span>
 										{:else}
 											<span class="badge-warn"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
 										{/if}
@@ -694,7 +714,9 @@
 											{#if wins.length}
 												<div class="flex items-center gap-[var(--gw-space-3)]">
 													{#each wins as w}
-														{@const bwQ = { confirmed: Math.min(100, ((w.consumed - sampledQ) / w.limit) * 100), sampled: Math.min(100, (sampledQ / w.limit) * 100) }}
+														{@const bwQ = w.limit === 0 || isExpired(w, nowSecs)
+															? { confirmed: 0, sampled: 0 }
+															: { confirmed: Math.min(100, ((w.consumed - sampledQ) / w.limit) * 100), sampled: Math.min(100, (sampledQ / w.limit) * 100) }}
 														{@const dC = 2 * Math.PI * 13}
 														{@const cL = (Math.max(0, bwQ.confirmed) / 100) * dC}
 														{@const sL = (Math.max(0, bwQ.sampled) / 100) * dC}
