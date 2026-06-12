@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { browserAdmin, type QuotaWindow } from '$lib/api/admin';
+	import { browserAdmin, type QuotaWindow, type WindowReset, type TokenSample } from '$lib/api/admin';
 	import { hasScope } from '$lib/api/auth';
 	import { TrackerError } from '$lib/api/tracker';
 	import type { ActionData, PageData } from './$types';
@@ -72,9 +72,42 @@
 		}
 	}
 
-	const pct = (w: { consumed: number; limit: number }) =>
-		w.limit > 0 ? Math.min(100, Math.round((w.consumed / w.limit) * 100)) : 0;
 	const fmtTime = (secs: number) => new Date(secs * 1000).toLocaleString();
+
+	/** Relative "X ago" label for probe freshness. */
+	const probeAge = (last: number | null | undefined, now: number): string => {
+		if (last == null) return 'never';
+		const d = now - last;
+		if (d < 60) return `${d}s ago`;
+		if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+		return `${Math.floor(d / 3600)}h ago`;
+	};
+
+	/** Bar widths for the two-tone probe bar.
+	 *  confirmed = provider-verified portion; sampled = local unverified tail. */
+	const barWidths = (w: QuotaWindow, sampledSinceProbe: number) => {
+		if (w.limit === 0) return { confirmed: 0, sampled: 0 };
+		const confirmed = Math.min(100, ((w.consumed - sampledSinceProbe) / w.limit) * 100);
+		const sampled   = Math.min(100 - confirmed, (sampledSinceProbe / w.limit) * 100);
+		return { confirmed: Math.max(0, confirmed), sampled: Math.max(0, sampled) };
+	};
+
+	/**
+	 * Percentage to flag for the badge colour, taking the higher of:
+	 *   - actual:    consumed / limit
+	 *   - projected: rate × window_duration / limit
+	 * A 60s floor on elapsed avoids div-by-zero and startup noise.
+	 * Returns 0 when limit is unknown (0).
+	 */
+	const warningPct = (w: QuotaWindow, now: number): number => {
+		if (w.limit === 0) return 0;
+		const actual = (w.consumed / w.limit) * 100;
+		const elapsed = Math.max(now - w.started_at_secs, 60);
+		const rate = w.consumed / elapsed; // cost-units / sec
+		const duration = w.resets_at_secs - w.started_at_secs;
+		const projected = (rate * duration / w.limit) * 100;
+		return Math.min(100, Math.max(actual, projected));
+	};
 
 	// ── Status-change notifications ──────────────────────────────────────────
 	type ToastNotif = { id: string; message: string; level: 'success' | 'warn' };
@@ -142,6 +175,90 @@
 		if (h > 0) return `${h}h ${m}m`;
 		return m > 0 ? `${m}m` : '<1m';
 	}
+
+	// ── History chart ────────────────────────────────────────────────────────
+	// Each WindowReset carries consumed tokens for one completed window period.
+	// We build a compact bar chart: x = window end time, y = consumed, colour by account.
+	const CHART_W = 600;
+	const CHART_H = 120;
+	const CHART_PAD = { top: 8, right: 8, bottom: 24, left: 48 };
+
+	// ── Model breakdown chart ────────────────────────────────────────────────
+	// Aggregate TokensSampled events by model: total input / output / cache per model.
+	const modelData = $derived.by(() => {
+		const samples: TokenSample[] = data.tokens ?? [];
+		if (samples.length === 0) return null;
+
+		type Row = { model: string; input: number; output: number; cache: number; total: number };
+		const byModel = new Map<string, Row>();
+		for (const s of samples) {
+			const key = s.model || 'unknown';
+			const existing = byModel.get(key) ?? { model: key, input: 0, output: 0, cache: 0, total: 0 };
+			existing.input += s.input;
+			existing.output += s.output;
+			existing.cache += s.cache_read + s.cache_creation;
+			existing.total += s.input + s.output + s.cache_read + s.cache_creation;
+			byModel.set(key, existing);
+		}
+		const rows = [...byModel.values()].sort((a, b) => b.total - a.total);
+		const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+
+		// Bar dimensions
+		const BAR_H = 18;
+		const BAR_GAP = 10;
+		const LABEL_W = 160;
+		const BAR_W = 340;
+		const chartH = rows.length * (BAR_H + BAR_GAP) + 4;
+
+		const bars = rows.map((r, i) => {
+			const y = i * (BAR_H + BAR_GAP);
+			const inputW = (r.input / maxTotal) * BAR_W;
+			const outputW = (r.output / maxTotal) * BAR_W;
+			const cacheW = (r.cache / maxTotal) * BAR_W;
+			return { ...r, y, inputW, outputW, cacheW };
+		});
+
+		return { rows, bars, LABEL_W, BAR_W, BAR_H, chartH, total: samples.length };
+	});
+
+	const chartData = $derived.by(() => {
+		const resets: WindowReset[] = data.history ?? [];
+		if (resets.length === 0) return null;
+
+		// Unique accounts → stable colour palette
+		const accounts = [...new Set(resets.map((r) => r.account))];
+		const palette = [
+			'oklch(60% 0.22 250)',  // blue
+			'oklch(62% 0.20 160)',  // teal
+			'oklch(58% 0.20 300)',  // purple
+			'oklch(60% 0.22 40)',   // orange
+			'oklch(60% 0.18 120)',  // green
+		];
+		const acctColor = new Map(accounts.map((a, i) => [a, palette[i % palette.length]]));
+
+		const maxConsumed = Math.max(...resets.map((r) => r.consumed), 1);
+		const innerW = CHART_W - CHART_PAD.left - CHART_PAD.right;
+		const innerH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
+
+		// X: evenly spaced by log order (bar index)
+		const n = resets.length;
+		const barW = Math.max(2, Math.min(16, Math.floor(innerW / n) - 2));
+
+		const bars = resets.map((r, i) => {
+			const x = CHART_PAD.left + (i / Math.max(n - 1, 1)) * innerW;
+			const h = (r.consumed / maxConsumed) * innerH;
+			const y = CHART_PAD.top + innerH - h;
+			return { x: x - barW / 2, y, h, w: barW, color: acctColor.get(r.account) ?? palette[0], r };
+		});
+
+		// Y-axis ticks (3 ticks)
+		const yTicks = [0, 0.5, 1].map((f) => ({
+			y: CHART_PAD.top + innerH * (1 - f),
+			label: Math.round(maxConsumed * f).toLocaleString(),
+		}));
+
+		return { bars, yTicks, acctColor, accounts };
+	});
 </script>
 
 <style>
@@ -258,19 +375,13 @@
 		color: oklch(52% 0.18 80); font-size: 10px; font-weight: 600;
 		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
 	}
+	.badge-disabled {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(97% 0.03 25); border: 1px solid oklch(88% 0.1 25);
+		color: oklch(45% 0.22 25); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
+	}
 
-	/* Usage bar */
-	.bar-track {
-		height: 4px; border-radius: 9999px;
-		background-color: var(--gw-color-surface-3); overflow: hidden; flex: 1; min-width: 60px;
-	}
-	.bar-fill {
-		height: 100%; border-radius: 9999px;
-		background-color: var(--gw-color-primary);
-		transition: width 600ms cubic-bezier(0.32, 0.72, 0, 1);
-	}
-	.bar-fill-warn { background-color: var(--gw-color-warning); }
-	.bar-fill-danger { background-color: var(--gw-color-error); }
 
 	/* Onboard flow */
 	.onboard-step {
@@ -552,6 +663,135 @@
 		</section>
 	{/if}
 
+	<!-- ── History chart ──────────────────────────────────────────────────── -->
+	{#if chartData && chartData.bars.length > 0}
+		<section class="entry entry-2 bezel" aria-label="Token usage history">
+			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+				<div class="mb-[var(--gw-space-3)] flex items-center justify-between">
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+						Token usage — past windows
+					</h2>
+					<!-- Legend -->
+					<div class="flex flex-wrap items-center gap-[var(--gw-space-3)]">
+						{#each chartData.accounts as acct}
+							<span class="flex items-center gap-[var(--gw-space-1)] font-[family-name:var(--gw-font-mono)] text-[10px] text-[var(--gw-color-text-muted)]">
+								<span class="inline-block h-2 w-2 rounded-full flex-shrink-0"
+									style="background-color:{chartData.acctColor.get(acct)}"></span>
+								{acct}
+							</span>
+						{/each}
+					</div>
+				</div>
+				<svg
+					width="100%"
+					viewBox="0 0 {CHART_W} {CHART_H}"
+					preserveAspectRatio="none"
+					style="display:block; height:{CHART_H}px; overflow:visible"
+					aria-hidden="true"
+				>
+					<!-- Y-axis grid + labels -->
+					{#each chartData.yTicks as tick}
+						<line
+							x1={CHART_PAD.left} y1={tick.y}
+							x2={CHART_W - CHART_PAD.right} y2={tick.y}
+							stroke="var(--gw-color-border-subtle)" stroke-width="1"
+						/>
+						<text x={CHART_PAD.left - 4} y={tick.y + 3.5}
+							text-anchor="end" font-size="8"
+							fill="var(--gw-color-text-muted)"
+							font-family="var(--gw-font-mono)">{tick.label}</text>
+					{/each}
+					<!-- Bars -->
+					{#each chartData.bars as bar}
+						<rect
+							x={bar.x} y={bar.y}
+							width={bar.w} height={bar.h}
+							fill={bar.color} opacity="0.8"
+							rx="1"
+						>
+							<title>{bar.r.account} · {bar.r.kind} · {Math.ceil(bar.r.consumed).toLocaleString()} tokens</title>
+						</rect>
+					{/each}
+					<!-- X baseline -->
+					<line
+						x1={CHART_PAD.left} y1={CHART_H - CHART_PAD.bottom}
+						x2={CHART_W - CHART_PAD.right} y2={CHART_H - CHART_PAD.bottom}
+						stroke="var(--gw-color-border-subtle)" stroke-width="1"
+					/>
+				</svg>
+				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
+					{chartData.bars.length} window reset{chartData.bars.length === 1 ? '' : 's'} recorded
+				</p>
+			</div>
+		</section>
+	{/if}
+
+	<!-- ── Model breakdown chart ───────────────────────────────────────────── -->
+	{#if modelData}
+		<section class="entry entry-2 bezel" aria-label="Token usage by model">
+			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+				<div class="mb-[var(--gw-space-4)] flex items-center justify-between">
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+						Tokens by model
+					</h2>
+					<!-- Legend -->
+					<div class="flex items-center gap-[var(--gw-space-4)]">
+						{#each [['Input', 'oklch(60% 0.22 250)'], ['Output', 'oklch(62% 0.20 160)'], ['Cache', 'oklch(58% 0.12 80)']] as [label, color]}
+							<span class="flex items-center gap-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
+								<span class="inline-block h-2 w-3 rounded-[2px] flex-shrink-0" style="background-color:{color}"></span>
+								{label}
+							</span>
+						{/each}
+					</div>
+				</div>
+				<svg
+					width="100%"
+					viewBox="0 0 {modelData.LABEL_W + modelData.BAR_W + 8} {modelData.chartH}"
+					style="display:block; height:{modelData.chartH}px; overflow:visible"
+					aria-hidden="true"
+				>
+					{#each modelData.bars as bar}
+						<!-- Model label -->
+						<text
+							x={modelData.LABEL_W - 8} y={bar.y + modelData.BAR_H / 2 + 3.5}
+							text-anchor="end" font-size="10"
+							fill="var(--gw-color-text-muted)"
+							font-family="var(--gw-font-mono)"
+						>{bar.model}</text>
+						<!-- Input segment -->
+						<rect x={modelData.LABEL_W} y={bar.y}
+							width={bar.inputW} height={modelData.BAR_H}
+							fill="oklch(60% 0.22 250)" rx="2">
+							<title>{bar.model} · input: {bar.input.toLocaleString()}</title>
+						</rect>
+						<!-- Output segment -->
+						<rect x={modelData.LABEL_W + bar.inputW} y={bar.y}
+							width={bar.outputW} height={modelData.BAR_H}
+							fill="oklch(62% 0.20 160)" rx="2">
+							<title>{bar.model} · output: {bar.output.toLocaleString()}</title>
+						</rect>
+						<!-- Cache segment -->
+						<rect x={modelData.LABEL_W + bar.inputW + bar.outputW} y={bar.y}
+							width={bar.cacheW} height={modelData.BAR_H}
+							fill="oklch(58% 0.12 80)" rx="2">
+							<title>{bar.model} · cache: {bar.cache.toLocaleString()}</title>
+						</rect>
+						<!-- Total label -->
+						<text
+							x={modelData.LABEL_W + bar.inputW + bar.outputW + bar.cacheW + 6}
+							y={bar.y + modelData.BAR_H / 2 + 3.5}
+							font-size="9" fill="var(--gw-color-text-muted)"
+							font-family="var(--gw-font-mono)"
+						>{bar.total.toLocaleString()}</text>
+					{/each}
+				</svg>
+				<p class="mt-[var(--gw-space-2)] text-[10px] text-[var(--gw-color-text-muted)]">
+					{modelData.total.toLocaleString()} samples · {modelData.rows.length} model{modelData.rows.length === 1 ? '' : 's'}
+				</p>
+			</div>
+		</section>
+	{/if}
+
 	<!-- ── Accounts table ──────────────────────────────────────────────────── -->
 	<section class="entry entry-3 bezel" aria-label="Quota accounts">
 		{#if canWrite}
@@ -574,6 +814,8 @@
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Status</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] sm:table-cell">Window</th>
+							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] sm:table-cell">Probe</th>
 							<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Usage</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
@@ -589,6 +831,8 @@
 					<tbody class="divide-y divide-[var(--gw-color-border-subtle)]">
 						{#each data.accounts as acct (acct.id)}
 							{@const wins = [acct.window, acct.weekly_window].filter((w) => !!w) as QuotaWindow[]}
+							{@const sampled = acct.sampled_since_probe ?? 0}
+							{@const maxWarnPct = wins.length ? Math.max(...wins.map((w) => warningPct(w, nowSecs))) : 0}
 							<tr class="data-row">
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 									<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-sm)]
@@ -597,7 +841,17 @@
 									</span>
 								</td>
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
-									{#if acct.status === 'Healthy'}
+									{#if acct.status === 'Disabled'}
+										<span class="badge-disabled">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											{acct.status}
+										</span>
+									{:else if acct.status === 'Healthy' && maxWarnPct >= 90}
+										<span class="badge-warn">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											{acct.status}
+										</span>
+									{:else if acct.status === 'Healthy'}
 										<span class="badge-healthy">
 											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 											{acct.status}
@@ -623,27 +877,62 @@
 										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 									{/if}
 								</td>
+								<!-- Probe freshness column -->
+								<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] sm:table-cell">
+									<div class="flex min-h-[2.25rem] flex-col justify-center gap-[2px]">
+										<span class="font-[family-name:var(--gw-font-mono)] text-[10px]
+											{acct.last_probe_secs == null ? 'text-[var(--gw-color-error)]' : 'text-[var(--gw-color-text-muted)]'}">
+											{probeAge(acct.last_probe_secs, nowSecs)}
+										</span>
+										{#if sampled > 0}
+											<span class="font-[family-name:var(--gw-font-mono)] text-[10px]"
+												style="color: oklch(60% 0.15 80)">
+												+{Math.ceil(sampled).toLocaleString()} est.
+											</span>
+										{/if}
+									</div>
+								</td>
+								<!-- Donut usage -->
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 									{#if wins.length}
 										<div class="flex flex-col gap-[var(--gw-space-3)]">
 											{#each wins as w}
-												{@const p = pct(w)}
-												<div class="flex min-h-[2.25rem] flex-col justify-center gap-[2px]">
-													<div class="flex w-[120px] items-center gap-[var(--gw-space-2)]">
-														<div class="bar-track">
-															<div
-																class="bar-fill {p >= 90 ? 'bar-fill-danger' : p >= 70 ? 'bar-fill-warn' : ''}"
-																style="width: {p}%"
-															></div>
-														</div>
-														<span class="w-8 shrink-0 text-right font-[family-name:var(--gw-font-mono)]
-															text-[10px] font-semibold text-[var(--gw-color-text)]">
-															{p}%
-														</span>
-													</div>
+												{@const bw = barWidths(w, sampled)}
+												{@const dcx = 18}
+												{@const dcy = 18}
+												{@const dr = 13}
+												{@const dC = 2 * Math.PI * dr}
+												{@const confLen = (bw.confirmed / 100) * dC}
+												{@const sampLen = (bw.sampled / 100) * dC}
+												{@const confDeg = (bw.confirmed / 100) * 360}
+												{@const totalPct = Math.round(bw.confirmed + bw.sampled)}
+												{@const dcolor = acct.status === 'Disabled' ? 'var(--gw-color-error)' : maxWarnPct >= 90 ? 'oklch(52% 0.18 80)' : 'var(--gw-color-primary)'}
+												<div class="flex min-h-[2.25rem] items-center gap-[var(--gw-space-2)]">
+													<svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
+														<!-- Track -->
+														<circle cx={dcx} cy={dcy} r={dr} fill="none"
+															stroke="var(--gw-color-surface-3)" stroke-width="4" />
+														<!-- Sampled (unverified tail) -->
+														{#if sampLen > 0.5}
+															<circle cx={dcx} cy={dcy} r={dr} fill="none"
+																stroke={dcolor} stroke-opacity="0.3" stroke-width="4"
+																stroke-dasharray="{sampLen} {dC}"
+																transform="rotate({-90 + confDeg} {dcx} {dcy})" />
+														{/if}
+														<!-- Confirmed -->
+														{#if confLen > 0.5}
+															<circle cx={dcx} cy={dcy} r={dr} fill="none"
+																stroke={dcolor} stroke-width="4"
+																stroke-dasharray="{confLen} {dC}"
+																transform="rotate(-90 {dcx} {dcy})" />
+														{/if}
+														<text x={dcx} y={dcy} text-anchor="middle" dominant-baseline="central"
+															font-size="8" font-weight="700" fill="var(--gw-color-text)"
+															font-family="var(--gw-font-mono)">{totalPct}%</text>
+													</svg>
 													<p class="whitespace-nowrap font-[family-name:var(--gw-font-mono)] text-[10px]
 														text-[var(--gw-color-text-muted)]">
-														{w.consumed} / {w.limit}
+														{Math.ceil(w.consumed).toLocaleString()}
 													</p>
 												</div>
 											{/each}
