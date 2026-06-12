@@ -10,7 +10,10 @@
 
 	let { items, path }: Props = $props();
 
-	const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+	// Segment-boundary match: `/rigs` must not light up for `/rigsomething`, and a
+	// sub-route (e.g. `/admin/users/123`) keeps its parent item active. Home is exact.
+	const isActive = (href: string) =>
+		href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
 
 	const ADMIN_HREFS = new Set([
 		'/security',
@@ -63,13 +66,14 @@
 						? 'bg-[var(--gw-color-primary)]/10 font-medium text-[var(--gw-color-primary)]'
 						: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]'}"
 			>
-				{#if active}
-					<span
-						aria-hidden="true"
-						class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--gw-color-primary)]
-							transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
-					></span>
-				{/if}
+				<!-- Indicator stays mounted across navigations and fades in/out, so it
+				     never re-mounts (no jump/flicker) when the active item changes. -->
+				<span
+					aria-hidden="true"
+					class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--gw-color-primary)]
+						transition-opacity duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+						{active ? 'opacity-100' : 'opacity-0'}"
+				></span>
 				<span class="flex items-center gap-2.5 pl-1">
 					{#if item.icon}
 						<span class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] {active ? '' : 'group-hover:translate-x-px'}">
@@ -102,12 +106,13 @@
 							? 'bg-[var(--gw-color-primary)]/10 font-medium text-[var(--gw-color-primary)]'
 							: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]'}"
 				>
-					{#if active}
-						<span
-							aria-hidden="true"
-							class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--gw-color-primary)]"
-						></span>
-					{/if}
+					<!-- Same always-mounted, opacity-faded indicator as the main items. -->
+					<span
+						aria-hidden="true"
+						class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--gw-color-primary)]
+							transition-opacity duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+							{active ? 'opacity-100' : 'opacity-0'}"
+					></span>
 					<span class="flex items-center gap-2.5 pl-1">
 						{#if item.icon}
 							<span class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] {active ? '' : 'group-hover:translate-x-px'}">
