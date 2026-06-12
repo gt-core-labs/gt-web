@@ -20,6 +20,27 @@ import type { QuotaAccount } from './orch';
 
 export type { QuotaAccount, QuotaWindow } from './orch';
 
+/** One `quota.window_reset.v1` payload — consumed tokens captured just before a window rolled over. */
+export interface WindowReset {
+	account: string;
+	kind: string;
+	consumed: number;
+	started_at_secs: number;
+	resets_at_secs: number;
+}
+
+/** One `quota.tokens_sampled.v1` payload — per-call token usage attributed to a session + model. */
+export interface TokenSample {
+	account: string;
+	session: string;
+	model: string;
+	input: number;
+	output: number;
+	cache_read: number;
+	cache_creation: number;
+	now_secs: number;
+}
+
 export type WorkspaceStatus = 'active' | 'suspended' | 'archived';
 
 /** A workspace catalog entry — `{ id, name, status }` across MCP + REST. */
@@ -162,6 +183,16 @@ export function admin(doFetch: Fetcher) {
 			return unwrap<{ ok: boolean; probed: number }>(
 				await doFetch('/api/v1/quota/probe/sweep', JSON_POST)
 			);
+		},
+		/** All quota.window_reset.v1 payloads for this workspace, in log order. */
+		async quotaHistory(): Promise<WindowReset[]> {
+			const j = await unwrap<{ resets: WindowReset[] }>(await doFetch('/api/v1/quota/history'));
+			return j.resets ?? [];
+		},
+		/** All quota.tokens_sampled.v1 payloads for this workspace, in log order. */
+		async quotaTokens(): Promise<TokenSample[]> {
+			const j = await unwrap<{ samples: TokenSample[] }>(await doFetch('/api/v1/quota/tokens'));
+			return j.samples ?? [];
 		}
 	};
 }

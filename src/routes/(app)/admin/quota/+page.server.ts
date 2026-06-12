@@ -6,8 +6,13 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
 	if (!hasScope(event.locals.user?.scopes, 'quota.read')) throw error(403, 'Requires quota.read');
-	const accounts = await serverAdmin(event).quotas();
-	return { accounts };
+	const api = serverAdmin(event);
+	const [accounts, history, tokens] = await Promise.all([
+		api.quotas(),
+		api.quotaHistory().catch(() => []),
+		api.quotaTokens().catch(() => []),
+	]);
+	return { accounts, history, tokens };
 };
 
 function failFrom(err: unknown) {

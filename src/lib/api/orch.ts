@@ -87,6 +87,10 @@ export interface QuotaAccount {
 	status: string;
 	window: QuotaWindow | null;
 	weekly_window?: QuotaWindow | null;
+	/** Unix epoch when the provider last confirmed this account's window. null = never probed. */
+	last_probe_secs?: number | null;
+	/** Cost units accumulated locally since the last probe — the unverified tail. */
+	sampled_since_probe?: number;
 }
 
 /** One account in the deploy-global pool (GET /api/v1/quota/catalog), flagged whether it is
