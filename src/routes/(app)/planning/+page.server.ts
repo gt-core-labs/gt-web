@@ -1,6 +1,7 @@
 import { listUsers } from '$lib/api/auth';
 import { serverTracker } from '$lib/server/api';
 import { backendFetch } from '$lib/server/backend';
+import { attachParent, resolveParentMap } from '$lib/server/relations';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -20,11 +21,17 @@ export const load: PageServerLoad = async (event) => {
 	const archived = event.url.searchParams.get('archived') === '1';
 	const workspace = archived ? 'archive' : 'default';
 	const cookie = event.request.headers.get('cookie') ?? '';
+	const tr = serverTracker(event);
+	const fetcher = (path: string, init?: RequestInit) => backendFetch(path, cookie, init);
 	const [page, users] = await Promise.all([
-		serverTracker(event).list({ rig, workspace, limit: 1000 }),
+		tr.list({ rig, workspace, limit: 1000 }),
 		listUsers((input, init) => backendFetch(String(input), cookie, init))
 			.then((u) => u.map((x) => x.email))
 			.catch(() => [] as string[])
 	]);
-	return { rows: page.rows, rig, boardWorkspace: workspace, users, archived };
+	// child_of refactor (@3d6ea41): the list rows don't inline the epic, so
+	// resolve the parent map (one query per epic) and stitch parent_id on.
+	const epicIds = page.rows.filter((r) => r.issue_type === 'epic').map((r) => r.id);
+	const parents = await resolveParentMap(fetcher, { rig, workspace }, epicIds);
+	return { rows: attachParent(page.rows, parents), rig, boardWorkspace: workspace, users, archived };
 };

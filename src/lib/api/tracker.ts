@@ -69,7 +69,20 @@ export interface IssueRow {
 	created_at: string;
 	updated_at: string;
 	closed_at: string | null;
+	/**
+	 * @deprecated The gtcore issue_relations refactor (@3d6ea41) replaced the
+	 * free-text `external_ref` epic pointer with the `child_of` relation. The
+	 * read API no longer populates this; epic linkage now travels in `parent_id`
+	 * (resolved server-side, see `$lib/server/relations`). Kept for back-compat.
+	 */
 	external_ref: string | null;
+	/**
+	 * The parent epic this bead is `child_of` (issue_relations refactor). NOT
+	 * inlined by the issues list/read endpoints — the gt-web SSR loads resolve it
+	 * via the `parent_id=<epic>` list filter and stitch it onto the row before it
+	 * reaches the planning/kanban views.
+	 */
+	parent_id?: string | null;
 	spec_id: string | null;
 	/** JSON-encoded string arrays / objects as persisted by the store. */
 	domain_json: string;
@@ -110,7 +123,10 @@ export interface ListQuery {
 	status?: string;
 	priority_max?: number;
 	assignee?: string;
+	/** @deprecated Legacy epic pre-filter; use `parent_id` (child_of relation). */
 	external_ref?: string;
+	/** Narrow to the direct children of one epic (`child_of` relation). */
+	parent_id?: string;
 	issue_type?: string;
 	limit?: number;
 	offset?: number;
@@ -136,7 +152,10 @@ export interface CreateIssueBody {
 	acceptance_criteria?: string;
 	notes?: string;
 	priority?: number;
+	/** @deprecated Legacy epic pointer; send `parent_id` (child_of) instead. */
 	external_ref?: string;
+	/** Parent epic id (`child_of` relation). Required for a non-epic by NN-16. */
+	parent_id?: string;
 	assignee?: string;
 	owner?: string;
 	/** Closed-set domains (≥1 required for non-epic), e.g. ["fe.web"]. */
@@ -155,8 +174,13 @@ export interface UpdateIssueBody {
 	priority?: number;
 	issue_type?: string;
 	assignee?: string;
-	/** Epic linkage (the sub-epic this bead belongs to). */
+	/** @deprecated Legacy epic linkage; use `parent_id` (child_of relation). */
 	external_ref?: string;
+	/**
+	 * Re-parent under an epic (`child_of` relation). `''` clears the link,
+	 * a bead id upserts it; omit to leave unchanged. NN-16 re-checked when set.
+	 */
+	parent_id?: string;
 	/** Forward dependency edges — FULL replacement of the list. */
 	depends_on?: string[];
 	/** Board workspace re-scope (hq-62130a) — `archive` hides the card from the

@@ -34,6 +34,9 @@
 	let busy = $state(false);
 	let error = $state('');
 	let copied = $state(false);
+	// Epic linkage (child_of): the read API doesn't inline it, so the resolved
+	// `parent_id` rides in on the board/table row (`card`), not the fetched detail.
+	let parentRef = $state(card.parent_id ?? '');
 
 	async function copyId() {
 		await navigator.clipboard.writeText(card.id);
@@ -47,6 +50,7 @@
 		detail = null;
 		thread = [];
 		error = '';
+		parentRef = card.parent_id ?? '';
 		Promise.all([browserTracker().get(id), browserComments().list('card', id)])
 			.then(([d, c]) => {
 				if (card.id !== id) return; // drawer moved on
@@ -95,6 +99,10 @@
 			error = e instanceof TrackerError ? e.message : String(e);
 		}
 	}
+
+	// Epic picker options: the scope's epics (minus this card itself).
+	const epicOptions = $derived(allIssues.filter((r) => r.issue_type === 'epic' && r.id !== card.id));
+	const epicTitle = (id: string) => allIssues.find((r) => r.id === id)?.title ?? id;
 
 	const dependsOn = $derived(detail ? parseJsonArray(detail.depends_on_json) : []);
 	const depOptions = $derived(
@@ -201,13 +209,21 @@
 					{users}
 					onchange={(v) => patch({ assignee: v })}
 				/>
-				<input
-					class="{editCls} w-24 font-mono"
-					value={detail.external_ref ?? ''}
-					placeholder="epic ref"
-					aria-label="Epic ref"
-					onchange={(e) => patch({ external_ref: (e.currentTarget as HTMLInputElement).value.trim() })}
-				/>
+				{#if detail.issue_type !== 'epic'}
+					<select
+						class="{editCls} max-w-44"
+						value={parentRef}
+						aria-label="Epic"
+						onchange={(e) => {
+							const v = (e.currentTarget as HTMLSelectElement).value;
+							parentRef = v;
+							patch({ parent_id: v });
+						}}
+					>
+						<option value="">— no epic —</option>
+						{#each epicOptions as ep (ep.id)}<option value={ep.id}>{ep.title}</option>{/each}
+					</select>
+				{/if}
 				{#if card.estimated_hours != null}<span class={chipCls}>{card.estimated_hours}h</span>{/if}
 				{#if card.due_date}<span class={chipCls}>due {card.due_date}</span>{/if}
 			</div>
@@ -217,7 +233,7 @@
 				<span class={chipCls}>{PRIORITY[card.priority] ?? `P${card.priority}`}</span>
 				<span class={chipCls}>{card.issue_type}</span>
 				{#if card.assignee}<span class={chipCls}>@{card.assignee}</span>{/if}
-				{#if card.external_ref}<span class={chipCls}>epic {card.external_ref}</span>{/if}
+				{#if card.parent_id}<span class={chipCls}>epic {epicTitle(card.parent_id)}</span>{/if}
 				{#if card.estimated_hours != null}<span class={chipCls}>{card.estimated_hours}h</span>{/if}
 				{#if card.due_date}<span class={chipCls}>due {card.due_date}</span>{/if}
 			</div>

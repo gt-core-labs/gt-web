@@ -6,12 +6,13 @@
 		browserReport,
 		type BoardCard,
 		type BoardColumn,
-		type GroupBy
+		type BoardLane
 	} from '$lib/api/board';
 	import { TrackerError, type IssueStatus } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
+	import EpicsOverview from '$lib/components/tracker/EpicsOverview.svelte';
 	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
@@ -27,7 +28,55 @@
 
 	const canWrite = $derived(hasScope(data.user?.scopes, 'issues.write'));
 	const scopeKey = $derived({ rig: data.rig, workspace: data.boardWorkspace });
-	const totalCards = $derived(columns.reduce((acc, c) => acc + c.cards.filter((x) => x.issue_type !== 'epic').length, 0));
+
+	// ── epics + child_of grouping (gtweb-1c27cf) ────────────────────────────
+	// The board cards now carry the SSR-resolved `parent_id` (child_of). Epics
+	// themselves are board cards but never task lane items; collect them for the
+	// overview + lane titles, and group the rest by their epic.
+	const allCards = $derived(columns.flatMap((c) => c.cards));
+	const epics = $derived(
+		[...new Map(allCards.filter((c) => c.issue_type === 'epic').map((c) => [c.id, c])).values()]
+	);
+	const epicTitle = (id: string) => epics.find((e) => e.id === id)?.title ?? id;
+
+	// Free-text epic filter rides client-side off parent_id (the board endpoint's
+	// legacy external_ref filter is dead post-refactor).
+	const matchesEpic = (card: BoardCard) =>
+		!data.epic || card.parent_id === data.epic || card.id === data.epic;
+
+	const totalCards = $derived(
+		columns.reduce(
+			(acc, c) => acc + c.cards.filter((x) => x.issue_type !== 'epic' && matchesEpic(x)).length,
+			0
+		)
+	);
+
+	/** Cards a column shows: drop epics out of the lanes, apply the epic filter. */
+	const laneCards = (cards: BoardCard[]) =>
+		cards.filter((c) => c.issue_type !== 'epic' && matchesEpic(c));
+
+	/** The lanes to render for a column under the active group_by. Epic grouping
+	 * is computed here from parent_id (gt-core still lanes by the dead
+	 * external_ref); other dimensions keep the server's swimlanes. */
+	function lanesFor(column: BoardColumn | undefined): BoardLane[] {
+		if (!column) return [];
+		if (data.groupBy === 'epic') {
+			const byKey = new Map<string, BoardCard[]>();
+			for (const card of laneCards(column.cards)) {
+				const key = card.parent_id ?? '';
+				byKey.set(key, [...(byKey.get(key) ?? []), card]);
+			}
+			return [...byKey.entries()]
+				.map(([key, cards]) => ({ key, cards }))
+				.sort((a, b) =>
+					a.key === '' ? 1 : b.key === '' ? -1 : epicTitle(a.key).localeCompare(epicTitle(b.key))
+				);
+		}
+		return (column.lanes ?? []).map((lane) => ({ ...lane, cards: laneCards(lane.cards) }));
+	}
+
+	const laneLabel = (key: string) =>
+		data.groupBy === 'epic' ? (key ? epicTitle(key) : 'No epic') : key || 'Unassigned';
 
 	let error = $state('');
 	let selected = $state<BoardCard | null>(null);
@@ -88,7 +137,7 @@
 	function dragOverColumn(e: DragEvent, status: IssueStatus) {
 		e.preventDefault();
 		if (!dropHint || dropHint.status !== status) {
-			dropHint = { status, index: col(status)?.cards.length ?? 0 };
+			dropHint = { status, index: laneCards(col(status)?.cards ?? []).length };
 		}
 	}
 
@@ -235,10 +284,13 @@
 		</p>
 	{/if}
 
+	<EpicsOverview {epics} tasks={allCards} onpick={(e) => (selected = e)} />
+
 	<!-- Board -->
 	<div class="grid min-h-0 flex-1 grid-cols-3 gap-3">
 		{#each COLUMNS as { status, label, accent } (status)}
 			{@const column = col(status)}
+			{@const visible = laneCards(column?.cards ?? [])}
 			<section
 				class="flex min-h-0 flex-col rounded-xl border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)]"
 				role="list"
@@ -249,14 +301,14 @@
 				<header class="flex items-center gap-2 border-b border-[var(--gw-color-border)] px-3 py-2">
 					<span class="h-2 w-2 rounded-full" style:background={accent}></span>
 					<h2 class="text-sm font-medium">{label}</h2>
-					<span class="ml-auto text-xs text-[var(--gw-color-text-muted)]">{column?.cards.length ?? 0}</span>
+					<span class="ml-auto text-xs text-[var(--gw-color-text-muted)]">{visible.length}</span>
 				</header>
 
 				<div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
-					{#if data.groupBy && column?.lanes}
-						{#each column.lanes as lane (lane.key)}
+					{#if data.groupBy}
+						{#each lanesFor(column) as lane (lane.key)}
 							<p class="px-1 pt-1 text-[11px] font-semibold uppercase text-[var(--gw-color-text-muted)]">
-								{lane.key || 'Unassigned'}
+								{laneLabel(lane.key)}
 							</p>
 							{#each lane.cards as card (card.id)}
 								<button
@@ -269,7 +321,7 @@
 							{/each}
 						{/each}
 					{:else}
-						{#each column?.cards ?? [] as card, index (card.id)}
+						{#each visible as card, index (card.id)}
 							{#if dropHint && dropHint.status === status && dropHint.index === index && dragged && dragged.id !== card.id}
 								<div class="h-1 rounded bg-[var(--gw-color-primary)]"></div>
 							{/if}
@@ -299,7 +351,7 @@
 								</button>
 							</div>
 						{/each}
-						{#if dropHint && dropHint.status === status && dropHint.index === (column?.cards.length ?? 0) && dragged}
+						{#if dropHint && dropHint.status === status && dropHint.index === visible.length && dragged}
 							<div class="h-1 rounded bg-[var(--gw-color-primary)]"></div>
 						{/if}
 					{/if}

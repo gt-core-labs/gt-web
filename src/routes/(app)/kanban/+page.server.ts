@@ -1,6 +1,7 @@
 import { listUsers } from '$lib/api/auth';
 import { serverBoard } from '$lib/server/api';
 import { backendFetch } from '$lib/server/backend';
+import { attachParent, resolveParentMap } from '$lib/server/relations';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -28,11 +29,13 @@ export const load: PageServerLoad = async (event) => {
 
 	const cookie = event.request.headers.get('cookie') ?? '';
 	const [snapshot, users] = await Promise.all([
+		// NB: the `epic` filter is applied client-side off the resolved parent_id
+		// (the board endpoint's legacy external_ref filter is dead post-refactor),
+		// so we fetch the full snapshot and never forward `epic` to the backend.
 		serverBoard(event).snapshot({
 			rig,
 			workspace,
-			...(group_by ? { group_by } : {}),
-			...(epic ? { epic } : {})
+			...(group_by ? { group_by } : {})
 		}),
 		// Registered user emails for the assignee dropdown (hq-039316);
 		// sessions without `users.read` degrade to [] (free-text input).
@@ -40,6 +43,22 @@ export const load: PageServerLoad = async (event) => {
 			.then((u) => u.map((x) => x.email))
 			.catch(() => [] as string[])
 	]);
+	// child_of refactor (@3d6ea41): the board cards no longer carry the epic
+	// pointer, so resolve the parent map (one query per epic) and stitch
+	// parent_id onto every card — the page groups the epic lanes off this field.
+	const fetcher = (path: string, init?: RequestInit) => backendFetch(path, cookie, init);
+	const epicIds = snapshot.columns
+		.flatMap((c) => c.cards)
+		.filter((card) => card.issue_type === 'epic')
+		.map((card) => card.id);
+	const parents = await resolveParentMap(fetcher, { rig, workspace }, epicIds);
+	for (const column of snapshot.columns) {
+		column.cards = attachParent(column.cards, parents);
+		if (column.lanes) {
+			for (const lane of column.lanes) lane.cards = attachParent(lane.cards, parents);
+		}
+	}
+
 	return {
 		snapshot,
 		rig,

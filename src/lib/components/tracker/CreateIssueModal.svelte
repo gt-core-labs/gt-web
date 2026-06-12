@@ -17,7 +17,7 @@
 
 	let title = $state('');
 	let issueType = $state('task');
-	let externalRef = $state('');
+	let parentId = $state('');
 	let domain = $state('fe.web');
 	let priority = $state(2);
 	let description = $state('');
@@ -37,7 +37,8 @@
 				title: title.trim(),
 				issue_type: issueType,
 				created_by: createdBy,
-				external_ref: isEpic ? undefined : externalRef,
+				// child_of relation (NN-16 requires a parent epic for non-epics).
+				parent_id: isEpic ? undefined : parentId,
 				domain: domain
 					.split(',')
 					.map((s) => s.trim())
@@ -134,7 +135,7 @@
 							<div class="flex flex-col gap-1.5">
 								<label for="bead-epic" class="field-label">Epic</label>
 								<div class="field-wrap">
-									<select id="bead-epic" class="field-input" bind:value={externalRef} required>
+									<select id="bead-epic" class="field-input" bind:value={parentId} required>
 										<option value="" disabled>— pick an epic —</option>
 										{#each epics as e (e.id)}
 											<option value={e.id}>{e.title} ({e.id})</option>

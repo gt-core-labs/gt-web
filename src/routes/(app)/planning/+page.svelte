@@ -6,6 +6,7 @@
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import AssigneeSelect from '$lib/components/tracker/AssigneeSelect.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
+	import EpicsOverview from '$lib/components/tracker/EpicsOverview.svelte';
 	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
@@ -41,8 +42,8 @@
 		}
 	};
 
-	// Module = epic (ADR D5, epic-per-module via external_ref). Epics title the
-	// sections and are not task rows; the no-module tail renders last.
+	// Module = epic (ADR D5, epic-per-module via the child_of relation). Epics
+	// title the sections and are not task rows; the no-module tail renders last.
 	const epics = $derived(rows.filter((r) => r.issue_type === 'epic'));
 	const epicTitle = (id: string) => epics.find((e) => e.id === id)?.title ?? id;
 	const tasks = $derived(rows.filter((r) => r.issue_type !== 'epic'));
@@ -86,7 +87,7 @@
 	const sections = $derived.by<Section[]>(() => {
 		const byKey = new Map<string, IssueRow[]>();
 		for (const t of tasks) {
-			const key = groupBy === 'module' ? (t.external_ref ?? '') : weekKey(t);
+			const key = groupBy === 'module' ? (t.parent_id ?? '') : weekKey(t);
 			byKey.set(key, [...(byKey.get(key) ?? []), t]);
 		}
 		const out = [...byKey.entries()].map(([id, items]): Section => {
@@ -300,6 +301,8 @@
 			{/if}
 		</p>
 	{/if}
+
+	<EpicsOverview {epics} tasks={rows} onpick={(e) => (selected = e)} />
 
 	{#each sections as section (section.id)}
 		<section class="overflow-x-auto rounded-xl border border-[var(--gw-color-border)]">
