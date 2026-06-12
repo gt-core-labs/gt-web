@@ -14,7 +14,31 @@
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
-	onMount(() => theme.init());
+	// Context-switch toast (hq-203db0): rig switches toast immediately; a
+	// workspace switch hard-reloads, so the message rides sessionStorage and
+	// shows after the reload.
+	const TOAST_KEY = 'gt:ctx-toast';
+	let toast = $state<string | null>(null);
+	let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function showToast(msg: string) {
+		toast = msg;
+		clearTimeout(toastTimer);
+		toastTimer = setTimeout(() => (toast = null), 3500);
+	}
+
+	onMount(() => {
+		theme.init();
+		try {
+			const pending = sessionStorage.getItem(TOAST_KEY);
+			if (pending) {
+				sessionStorage.removeItem(TOAST_KEY);
+				showToast(pending);
+			}
+		} catch {
+			/* storage may be unavailable (private mode) */
+		}
+	});
 
 	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
 
@@ -25,13 +49,21 @@
 		if (!slug || slug === data.user?.workspace) return;
 		switching = true;
 		const res = await switchWorkspace(slug);
-		if (res.ok) location.reload();
-		else switching = false;
+		if (res.ok) {
+			try {
+				sessionStorage.setItem(TOAST_KEY, `Workspace: ${slug}`);
+			} catch {
+				/* storage may be unavailable */
+			}
+			location.reload();
+		} else switching = false;
 	}
 
 	async function onRig(e: Event) {
-		setActiveRig((e.currentTarget as HTMLSelectElement).value);
+		const rig = (e.currentTarget as HTMLSelectElement).value;
+		setActiveRig(rig);
 		await invalidateAll();
+		showToast(`Rig: ${rig || 'All rigs'}`);
 	}
 
 	type NavItem = { href: string; label: string; scope: string | null; icon: string };
@@ -140,6 +172,17 @@
 
 	</div>
 </div>
+
+{#if toast}
+	<div
+		class="fixed right-5 bottom-5 z-[60] flex items-center gap-2 rounded-xl border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] px-4 py-2.5 text-sm shadow-lg"
+		role="status"
+		aria-live="polite"
+	>
+		<span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+		{toast}
+	</div>
+{/if}
 
 {#if canTerminal}
 	<TerminalDock />
