@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { Slice } from '$lib/api/analytics';
+	import EChart from '$lib/components/EChart.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -14,29 +15,94 @@
 		goto(url, { replaceState: true, invalidateAll: true });
 	}
 
-	// ── chart geometry (hand-rolled SVG; no chart dependency) ────────────────
-	const W = 560;
-	const H = 140;
-	const PAD = 6;
+	// ── interactive charts via the shared EChart wrapper (gtweb-c70694) ──────
+	const AXIS_LABEL = { fontSize: 9, color: '#71717a' };
+	const LEGEND = {
+		top: 0,
+		icon: 'circle',
+		itemWidth: 8,
+		itemHeight: 8,
+		textStyle: { fontSize: 10, color: '#71717a' },
+	};
+	const TOOLTIP = {
+		trigger: 'axis' as const,
+		axisPointer: { type: 'shadow' as const },
+		textStyle: { fontSize: 11 },
+	};
 
-	const maxRemaining = $derived(Math.max(1, ...s.series.map((p) => p.remaining)));
-	const maxDaily = $derived(Math.max(1, ...s.series.map((p) => Math.max(p.created, p.closed))));
+	// Burndown: daily created/closed bars on the left axis, remaining scope line on the
+	// right one (different magnitudes — gallery: mix-line-bar).
+	const burndownChart = $derived.by(() => {
+		const pts = s.series;
+		if (pts.length === 0) return null;
+		return {
+			animationDuration: 300,
+			grid: { left: 8, right: 8, top: 30, bottom: 8, containLabel: true },
+			legend: LEGEND,
+			tooltip: TOOLTIP,
+			dataZoom: [{ type: 'inside' as const }],
+			xAxis: { type: 'category' as const, data: pts.map((p) => p.date), axisLabel: AXIS_LABEL },
+			yAxis: [
+				{ type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { lineStyle: { color: '#e4e4e7' } } },
+				{ type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { show: false } },
+			],
+			series: [
+				{ name: 'Creadas', type: 'bar' as const, color: 'oklch(60% 0.22 250)', emphasis: { focus: 'series' as const }, data: pts.map((p) => p.created) },
+				{ name: 'Resueltas', type: 'bar' as const, color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: pts.map((p) => p.closed) },
+				{ name: 'Restante', type: 'line' as const, yAxisIndex: 1, smooth: 0.2, symbolSize: 4, color: '#f59e0b', data: pts.map((p) => p.remaining) },
+			],
+		};
+	});
 
-	const x = (i: number) =>
-		PAD + (i * (W - 2 * PAD)) / Math.max(1, s.series.length - 1);
-	const yBurn = (v: number) => H - PAD - (v * (H - 2 * PAD)) / maxRemaining;
+	/** Horizontal bar option for a top-6 slice group (distribution mini-charts). */
+	const sliceOption = (slices: Slice[]) => {
+		const rows = slices.slice(0, 6).reverse(); // reversed: biggest on the top row
+		return {
+			animationDuration: 300,
+			grid: { left: 4, right: 28, top: 4, bottom: 4, containLabel: true },
+			tooltip: TOOLTIP,
+			xAxis: { type: 'value' as const, axisLabel: { show: false }, splitLine: { show: false } },
+			yAxis: {
+				type: 'category' as const,
+				data: rows.map((r) => r.key || '—'),
+				axisLabel: { ...AXIS_LABEL, width: 90, overflow: 'truncate' as const },
+			},
+			series: [
+				{
+					type: 'bar' as const,
+					color: 'oklch(60% 0.22 250)',
+					barWidth: 10,
+					data: rows.map((r) => r.count),
+					label: { show: true, position: 'right' as const, fontSize: 9, color: '#71717a' },
+				},
+			],
+		};
+	};
+	const sliceHeight = (slices: Slice[]) => Math.max(60, Math.min(slices.length, 6) * 24 + 12);
 
-	const burndownPath = $derived(
-		s.series.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${yBurn(p.remaining).toFixed(1)}`).join(' ')
-	);
-
-	const barW = $derived(Math.max(2, (W - 2 * PAD) / Math.max(1, s.series.length) / 2 - 1));
-
-	function pct(part: number, whole: number): number {
-		return whole === 0 ? 0 : Math.round((part / whole) * 100);
-	}
-
-	const maxSlice = (slices: Slice[]) => Math.max(1, ...slices.map((x) => x.count));
+	// Avance por módulo: stacked closed/open per module, heaviest module on top.
+	const moduleChart = $derived.by(() => {
+		const mods = s.avance.by_module;
+		if (mods.length === 0) return null;
+		const rows = [...mods].sort((a, b) => a.total - b.total);
+		const option = {
+			animationDuration: 300,
+			grid: { left: 4, right: 36, top: 30, bottom: 4, containLabel: true },
+			legend: LEGEND,
+			tooltip: TOOLTIP,
+			xAxis: { type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { lineStyle: { color: '#e4e4e7' } } },
+			yAxis: {
+				type: 'category' as const,
+				data: rows.map((m) => m.module || 'Sin módulo'),
+				axisLabel: { ...AXIS_LABEL, width: 120, overflow: 'truncate' as const },
+			},
+			series: [
+				{ name: 'Cerradas', type: 'bar' as const, stack: 't', color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.closed) },
+				{ name: 'Abiertas', type: 'bar' as const, stack: 't', color: 'oklch(70% 0.03 270)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.total - m.closed) },
+			],
+		};
+		return { option, height: Math.max(100, rows.length * 26 + 46) };
+	});
 </script>
 
 <svelte:head><title>Analytics · gt</title></svelte:head>
@@ -103,40 +169,20 @@
 		<!-- Burndown + created-vs-resolved -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3">
 			<h2 class="mb-2 text-sm font-semibold">Burndown · creadas vs resueltas ({data.days}d)</h2>
-			<svg viewBox="0 0 {W} {H}" class="w-full" role="img" aria-label="Burndown chart">
-				{#each s.series as p, i (p.date)}
-					{#if p.created > 0}
-						<rect
-							x={x(i) - barW - 0.5}
-							y={H - PAD - (p.created * (H - 2 * PAD)) / maxDaily}
-							width={barW}
-							height={(p.created * (H - 2 * PAD)) / maxDaily}
-							fill="var(--gw-color-primary)"
-							opacity="0.55"
-						><title>{p.date}: {p.created} creadas</title></rect>
-					{/if}
-					{#if p.closed > 0}
-						<rect
-							x={x(i) + 0.5}
-							y={H - PAD - (p.closed * (H - 2 * PAD)) / maxDaily}
-							width={barW}
-							height={(p.closed * (H - 2 * PAD)) / maxDaily}
-							fill="var(--gw-color-success,#22c55e)"
-							opacity="0.7"
-						><title>{p.date}: {p.closed} resueltas</title></rect>
-					{/if}
-				{/each}
-				<path d={burndownPath} fill="none" stroke="var(--gw-color-warning,#f59e0b)" stroke-width="2" />
-			</svg>
-			<p class="mt-1 text-[11px] text-[var(--gw-color-text-muted)]">
-				barras: creadas (azul) / resueltas (verde) · línea: alcance restante
-			</p>
+			{#if burndownChart}
+				<EChart option={burndownChart} height={190} />
+				<p class="mt-1 text-[11px] text-[var(--gw-color-text-muted)]">
+					línea: alcance restante (eje derecho) · rueda/arrastre para zoom · clic en la leyenda para filtrar
+				</p>
+			{:else}
+				<p class="text-xs text-[var(--gw-color-text-muted)]">Sin serie.</p>
+			{/if}
 		</section>
 
 		<!-- Distribution -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3">
 			<h2 class="mb-2 text-sm font-semibold">Distribución de trabajo</h2>
-			<div class="grid grid-cols-3 gap-3 text-xs">
+			<div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
 				{#each [
 					{ title: 'Por estado', slices: s.by_status },
 					{ title: 'Pendiente por responsable', slices: s.pendientes.by_assignee },
@@ -144,21 +190,11 @@
 				] as group (group.title)}
 					<div>
 						<p class="mb-1 font-medium text-[var(--gw-color-text-muted)]">{group.title}</p>
-						<ul class="space-y-1">
-							{#each group.slices.slice(0, 6) as sl (sl.key)}
-								<li>
-									<span class="flex justify-between">
-										<span class="truncate">{sl.key || '—'}</span><span>{sl.count}</span>
-									</span>
-									<span class="block h-1 rounded bg-[var(--gw-color-surface-2)]">
-										<span
-											class="block h-1 rounded bg-[var(--gw-color-primary)]"
-											style:width="{pct(sl.count, maxSlice(group.slices))}%"
-										></span>
-									</span>
-								</li>
-							{/each}
-						</ul>
+						{#if group.slices.length > 0}
+							<EChart option={sliceOption(group.slices)} height={sliceHeight(group.slices)} />
+						{:else}
+							<p class="text-[var(--gw-color-text-muted)]">—</p>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -167,24 +203,11 @@
 		<!-- Avance por módulo -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3">
 			<h2 class="mb-2 text-sm font-semibold">Avance por módulo</h2>
-			<ul class="space-y-2 text-xs">
-				{#each s.avance.by_module as m (m.module)}
-					<li>
-						<span class="flex justify-between">
-							<span class="truncate font-mono">{m.module || 'Sin módulo'}</span>
-							<span>{m.closed}/{m.total}</span>
-						</span>
-						<span class="block h-1.5 rounded bg-[var(--gw-color-surface-2)]">
-							<span
-								class="block h-1.5 rounded bg-[var(--gw-color-success,#22c55e)]"
-								style:width="{pct(m.closed, m.total)}%"
-							></span>
-						</span>
-					</li>
-				{:else}
-					<li class="text-[var(--gw-color-text-muted)]">Sin módulos.</li>
-				{/each}
-			</ul>
+			{#if moduleChart}
+				<EChart option={moduleChart.option} height={moduleChart.height} />
+			{:else}
+				<p class="text-xs text-[var(--gw-color-text-muted)]">Sin módulos.</p>
+			{/if}
 		</section>
 
 		<!-- Retrasos + errores drill-down -->
