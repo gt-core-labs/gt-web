@@ -74,6 +74,7 @@
 	let tKind = $state(data.reportKinds?.[0] ?? 'planning-digest');
 	let tRig = $state(data.rigs?.[0] ?? 'hq');
 	let tWorkspace = $state(data.workspaces?.[0] ?? 'default');
+	let tEmail = $state('');
 	let testBusy = $state(false);
 	let testMessage = $state('');
 	let testError = $state(false);
@@ -156,6 +157,7 @@
 		try {
 			const api = browserSystem();
 			const today = new Date().toISOString().slice(0, 10);
+			const email = tEmail.trim();
 			const s = await api.createReportSchedule({
 				kind: tKind,
 				mode: 'once',
@@ -164,7 +166,8 @@
 				minute: 0,
 				rig: tRig,
 				workspace: tWorkspace,
-				enabled: false
+				enabled: false,
+				subscribers: email ? [email] : undefined
 			});
 			const result = await api.runReportSchedule(s.id);
 			await api.deleteReportSchedule(s.id);
@@ -661,6 +664,13 @@
 									bind:value={tWorkspace} disabled={testBusy || !canWrite} />
 							{/if}
 						</div>
+					</div>
+
+					<div class="mt-[var(--gw-space-4)] space-y-[var(--gw-space-1)]">
+						<label for="test-email" class="field-label">Send to</label>
+						<input id="test-email" class="gw-input-num" style="width: 100%; max-width: 22rem"
+							type="email" placeholder="email@domain.com (blank = global list)"
+							bind:value={tEmail} disabled={testBusy || !canWrite} />
 					</div>
 
 					{#if canWrite}
