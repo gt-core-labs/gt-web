@@ -185,6 +185,22 @@
 		}
 	};
 
+	let nowSecs = $state(Math.floor(Date.now() / 1000));
+	$effect(() => {
+		const t = setInterval(() => { nowSecs = Math.floor(Date.now() / 1000); }, 30_000);
+		return () => clearInterval(t);
+	});
+
+	const warningPct = (w: { consumed: number; limit: number; started_at_secs: number; resets_at_secs: number }, now: number): number => {
+		if (w.limit === 0) return 0;
+		const actual = (w.consumed / w.limit) * 100;
+		const elapsed = Math.max(now - w.started_at_secs, 60);
+		const rate = w.consumed / elapsed;
+		const duration = w.resets_at_secs - w.started_at_secs;
+		const projected = (rate * duration / w.limit) * 100;
+		return Math.min(100, Math.max(actual, projected));
+	};
+
 	// ── Design tokens ────────────────────────────────────────────────────────────
 	const pillBase =
 		'rounded-[var(--gw-radius-full)] px-[var(--gw-space-3)] py-[var(--gw-space-1)] ' +
@@ -253,6 +269,25 @@
 	}
 	.premium-row:hover {
 		background-color: var(--gw-color-surface-3);
+	}
+
+	.badge-healthy {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(96% 0.05 150); border: 1px solid oklch(85% 0.1 150);
+		color: oklch(42% 0.16 150); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
+	}
+	.badge-warn {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(97% 0.04 80); border: 1px solid oklch(88% 0.1 80);
+		color: oklch(52% 0.18 80); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
+	}
+	.badge-disabled {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(97% 0.03 25); border: 1px solid oklch(88% 0.1 25);
+		color: oklch(45% 0.22 25); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
 	}
 </style>
 
@@ -634,18 +669,75 @@
 						<table class="table">
 							<thead>
 								<tr>
-									<th>Account</th><th>Status</th><th>Window</th>
-									<th>5h Consumed / Limit</th><th>Weekly Consumed / Limit</th><th></th>
+									<th>Account</th><th>Status</th><th>Tokens</th><th>Resets</th><th></th>
 								</tr>
 							</thead>
 							<tbody>
 								{#each data.quotas as a (a.id)}
+									{@const wins = [a.window, a.weekly_window].filter((w) => !!w)}
+									{@const sampledQ = a.sampled_since_probe ?? 0}
+									{@const maxWarnPct = wins.length ? Math.max(...wins.map((w) => warningPct(w, nowSecs))) : 0}
 									<tr class="premium-row">
 										<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{a.id}</td>
-										<td><Badge variant={stateVariant(a.status)}>{a.status}</Badge></td>
-										<td>{a.window?.kind ?? '—'}</td>
-										<td>{a.window ? `${Math.ceil(a.window.consumed)} / ${a.window.limit}` : '—'}</td>
-										<td>{a.weekly_window ? `${Math.ceil(a.weekly_window.consumed)} / ${a.weekly_window.limit}` : '—'}</td>
+										<td>
+										{#if a.status === 'Disabled'}
+											<span class="badge-disabled"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
+										{:else if a.status === 'Healthy' && maxWarnPct >= 90}
+											<span class="badge-warn"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
+										{:else if a.status === 'Healthy'}
+											<span class="badge-healthy"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
+										{:else}
+											<span class="badge-warn"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{a.status}</span>
+										{/if}
+									</td>
+										<td>
+											{#if wins.length}
+												<div class="flex items-center gap-[var(--gw-space-3)]">
+													{#each wins as w}
+														{@const bwQ = { confirmed: Math.min(100, ((w.consumed - sampledQ) / w.limit) * 100), sampled: Math.min(100, (sampledQ / w.limit) * 100) }}
+														{@const dC = 2 * Math.PI * 13}
+														{@const cL = (Math.max(0, bwQ.confirmed) / 100) * dC}
+														{@const sL = (Math.max(0, bwQ.sampled) / 100) * dC}
+														{@const cDeg = (Math.max(0, bwQ.confirmed) / 100) * 360}
+														{@const tP = Math.round(Math.max(0, bwQ.confirmed) + Math.max(0, bwQ.sampled))}
+														{@const dc = a.status === 'Disabled' ? 'var(--gw-color-error)' : maxWarnPct >= 90 ? 'oklch(52% 0.18 80)' : 'var(--gw-color-primary)'}
+														<div class="flex flex-col items-center gap-[2px]">
+															<svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
+																<circle cx="18" cy="18" r="13" fill="none"
+																	stroke="var(--gw-color-surface-3)" stroke-width="4" />
+																{#if sL > 0.5}
+																	<circle cx="18" cy="18" r="13" fill="none"
+																		stroke={dc} stroke-opacity="0.3" stroke-width="4"
+																		stroke-dasharray="{sL} {dC}"
+																		transform="rotate({-90 + cDeg} 18 18)" />
+																{/if}
+																{#if cL > 0.5}
+																	<circle cx="18" cy="18" r="13" fill="none"
+																		stroke={dc} stroke-width="4"
+																		stroke-dasharray="{cL} {dC}"
+																		transform="rotate(-90 18 18)" />
+																{/if}
+																<text x="18" y="18" text-anchor="middle" dominant-baseline="central"
+																	font-size="8" font-weight="700" fill="var(--gw-color-text)"
+																	font-family="var(--gw-font-mono)">{tP}%</text>
+															</svg>
+															<span class="font-[family-name:var(--gw-font-mono)] text-[10px] text-[var(--gw-color-text-muted)]">{w.kind}</span>
+														</div>
+													{/each}
+												</div>
+											{:else}—{/if}
+										</td>
+										<td>
+											{#if wins.length}
+												<div class="flex flex-col gap-[var(--gw-space-2)]">
+													{#each wins as w}
+														<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+															{new Date(w.resets_at_secs * 1000).toLocaleString()}
+														</span>
+													{/each}
+												</div>
+											{:else}—{/if}
+										</td>
 										<td class="text-right">
 											{#if canQuota}
 												<Button variant="tonal" disabled={busy} onclick={() => run(() => o.detachAccount(a.id))}>Remove</Button>
