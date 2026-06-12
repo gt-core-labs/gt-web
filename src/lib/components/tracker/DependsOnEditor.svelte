@@ -1,31 +1,73 @@
 <script lang="ts">
 	/**
-	 * depends_on editor (hq-039316): chips with ✕ to drop an edge + a datalist
-	 * input (id / title) to add one. Emits the FULL list — the backend PATCH
-	 * replaces `depends_on` wholesale (gt-issues UpdateIssue).
+	 * depends_on editor (hq-039316): chips with ✕ to drop an edge + a combobox
+	 * (id / title substring filter) to add one. Emits the FULL list — the backend
+	 * PATCH replaces `depends_on` wholesale (gt-issues UpdateIssue).
+	 *
+	 * Custom dropdown, NOT a native datalist: with hundreds of beads the browser
+	 * rendered an unbounded suggestion panel covering the viewport (hq-f3174d).
 	 */
 	interface Props {
 		ids: string[];
-		/** Candidate issues for the datalist (the board's rows). */
+		/** Candidate issues for the suggestions (the board's rows). */
 		options: { id: string; title: string }[];
 		disabled?: boolean;
 		onchange: (ids: string[]) => void;
 	}
 	let { ids, options, disabled = false, onchange }: Props = $props();
 
-	let draft = $state('');
-	const listId = `deps-${Math.random().toString(36).slice(2, 8)}`;
-	const candidates = $derived(options.filter((o) => !ids.includes(o.id)));
+	/** Rendered-suggestion cap — the filter narrows long lists, not scrolling. */
+	const MAX_SUGGESTIONS = 30;
 
-	function add() {
-		const id = draft.trim();
+	let draft = $state('');
+	let open = $state(false);
+	let active = $state(0);
+
+	const candidates = $derived(options.filter((o) => !ids.includes(o.id)));
+	const matches = $derived.by(() => {
+		const q = draft.trim().toLowerCase();
+		const pool = q
+			? candidates.filter(
+					(o) => o.id.toLowerCase().includes(q) || o.title.toLowerCase().includes(q)
+				)
+			: candidates;
+		return pool.slice(0, MAX_SUGGESTIONS);
+	});
+
+	function add(id: string) {
 		if (!id || ids.includes(id)) return;
 		draft = '';
+		open = false;
 		onchange([...ids, id]);
 	}
 	function remove(id: string) {
 		onchange(ids.filter((x) => x !== id));
 	}
+	function onkeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			open = false;
+			return;
+		}
+		if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+			open = true;
+			return;
+		}
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			active = Math.min(active + 1, matches.length - 1);
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			active = Math.max(active - 1, 0);
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			const pick = matches[active]?.id ?? draft.trim();
+			add(pick);
+		}
+	}
+	// Clamp the highlight when the filter shrinks the list.
+	$effect(() => {
+		if (active >= matches.length) active = Math.max(matches.length - 1, 0);
+	});
 </script>
 
 <div class="space-y-1.5">
@@ -49,29 +91,50 @@
 		{/each}
 	</div>
 	{#if !disabled}
-		<form
-			class="flex gap-1"
-			onsubmit={(e) => {
-				e.preventDefault();
-				add();
-			}}
-		>
+		<div class="relative flex gap-1">
 			<input
 				class="min-w-0 flex-1 rounded border border-[var(--gw-color-border)] bg-transparent px-1.5 py-0.5 font-mono text-xs"
-				list={listId}
 				placeholder="Add reference (issue id)…"
+				role="combobox"
+				aria-expanded={open}
+				aria-controls="deps-suggestions"
+				aria-autocomplete="list"
 				bind:value={draft}
+				onfocus={() => (open = true)}
+				oninput={() => (open = true)}
+				onblur={() => setTimeout(() => (open = false), 150)}
+				{onkeydown}
 			/>
-			<datalist id={listId}>
-				{#each candidates as o (o.id)}
-					<option value={o.id}>{o.title}</option>
-				{/each}
-			</datalist>
 			<button
 				class="rounded border border-[var(--gw-color-border)] px-2 py-0.5 text-xs disabled:opacity-50"
-				type="submit"
+				type="button"
 				disabled={!draft.trim()}
+				onclick={() => add(draft.trim())}
 			>Add</button>
-		</form>
+			{#if open && matches.length}
+				<ul
+					id="deps-suggestions"
+					role="listbox"
+					class="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] py-1 shadow-lg"
+				>
+					{#each matches as o, i (o.id)}
+						<li role="option" aria-selected={i === active}>
+							<button
+								type="button"
+								class="flex w-full items-baseline gap-2 px-2 py-1 text-left text-xs hover:bg-[var(--gw-color-surface-2)] {i === active ? 'bg-[var(--gw-color-surface-2)]' : ''}"
+								onmousedown={(e) => {
+									e.preventDefault(); // beat the input's blur
+									add(o.id);
+								}}
+								onmouseenter={() => (active = i)}
+							>
+								<span class="shrink-0 font-mono">{o.id}</span>
+								<span class="truncate text-[var(--gw-color-text-muted)]">{o.title}</span>
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
 	{/if}
 </div>
