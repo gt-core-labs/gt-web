@@ -49,13 +49,17 @@ export const load: PageServerLoad = async (event) => {
 		// non-fatal — selectors fall back to the catalog lists below
 	}
 
-	// Catalog rigs + workspaces, the free-text/fallback path.
+	// Catalog rigs + workspaces. The rig catalog is per-workspace (tenant
+	// data, X-GT-Workspace anti-spoof) so `rigs` only covers the SESSION's
+	// workspace — exposed as `sessionWorkspace` so the UI can scope it
+	// (hq-5aae22). Rig values are PREFIXES: the bead namespace schedules and
+	// boards filter by, not the catalog display name.
 	let rigs: string[] = [];
 	let workspaces: string[] = [];
 	try {
 		const adm = serverAdmin(event);
 		const [rs, ws] = await Promise.all([adm.rigs(), adm.workspaces()]);
-		rigs = rs.map((r) => r.name);
+		rigs = rs.map((r) => r.prefix || r.name);
 		// Board/issues scope keys by workspace ID (slug), not display name —
 		// a schedule saved with the name filters zero rows (hq-866962).
 		workspaces = ws.map((w) => w.id);
@@ -63,5 +67,6 @@ export const load: PageServerLoad = async (event) => {
 		// non-fatal — selectors fall back to free-text inputs
 	}
 
-	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes };
+	const sessionWorkspace = event.locals.user?.workspace ?? null;
+	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes, sessionWorkspace };
 };

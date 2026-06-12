@@ -86,10 +86,17 @@
 	function rigOptionsFor(ws: string): string[] {
 		const scopes = data.scopes ?? [];
 		// STRICT per-workspace (hq-59de0e): only rigs with a real board in the
-		// selected workspace. Empty (e.g. a fresh workspace) ⇒ the template
-		// falls back to a free-text input, never another workspace's rigs.
-		if (scopes.length > 0)
-			return [...new Set(scopes.filter((s) => s.workspace === ws).map((s) => s.rig))];
+		// selected workspace — never another workspace's rigs.
+		if (scopes.length > 0) {
+			const real = [...new Set(scopes.filter((s) => s.workspace === ws).map((s) => s.rig))];
+			if (real.length > 0) return real;
+			// No boards yet: the session workspace's own rig catalog (prefixes =
+			// bead namespaces) is still a valid target — a freshly registered
+			// rig has no beads but schedules may point at it (hq-5aae22). Other
+			// workspaces' catalogs are unreadable by design (tenant data), so
+			// they stay blocked.
+			return ws === data.sessionWorkspace ? (data.rigs ?? []) : [];
+		}
 		// No scope data at all (old backend) ⇒ catalog fallback.
 		return data.rigs ?? [];
 	}
