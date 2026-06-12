@@ -4,30 +4,12 @@
 	 * icon links over the board projections — Kanban / Planning / Calendar /
 	 * Timeline. The active segment is highlighted.
 	 *
-	 * Active state subscribes to the `page` Svelte store so it always reflects
-	 * the live URL — the store fires immediately on subscribe (initial value)
-	 * and again on every SvelteKit navigation, regardless of whether this
-	 * component was mounted before or after the transition.
+	 * Active is computed directly from `$page` (auto-subscribed Svelte store) in
+	 * the template via {@const}, so it updates on every SvelteKit navigation
+	 * with no intermediate state, effects, or timing races.
 	 */
 	import { page } from '$app/stores';
 	import { Icon } from '$lib/ui';
-
-	function urlToActive(pathname: string, search: string): 'kanban' | 'planning' | 'calendar' | 'timeline' {
-		if (pathname.startsWith('/calendar')) {
-			return new URLSearchParams(search).get('mode') === 'timeline' ? 'timeline' : 'calendar';
-		}
-		if (pathname.startsWith('/planning')) return 'planning';
-		if (pathname.startsWith('/kanban')) return 'kanban';
-		return 'kanban';
-	}
-
-	let active = $state<'kanban' | 'planning' | 'calendar' | 'timeline'>('kanban');
-
-	$effect(() => {
-		return page.subscribe((p) => {
-			active = urlToActive(p.url.pathname, p.url.search);
-		});
-	});
 
 	/** Remember the chosen view (hq-039316) — pages restore it on bare loads. */
 	const remember = (key: string) => {
@@ -52,14 +34,18 @@
 	aria-label="View"
 >
 	{#each VIEWS as v (v.key)}
+		{@const onCalendar = $page.url.pathname.startsWith('/calendar')}
+		{@const active = onCalendar
+			? (v.key === 'timeline') === ($page.url.searchParams.get('mode') === 'timeline')
+			: $page.url.pathname.startsWith('/' + v.key)}
 		<a
-			class="flex items-center p-1.5 transition-colors {active === v.key
+			class="flex items-center p-1.5 transition-colors {active
 				? 'bg-[var(--gw-color-primary)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]'
 				: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]'} border-l border-[var(--gw-color-border)] first:border-l-0"
 			href={v.href}
 			title={v.label}
 			aria-label="{v.label} view"
-			aria-current={active === v.key ? 'page' : undefined}
+			aria-current={active ? 'page' : undefined}
 			onclick={() => remember(v.key)}
 		><Icon icon={v.icon} size={16} /></a>
 	{/each}
