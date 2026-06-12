@@ -75,6 +75,73 @@
 	const pct = (w: { consumed: number; limit: number }) =>
 		w.limit > 0 ? Math.min(100, Math.round((w.consumed / w.limit) * 100)) : 0;
 	const fmtTime = (secs: number) => new Date(secs * 1000).toLocaleString();
+
+	// ── Status-change notifications ──────────────────────────────────────────
+	type ToastNotif = { id: string; message: string; level: 'success' | 'warn' };
+	let notifications = $state<ToastNotif[]>([]);
+
+	const NOTIF_KEY   = 'gt_quota_notifs_v1';
+	const STATUS_KEY  = 'gt_quota_statuses_v1';
+
+	function dismissNotif(id: string) {
+		notifications = notifications.filter(n => n.id !== id);
+		try {
+			const stored: ToastNotif[] = JSON.parse(localStorage.getItem(NOTIF_KEY) ?? '[]');
+			localStorage.setItem(NOTIF_KEY, JSON.stringify(stored.filter(n => n.id !== id)));
+		} catch { /* ignore */ }
+	}
+
+	$effect(() => {
+		if (typeof localStorage === 'undefined') return;
+		try {
+			const prev: Record<string, string> = JSON.parse(localStorage.getItem(STATUS_KEY) ?? '{}');
+			const curr: Record<string, string> = {};
+			const fresh: ToastNotif[] = [];
+
+			for (const acct of data.accounts) {
+				curr[acct.id] = acct.status;
+				const was = prev[acct.id];
+				if (was && was !== acct.status) {
+					const activated = acct.status === 'Healthy';
+					fresh.push({
+						id: `${acct.id}:${was}→${acct.status}`,
+						message: activated
+							? `${acct.id} — cuenta reactivada (${was} → Healthy)`
+							: `${acct.id} — cuenta desactivada (${was} → ${acct.status})`,
+						level: activated ? 'success' : 'warn',
+					});
+				}
+			}
+			localStorage.setItem(STATUS_KEY, JSON.stringify(curr));
+
+			const stored: ToastNotif[] = JSON.parse(localStorage.getItem(NOTIF_KEY) ?? '[]');
+			const seen = new Set(stored.map(n => n.id));
+			const merged = [...stored, ...fresh.filter(n => !seen.has(n.id))];
+			if (fresh.some(n => !seen.has(n.id))) {
+				localStorage.setItem(NOTIF_KEY, JSON.stringify(merged));
+			}
+			notifications = merged;
+		} catch { /* localStorage unavailable */ }
+	});
+
+	// ── Live countdown ───────────────────────────────────────────────────────
+	let nowSecs = $state(Math.floor(Date.now() / 1000));
+	$effect(() => {
+		const t = setInterval(() => { nowSecs = Math.floor(Date.now() / 1000); }, 30_000);
+		return () => clearInterval(t);
+	});
+
+	function activatesIn(acct: { status: string; window: QuotaWindow | null; weekly_window?: QuotaWindow | null }): string | null {
+		if (acct.status === 'Healthy') return null;
+		const w = acct.window ?? acct.weekly_window ?? null;
+		if (!w) return null;
+		const rem = w.resets_at_secs - nowSecs;
+		if (rem <= 0) return 'pronto';
+		const h = Math.floor(rem / 3600);
+		const m = Math.floor((rem % 3600) / 60);
+		if (h > 0) return `${h}h ${m}m`;
+		return m > 0 ? `${m}m` : '<1m';
+	}
 </script>
 
 <style>
@@ -231,6 +298,31 @@
 
 	.data-row { transition: background-color 140ms cubic-bezier(0.32, 0.72, 0, 1); }
 	.data-row:hover { background-color: var(--gw-color-surface-3); }
+
+	/* Status-change notifications */
+	.notif {
+		display: flex; align-items: center; gap: var(--gw-space-3);
+		border-radius: var(--gw-radius-lg); padding: var(--gw-space-3) var(--gw-space-4);
+		font-size: var(--gw-text-xs);
+		animation: fade-up-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+	}
+	.notif-success {
+		background-color: oklch(96% 0.05 150); border: 1px solid oklch(85% 0.1 150);
+		color: oklch(38% 0.16 150);
+	}
+	.notif-warn {
+		background-color: oklch(97% 0.04 80); border: 1px solid oklch(88% 0.1 80);
+		color: oklch(48% 0.18 80);
+	}
+	.notif-icon { flex-shrink: 0; display: flex; }
+	.notif-msg  { flex: 1; font-weight: 500; line-height: 1.4; }
+	.notif-dismiss {
+		flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+		border: none; background: transparent; cursor: pointer; color: inherit;
+		opacity: 0.55; padding: 2px; border-radius: 4px;
+		transition: opacity 120ms;
+	}
+	.notif-dismiss:hover { opacity: 1; }
 </style>
 
 <div class="space-y-5">
@@ -256,6 +348,37 @@
 			</span>
 		</div>
 	</header>
+
+	<!-- ── Status-change notifications ─────────────────────────────────────── -->
+	{#if notifications.length > 0}
+		<div class="entry entry-1 space-y-2" role="status" aria-live="polite">
+			{#each notifications as n (n.id)}
+				<div class="notif {n.level === 'success' ? 'notif-success' : 'notif-warn'}">
+					<span class="notif-icon">
+						{#if n.level === 'success'}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+								stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+								<polyline points="20 6 9 17 4 12"/>
+							</svg>
+						{:else}
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+								stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+								<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+								<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+							</svg>
+						{/if}
+					</span>
+					<span class="notif-msg">{n.message}</span>
+					<button class="notif-dismiss" onclick={() => dismissNotif(n.id)} aria-label="Cerrar notificación">
+						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+							stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+						</svg>
+					</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- ── Global feedback ─────────────────────────────────────────────────── -->
 	{#if form?.error}
@@ -431,6 +554,15 @@
 
 	<!-- ── Accounts table ──────────────────────────────────────────────────── -->
 	<section class="entry entry-3 bezel" aria-label="Quota accounts">
+		{#if canWrite}
+			<div class="flex justify-end px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
+				<form method="POST" action="?/sync" use:enhance={enhancer}>
+					<button type="submit" class="btn-ghost" disabled={saving}>
+						Sync quotas
+					</button>
+				</form>
+			</div>
+		{/if}
 		<div class="bezel-core-overflow">
 			{#if data.accounts.length > 0}
 				<table class="w-full text-left">
@@ -446,6 +578,8 @@
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Usage</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Resets</th>
+							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Activa en</th>
 							{#if canWrite}
 								<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right text-[10px] font-semibold
 									uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Actions</th>
@@ -532,6 +666,14 @@
 									{:else}
 										<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
 											text-[var(--gw-color-text-muted)]">—</span>
+									{/if}
+								</td>
+								<td class="hidden whitespace-nowrap px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
+									{#if activatesIn(acct)}
+										<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
+											text-[var(--gw-color-text-muted)]">{activatesIn(acct)}</span>
+									{:else}
+										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 									{/if}
 								</td>
 								{#if canWrite}

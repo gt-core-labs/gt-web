@@ -157,6 +157,11 @@ export function admin(doFetch: Fetcher) {
 		// Retire an account from the rotation pool. Emits AccountDeregistered; idempotent.
 		async retireQuota(account: string): Promise<void> {
 			await unwrap(await doFetch(quotaPath(account), { method: 'DELETE' }));
+		},
+		async syncProbeQuotas(): Promise<{ ok: boolean; probed: number }> {
+			return unwrap<{ ok: boolean; probed: number }>(
+				await doFetch('/api/v1/quota/probe/sweep', JSON_POST)
+			);
 		}
 	};
 }

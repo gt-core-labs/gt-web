@@ -33,6 +33,16 @@ export const actions: Actions = {
 		} catch (err) {
 			return failFrom(err);
 		}
+	},
+	sync: async (event) => {
+		if (!hasScope(event.locals.user?.scopes, 'quota.write'))
+			return fail(403, { error: 'Requires quota.write' });
+		try {
+			const result = await serverAdmin(event).syncProbeQuotas();
+			return { ok: true, probed: result.probed };
+		} catch (err) {
+			return failFrom(err);
+		}
 	}
 };
 
