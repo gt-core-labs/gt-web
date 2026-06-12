@@ -4,20 +4,27 @@
 	 * icon links over the board projections — Kanban / Planning / Calendar /
 	 * Timeline. The active segment is highlighted.
 	 *
-	 * Active state is derived from the live URL (page store) so it stays correct
-	 * across SvelteKit client-side navigation without relying on the parent prop.
+	 * Active state is driven by the URL: seeded from `page` on mount, then kept
+	 * in sync via `afterNavigate` — the SvelteKit hook that fires after every
+	 * client-side transition with the resolved destination URL.
 	 */
 	import { page } from '$app/state';
+	import { afterNavigate } from '$app/navigation';
 	import { Icon } from '$lib/ui';
 
-	const active = $derived.by(() => {
-		const path = page.url.pathname;
-		if (path.startsWith('/calendar')) {
-			return page.url.searchParams.get('mode') === 'timeline' ? 'timeline' : 'calendar';
+	function urlToActive(pathname: string, search: string): 'kanban' | 'planning' | 'calendar' | 'timeline' {
+		if (pathname.startsWith('/calendar')) {
+			return new URLSearchParams(search).get('mode') === 'timeline' ? 'timeline' : 'calendar';
 		}
-		if (path.startsWith('/planning')) return 'planning';
-		if (path.startsWith('/kanban')) return 'kanban';
+		if (pathname.startsWith('/planning')) return 'planning';
+		if (pathname.startsWith('/kanban')) return 'kanban';
 		return 'kanban';
+	}
+
+	let active = $state(urlToActive(page.url.pathname, page.url.search));
+
+	afterNavigate(({ to }) => {
+		if (to) active = urlToActive(to.url.pathname, to.url.search);
 	});
 
 	/** Remember the chosen view (hq-039316) — pages restore it on bare loads. */
