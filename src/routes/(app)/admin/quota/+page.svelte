@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { browserAdmin, type QuotaWindow, type WindowReset, type TokenSample } from '$lib/api/admin';
+	import EChart from '$lib/components/EChart.svelte';
 	import { hasScope } from '$lib/api/auth';
 	import { TrackerError } from '$lib/api/tracker';
 	import type { ActionData, PageData } from './$types';
@@ -73,10 +74,6 @@
 	}
 
 	const fmtTime = (secs: number) => new Date(secs * 1000).toLocaleString();
-	const fmtShort = (secs: number) =>
-		new Date(secs * 1000).toLocaleString(undefined, {
-			month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-		});
 
 	/** Relative "X ago" label for probe freshness. */
 	const probeAge = (last: number | null | undefined, now: number): string => {
@@ -238,37 +235,17 @@
 		return arr;
 	});
 
-	// ── History chart ────────────────────────────────────────────────────────
-	// Each WindowReset carries consumed tokens for one completed window period.
-	// We build a compact bar chart: x = window end time, y = consumed, colour by account.
-	const CHART_W = 600;
-	const CHART_H = 120;
-	const CHART_PAD = { top: 8, right: 8, bottom: 24, left: 48 };
-
 	// ── Burn-rate chart ──────────────────────────────────────────────────────
 	// Consumption over time in adaptive buckets, stacked by a selectable dimension
 	// (model / session / account). TokensSampled events carry now_secs, so this is
 	// pure client-side aggregation.
 	type BurnBy = 'model' | 'session' | 'account';
 	let burnBy = $state<BurnBy>('model');
-	let hiddenGroups = $state<string[]>([]);
-	const setBurnBy = (b: BurnBy) => {
-		burnBy = b;
-		hiddenGroups = []; // group names change with the dimension — stale hides would stick
-	};
-	const toggleGroup = (g: string) => {
-		hiddenGroups = hiddenGroups.includes(g)
-			? hiddenGroups.filter((x) => x !== g)
-			: [...hiddenGroups, g];
-	};
 
-	const BURN_W = 600;
-	const BURN_H = 140;
-	const BURN_PAD = { top: 8, right: 8, bottom: 24, left: 48 };
 	/** Legend cap: groups beyond the top N fold into "other" (sessions can be many). */
 	const BURN_TOP_GROUPS = 7;
 
-	const burnData = $derived.by(() => {
+	const burnChart = $derived.by(() => {
 		const samples: TokenSample[] = (data.tokens ?? []).filter((s) => (s.now_secs ?? 0) > 0);
 		if (samples.length === 0) return null;
 
@@ -288,12 +265,6 @@
 			...ranked.slice(0, BURN_TOP_GROUPS),
 			...(ranked.length > BURN_TOP_GROUPS ? ['other'] : []),
 		];
-		const groupColor = new Map(
-			groups.map((g, i) => [
-				g,
-				g === 'other' ? 'oklch(70% 0.02 270)' : CHART_PALETTE[i % CHART_PALETTE.length],
-			])
-		);
 
 		// Adaptive buckets: ~40 across the sample span, snapped to 5-minute multiples.
 		const times = samples.map((s) => s.now_secs);
@@ -310,39 +281,20 @@
 			sums[i].set(g, (sums[i].get(g) ?? 0) + tokensOf(s));
 		}
 
-		const visible = groups.filter((g) => !hiddenGroups.includes(g));
-		// Per-group lines (not stacked): the ceiling is the largest single group bucket.
-		const maxVal = Math.max(
-			...sums.flatMap((m) => visible.map((g) => m.get(g) ?? 0)),
-			1
-		);
-
-		const innerW = BURN_W - BURN_PAD.left - BURN_PAD.right;
-		const innerH = BURN_H - BURN_PAD.top - BURN_PAD.bottom;
-		const tEnd = tMin + nBuckets * bucket;
-		const px = (t: number) => BURN_PAD.left + ((t - tMin) / (tEnd - tMin)) * innerW;
-		const py = (v: number) => BURN_PAD.top + innerH - (v / maxVal) * innerH;
-
-		const series = visible.map((g) => {
-			const pts = sums.map((m, i) => {
-				const t0 = tMin + i * bucket;
-				const v = m.get(g) ?? 0;
-				return { x: px(t0 + bucket / 2), y: py(v), v, t0, t1: t0 + bucket };
-			});
-			return {
-				g,
-				color: groupColor.get(g) ?? CHART_PALETTE[0],
-				pts,
-				path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
-			};
-		});
-
-		const yTicks = [0, 0.5, 1].map((f) => ({
-			y: BURN_PAD.top + innerH * (1 - f),
-			label: Math.round(maxVal * f).toLocaleString(),
+		const series = groups.map((g, i) => ({
+			name: g,
+			type: 'line' as const,
+			smooth: 0.2,
+			symbolSize: 6,
+			color: g === 'other' ? '#a1a1aa' : CHART_PALETTE[i % CHART_PALETTE.length],
+			emphasis: { focus: 'series' as const },
+			data: sums.map((m, idx) => [
+				(tMin + idx * bucket + bucket / 2) * 1000,
+				Math.ceil(m.get(g) ?? 0),
+			]),
 		}));
 
-		return { series, yTicks, groups, groupColor, tMin, tEnd, bucket, nBuckets };
+		return { option: { ...baseTimeOption(), series }, bucket };
 	});
 
 	// ── Model breakdown chart ────────────────────────────────────────────────
@@ -383,14 +335,8 @@
 		return { rows, bars, LABEL_W, BAR_W, BAR_H, chartH, total: samples.length };
 	});
 
-	// Behaviour filters: window kind + clickable legend (hidden accounts).
+	// Behaviour filter: window kind (the account filter is ECharts' native legend).
 	let kindFilter = $state<'all' | 'Rolling5h' | 'Weekly'>('all');
-	let hiddenAccounts = $state<string[]>([]);
-	const toggleAccount = (a: string) => {
-		hiddenAccounts = hiddenAccounts.includes(a)
-			? hiddenAccounts.filter((x) => x !== a)
-			: [...hiddenAccounts, a];
-	};
 
 	const CHART_PALETTE = [
 		'oklch(60% 0.22 250)',  // blue
@@ -402,67 +348,67 @@
 		'oklch(65% 0.15 200)',  // cyan
 	];
 
-	const chartData = $derived.by(() => {
+	/** Compact axis labels: 46_000_000 → 46M. */
+	const compactNum = (v: number) =>
+		v >= 1e6 ? `${Math.round(v / 1e5) / 10}M` : v >= 1e3 ? `${Math.round(v / 100) / 10}k` : `${v}`;
+
+	/** Shared interactive scaffolding for both time charts. */
+	const baseTimeOption = () => ({
+		animationDuration: 300,
+		grid: { left: 56, right: 16, top: 32, bottom: 52 },
+		legend: {
+			type: 'scroll' as const,
+			top: 0,
+			icon: 'circle',
+			itemWidth: 8,
+			itemHeight: 8,
+			textStyle: { fontSize: 10, color: '#71717a' },
+		},
+		tooltip: {
+			trigger: 'axis' as const,
+			axisPointer: { type: 'cross' as const },
+			textStyle: { fontSize: 11 },
+			valueFormatter: (v: unknown) => Number(v).toLocaleString(),
+		},
+		xAxis: {
+			type: 'time' as const,
+			axisLabel: { fontSize: 9, color: '#71717a' },
+			axisLine: { lineStyle: { color: '#d4d4d8' } },
+		},
+		yAxis: {
+			type: 'value' as const,
+			axisLabel: { fontSize: 9, color: '#71717a', formatter: compactNum },
+			splitLine: { lineStyle: { color: '#e4e4e7' } },
+		},
+		dataZoom: [
+			{ type: 'inside' as const },
+			{ type: 'slider' as const, height: 14, bottom: 8, borderColor: 'transparent' },
+		],
+	});
+
+	const historyChart = $derived.by(() => {
 		// Idle rollovers (the actor tick emits a WindowReset every time an untouched window
 		// turns over) carry consumed≈0 — bookkeeping, not history: dropped here.
 		const all: WindowReset[] = (data.history ?? []).filter((r) => r.consumed >= 1);
 		if (all.length === 0) return null;
 
-		// Legend always lists every account so a hidden one can be re-enabled.
 		const accounts = [...new Set(all.map((r) => r.account))];
-		const acctColor = new Map(accounts.map((a, i) => [a, CHART_PALETTE[i % CHART_PALETTE.length]]));
+		const resets = all.filter((r) => kindFilter === 'all' || r.kind === kindFilter);
 
-		const resets = all.filter(
-			(r) => (kindFilter === 'all' || r.kind === kindFilter) && !hiddenAccounts.includes(r.account)
-		);
-
-		const innerW = CHART_W - CHART_PAD.left - CHART_PAD.right;
-		const innerH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
-
-		if (resets.length === 0) {
-			return { accounts, acctColor, series: [], yTicks: [], xLabels: [], shown: 0 };
-		}
-
-		// Real time axis: x = the instant the window ended.
-		const tMin = Math.min(...resets.map((r) => r.resets_at_secs));
-		const tMax = Math.max(...resets.map((r) => r.resets_at_secs));
-		const span = Math.max(tMax - tMin, 1);
-		const maxConsumed = Math.max(...resets.map((r) => r.consumed), 1);
-		const px = (t: number) => CHART_PAD.left + ((t - tMin) / span) * innerW;
-		const py = (v: number) => CHART_PAD.top + innerH - (v / maxConsumed) * innerH;
-
-		// One polyline per visible account, points sorted by time.
-		const series = accounts
-			.filter((a) => !hiddenAccounts.includes(a))
-			.map((a) => {
-				const pts = resets
-					.filter((r) => r.account === a)
-					.sort((x, y) => x.resets_at_secs - y.resets_at_secs)
-					.map((r) => ({ x: px(r.resets_at_secs), y: py(r.consumed), r }));
-				return {
-					account: a,
-					color: acctColor.get(a) ?? CHART_PALETTE[0],
-					pts,
-					path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '),
-				};
-			})
-			.filter((s) => s.pts.length > 0);
-
-		const yTicks = [0, 0.5, 1].map((f) => ({
-			y: CHART_PAD.top + innerH * (1 - f),
-			label: Math.round(maxConsumed * f).toLocaleString(),
+		const series = accounts.map((a, i) => ({
+			name: a,
+			type: 'line' as const,
+			smooth: 0.2,
+			symbolSize: 6,
+			color: CHART_PALETTE[i % CHART_PALETTE.length],
+			emphasis: { focus: 'series' as const },
+			data: resets
+				.filter((r) => r.account === a)
+				.sort((x, y) => x.resets_at_secs - y.resets_at_secs)
+				.map((r) => [r.resets_at_secs * 1000, Math.ceil(r.consumed)]),
 		}));
 
-		const xLabels =
-			tMax === tMin
-				? [{ x: CHART_PAD.left, label: fmtShort(tMin), anchor: 'start' }]
-				: [
-						{ x: CHART_PAD.left, label: fmtShort(tMin), anchor: 'start' },
-						{ x: CHART_PAD.left + innerW / 2, label: fmtShort(tMin + span / 2), anchor: 'middle' },
-						{ x: CHART_W - CHART_PAD.right, label: fmtShort(tMax), anchor: 'end' },
-					];
-
-		return { accounts, acctColor, series, yTicks, xLabels, shown: resets.length };
+		return { option: { ...baseTimeOption(), series }, shown: resets.length };
 	});
 </script>
 
@@ -634,17 +580,6 @@
 		background-color: var(--gw-color-surface); color: var(--gw-color-text);
 		border-color: var(--gw-color-primary);
 	}
-
-	/* Clickable chart legend entry — dims when its series is hidden */
-	.legend-toggle {
-		display: inline-flex; align-items: center; gap: 4px;
-		background: none; border: none; padding: 0; cursor: pointer;
-		font-family: var(--gw-font-mono); font-size: 10px;
-		color: var(--gw-color-text-muted);
-		transition: opacity 120ms, color 120ms;
-	}
-	.legend-toggle:hover { color: var(--gw-color-text); }
-	.legend-off { opacity: 0.35; text-decoration: line-through; }
 
 	/* Sortable column header — inherits the th typography */
 	.th-sort {
@@ -909,7 +844,7 @@
 	{/if}
 
 	<!-- ── History chart ──────────────────────────────────────────────────── -->
-	{#if chartData}
+	{#if historyChart}
 		<section class="entry entry-2 bezel" aria-label="Token usage history">
 			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
 				<div class="mb-[var(--gw-space-2)] flex flex-wrap items-center justify-between gap-[var(--gw-space-2)]">
@@ -926,79 +861,17 @@
 							onclick={() => (kindFilter = 'Weekly')}>Weekly</button>
 					</div>
 				</div>
-				<!-- Clickable legend: toggles account series -->
-				<div class="mb-[var(--gw-space-2)] flex flex-wrap items-center gap-[var(--gw-space-3)]">
-					{#each chartData.accounts as acct (acct)}
-						<button type="button" class="legend-toggle {hiddenAccounts.includes(acct) ? 'legend-off' : ''}"
-							onclick={() => toggleAccount(acct)} title="Click to toggle">
-							<span class="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-								style="background-color:{chartData.acctColor.get(acct)}"></span>
-							{acct}
-						</button>
-					{/each}
-				</div>
-				{#if chartData.series.length > 0}
-					<svg
-						width="100%"
-						viewBox="0 0 {CHART_W} {CHART_H}"
-						preserveAspectRatio="none"
-						style="display:block; height:{CHART_H}px; overflow:visible"
-						aria-hidden="true"
-					>
-						<!-- Y-axis grid + labels -->
-						{#each chartData.yTicks as tick}
-							<line
-								x1={CHART_PAD.left} y1={tick.y}
-								x2={CHART_W - CHART_PAD.right} y2={tick.y}
-								stroke="var(--gw-color-border-subtle)" stroke-width="1"
-							/>
-							<text x={CHART_PAD.left - 4} y={tick.y + 3.5}
-								text-anchor="end" font-size="8"
-								fill="var(--gw-color-text-muted)"
-								font-family="var(--gw-font-mono)">{tick.label}</text>
-						{/each}
-						<!-- One line per account, dots on each window reset -->
-						{#each chartData.series as s (s.account)}
-							{#if s.pts.length > 1}
-								<path d={s.path} fill="none" stroke={s.color} stroke-width="1.5"
-									stroke-linejoin="round" stroke-linecap="round" opacity="0.85"
-									vector-effect="non-scaling-stroke" />
-							{/if}
-							{#each s.pts as p}
-								<circle cx={p.x} cy={p.y} r="2.5" fill={s.color}>
-									<title>{p.r.account} · {p.r.kind} · {Math.ceil(p.r.consumed).toLocaleString()} units · reset {fmtTime(p.r.resets_at_secs)}</title>
-								</circle>
-							{/each}
-						{/each}
-						<!-- X baseline -->
-						<line
-							x1={CHART_PAD.left} y1={CHART_H - CHART_PAD.bottom}
-							x2={CHART_W - CHART_PAD.right} y2={CHART_H - CHART_PAD.bottom}
-							stroke="var(--gw-color-border-subtle)" stroke-width="1"
-						/>
-						<!-- X time labels -->
-						{#each chartData.xLabels as xl}
-							<text
-								x={xl.x} y={CHART_H - CHART_PAD.bottom + 12}
-								text-anchor={xl.anchor} font-size="8"
-								fill="var(--gw-color-text-muted)"
-								font-family="var(--gw-font-mono)">{xl.label}</text>
-						{/each}
-					</svg>
-					<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
-						{chartData.shown} window reset{chartData.shown === 1 ? '' : 's'} shown
-					</p>
-				{:else}
-					<p class="py-[var(--gw-space-4)] text-center text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-						Nothing matches the current filters.
-					</p>
-				{/if}
+				<EChart option={historyChart.option} height={240} />
+				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
+					{historyChart.shown} window reset{historyChart.shown === 1 ? '' : 's'} shown ·
+					scroll/drag to zoom · click legend to toggle accounts
+				</p>
 			</div>
 		</section>
 	{/if}
 
 	<!-- ── Burn-rate chart (over time, by model/session/account) ───────────── -->
-	{#if burnData}
+	{#if burnChart}
 		<section class="entry entry-2 bezel" aria-label="Token burn over time">
 			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
 				<div class="mb-[var(--gw-space-3)] flex flex-wrap items-center justify-between gap-[var(--gw-space-2)]">
@@ -1007,73 +880,16 @@
 					</h2>
 					<div class="flex items-center gap-[var(--gw-space-1)]" role="group" aria-label="Group burn chart by">
 						<button type="button" class="burn-toggle {burnBy === 'model' ? 'burn-toggle-active' : ''}"
-							onclick={() => setBurnBy('model')}>Model</button>
+							onclick={() => (burnBy = 'model')}>Model</button>
 						<button type="button" class="burn-toggle {burnBy === 'session' ? 'burn-toggle-active' : ''}"
-							onclick={() => setBurnBy('session')}>Session</button>
+							onclick={() => (burnBy = 'session')}>Session</button>
 						<button type="button" class="burn-toggle {burnBy === 'account' ? 'burn-toggle-active' : ''}"
-							onclick={() => setBurnBy('account')}>Account</button>
+							onclick={() => (burnBy = 'account')}>Account</button>
 					</div>
 				</div>
-				<!-- Clickable legend: toggles group series -->
-				<div class="mb-[var(--gw-space-2)] flex flex-wrap items-center gap-[var(--gw-space-3)]">
-					{#each burnData.groups as g (g)}
-						<button type="button" class="legend-toggle {hiddenGroups.includes(g) ? 'legend-off' : ''}"
-							onclick={() => toggleGroup(g)} title={g}>
-							<span class="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-								style="background-color:{burnData.groupColor.get(g)}"></span>
-							{g.length > 24 ? g.slice(0, 21) + '…' : g}
-						</button>
-					{/each}
-				</div>
-				<svg
-					width="100%"
-					viewBox="0 0 {BURN_W} {BURN_H}"
-					preserveAspectRatio="none"
-					style="display:block; height:{BURN_H}px; overflow:visible"
-					aria-hidden="true"
-				>
-					<!-- Y-axis grid + labels -->
-					{#each burnData.yTicks as tick}
-						<line
-							x1={BURN_PAD.left} y1={tick.y}
-							x2={BURN_W - BURN_PAD.right} y2={tick.y}
-							stroke="var(--gw-color-border-subtle)" stroke-width="1"
-						/>
-						<text x={BURN_PAD.left - 4} y={tick.y + 3.5}
-							text-anchor="end" font-size="8"
-							fill="var(--gw-color-text-muted)"
-							font-family="var(--gw-font-mono)">{tick.label}</text>
-					{/each}
-					<!-- One line per group, dots on each bucket -->
-					{#each burnData.series as s (s.g)}
-						{#if s.pts.length > 1}
-							<path d={s.path} fill="none" stroke={s.color} stroke-width="1.5"
-								stroke-linejoin="round" stroke-linecap="round" opacity="0.85"
-								vector-effect="non-scaling-stroke" />
-						{/if}
-						{#each s.pts as p}
-							{#if p.v > 0 || burnData.nBuckets === 1}
-								<circle cx={p.x} cy={p.y} r="2.5" fill={s.color}>
-									<title>{s.g} · {Math.ceil(p.v).toLocaleString()} tokens · {fmtShort(p.t0)} – {fmtShort(p.t1)}</title>
-								</circle>
-							{/if}
-						{/each}
-					{/each}
-					<!-- X baseline + time labels -->
-					<line
-						x1={BURN_PAD.left} y1={BURN_H - BURN_PAD.bottom}
-						x2={BURN_W - BURN_PAD.right} y2={BURN_H - BURN_PAD.bottom}
-						stroke="var(--gw-color-border-subtle)" stroke-width="1"
-					/>
-					<text x={BURN_PAD.left} y={BURN_H - BURN_PAD.bottom + 12}
-						text-anchor="start" font-size="8" fill="var(--gw-color-text-muted)"
-						font-family="var(--gw-font-mono)">{fmtShort(burnData.tMin)}</text>
-					<text x={BURN_W - BURN_PAD.right} y={BURN_H - BURN_PAD.bottom + 12}
-						text-anchor="end" font-size="8" fill="var(--gw-color-text-muted)"
-						font-family="var(--gw-font-mono)">{fmtShort(burnData.tEnd)}</text>
-				</svg>
+				<EChart option={burnChart.option} height={220} />
 				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
-					{Math.round(burnData.bucket / 60)}min buckets
+					{Math.round(burnChart.bucket / 60)}min buckets · scroll/drag to zoom · click legend to toggle
 				</p>
 			</div>
 		</section>
