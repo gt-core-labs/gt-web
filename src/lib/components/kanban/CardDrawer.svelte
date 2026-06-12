@@ -13,6 +13,7 @@
 	import AssigneeSelect from '$lib/components/tracker/AssigneeSelect.svelte';
 	import DependsOnEditor from '$lib/components/tracker/DependsOnEditor.svelte';
 	import { Markdown, Spinner } from '$lib/components/ui';
+	import { Icon } from '$lib/ui';
 
 	interface Props {
 		card: BoardCard;
@@ -32,6 +33,13 @@
 	let replyTo = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state('');
+	let copied = $state(false);
+
+	async function copyId() {
+		await navigator.clipboard.writeText(card.id);
+		copied = true;
+		setTimeout(() => (copied = false), 1500);
+	}
 
 	// (Re)load detail + thread whenever the drawer targets another card.
 	$effect(() => {
@@ -128,7 +136,18 @@
 	>
 	<header class="flex items-start justify-between gap-3 border-b border-[var(--gw-color-border)] p-4">
 		<div class="min-w-0">
-			<p class="font-mono text-xs text-[var(--gw-color-text-muted)]">{card.id}</p>
+			<p class="flex items-center gap-1.5 font-mono text-xs text-[var(--gw-color-text-muted)]">
+				{card.id}
+				<button
+					class="rounded p-0.5 hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]"
+					title="Copy id"
+					aria-label="Copy bead id"
+					onclick={copyId}
+				>
+					<Icon icon={copied ? 'lucide:check' : 'lucide:copy'} size={12} />
+				</button>
+				{#if copied}<span class="text-[10px] text-emerald-500">copied</span>{/if}
+			</p>
 			<h2 class="truncate text-base font-semibold">{card.title}</h2>
 		</div>
 		<div class="flex shrink-0 items-center gap-1">
