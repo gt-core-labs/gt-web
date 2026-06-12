@@ -34,9 +34,9 @@
 	aria-label="View"
 >
 	{#each VIEWS as v (v.key)}
-		{@const onCalendar = $page.url.pathname.startsWith('/calendar')}
-		{@const active = onCalendar
-			? (v.key === 'timeline') === ($page.url.searchParams.get('mode') === 'timeline')
+		{@const timelineMode = $page.url.searchParams.get('mode') === 'timeline'}
+		{@const active = $page.url.pathname.startsWith('/calendar')
+			? (timelineMode ? v.key === 'timeline' : v.key === 'calendar')
 			: $page.url.pathname.startsWith('/' + v.key)}
 		<a
 			class="flex items-center p-1.5 transition-colors {active
