@@ -2,6 +2,7 @@
 	import { hasScope } from '$lib/api/auth';
 	import { type IssueRow } from '$lib/api/tracker';
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
+	import { Icon } from '$lib/ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -74,6 +75,13 @@
 				{/if}
 			</p>
 		</div>
+
+		<a
+			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)]"
+			href="/planning"
+			title="Planning view"
+			aria-label="Switch to planning view"
+		><Icon icon="lucide:calendar-range" size={16} /></a>
 
 		<div class="flex items-center gap-1 text-sm">
 			<button

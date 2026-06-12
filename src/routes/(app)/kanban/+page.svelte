@@ -12,6 +12,8 @@
 	import { hasScope } from '$lib/api/auth';
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
+	import { Icon } from '$lib/ui';
+	import { Spinner } from '$lib/components/ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -30,6 +32,7 @@
 	let showCreate = $state(false);
 	let reportBusy = $state(false);
 	let reportMsg = $state('');
+	let reportDoc = $state<{ id: string; filename: string } | null>(null);
 
 	const COLUMNS: { status: IssueStatus; label: string; accent: string }[] = [
 		{ status: 'open', label: 'Pending', accent: 'var(--gw-color-primary)' },
@@ -136,14 +139,17 @@
 	async function generateReport() {
 		reportBusy = true;
 		reportMsg = '';
+		reportDoc = null;
 		try {
 			const r = await browserReport().generate({ ...scopeKey, format: 'xlsx' });
-			reportMsg = `Report ${r.filename} generated (${r.rows} tasks, TOTAL ${r.total_horas}h) — document ${r.document_id}`;
+			reportMsg = `Report ${r.filename} generated (${r.rows} tasks, TOTAL ${r.total_horas}h)`;
+			reportDoc = { id: r.document_id, filename: r.filename };
 		} catch (e) {
 			// xlsx needs the object store; csv always works.
 			try {
 				const r = await browserReport().generate({ ...scopeKey, format: 'csv' });
 				reportMsg = `CSV report ${r.filename} generated (${r.rows} tasks, TOTAL ${r.total_horas}h)`;
+				reportDoc = { id: r.document_id, filename: r.filename };
 			} catch (e2) {
 				reportMsg = e2 instanceof TrackerError ? e2.message : String(e2);
 			}
@@ -195,18 +201,35 @@
 			>New task</button>
 		{/if}
 		<button
-			class="rounded border border-[var(--gw-color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)] disabled:opacity-50"
+			title="Generate xlsx report (operator spreadsheet)"
+			aria-label="Generate xlsx report"
 			disabled={reportBusy}
 			onclick={generateReport}
-		>{reportBusy ? 'Generating…' : 'Report'}</button>
+		>{#if reportBusy}<Spinner size={1} />{:else}<Icon icon="lucide:file-spreadsheet" size={16} />{/if}</button>
 		<button
-			class="rounded border border-[var(--gw-color-border)] px-3 py-1.5 text-sm {data.archived ? 'bg-[var(--gw-color-surface-2)]' : ''}"
+			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)] {data.archived ? 'bg-[var(--gw-color-surface-2)]' : ''}"
+			title={data.archived ? 'Back to board' : 'View archived'}
+			aria-label={data.archived ? 'Back to board' : 'View archived'}
 			onclick={() => setParam('archived', data.archived ? '' : '1')}
-		>{data.archived ? '← Back to board' : 'View archived'}</button>
+		><Icon icon={data.archived ? 'lucide:archive-restore' : 'lucide:archive'} size={16} /></button>
 	</header>
 
 	{#if error}<p class="text-sm text-[var(--gw-color-danger)]">{error}</p>{/if}
-	{#if reportMsg}<p class="text-sm text-[var(--gw-color-text-muted)]">{reportMsg}</p>{/if}
+	{#if reportMsg}
+		<p class="text-sm text-[var(--gw-color-text-muted)]">
+			{reportMsg}
+			{#if reportDoc}
+				<a
+					class="inline-flex translate-y-0.5 items-center text-[var(--gw-color-primary)] hover:underline"
+					href="/api/v1/documents/{encodeURIComponent(reportDoc.id)}/download"
+					download={reportDoc.filename}
+					title="Download {reportDoc.filename}"
+					aria-label="Download {reportDoc.filename}"
+				><Icon icon="lucide:download" size={14} /></a>
+			{/if}
+		</p>
+	{/if}
 
 	<!-- Board -->
 	<div class="grid min-h-0 flex-1 grid-cols-3 gap-3">

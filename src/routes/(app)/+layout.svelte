@@ -39,7 +39,6 @@
 		{ href: '/', label: 'Home', scope: null, icon: 'lucide:home' },
 		{ href: '/kanban', label: 'Kanban', scope: 'issues.read', icon: 'lucide:kanban' },
 		{ href: '/planning', label: 'Planning', scope: 'issues.read', icon: 'lucide:calendar-range' },
-		{ href: '/calendar', label: 'Calendar', scope: 'issues.read', icon: 'lucide:calendar' },
 		{ href: '/analytics', label: 'Analytics', scope: 'issues.read', icon: 'lucide:line-chart' },
 		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read', icon: 'lucide:workflow' },
 		{ href: '/agents', label: 'Agents', scope: 'tokens.read', icon: 'lucide:bot' },
