@@ -19,6 +19,25 @@
 
 	let { data }: { data: PageData } = $props();
 
+	// Restore the last-selected board view (hq-cf7c61): redirect away if the
+	// user previously picked a different view via the ViewSwitcher.
+	const VIEW_MAP: Record<string, string> = {
+		calendar: '/calendar?mode=month',
+		timeline: '/calendar?mode=timeline',
+		kanban: '/kanban',
+		planning: '/planning'
+	};
+	$effect(() => {
+		try {
+			const stored = localStorage.getItem('gt:board-view');
+			if (stored && stored !== 'kanban' && stored in VIEW_MAP) {
+				goto(VIEW_MAP[stored], { replaceState: true });
+			}
+		} catch {
+			/* storage unavailable */
+		}
+	});
+
 	// Server snapshot, patched optimistically on drag and refreshed by SSE.
 	let columns = $state<BoardColumn[]>([]);
 	$effect(() => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { browserReport } from '$lib/api/board';
 	import { browserTracker, ISSUE_TYPES, TrackerError, parseJsonArray, type IssueRow } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
@@ -12,6 +12,25 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// Restore the last-selected board view (hq-cf7c61): redirect away if the
+	// user previously picked a different view via the ViewSwitcher.
+	const VIEW_MAP: Record<string, string> = {
+		calendar: '/calendar?mode=month',
+		timeline: '/calendar?mode=timeline',
+		kanban: '/kanban',
+		planning: '/planning'
+	};
+	$effect(() => {
+		try {
+			const stored = localStorage.getItem('gt:board-view');
+			if (stored && stored !== 'planning' && stored in VIEW_MAP) {
+				goto(VIEW_MAP[stored], { replaceState: true });
+			}
+		} catch {
+			/* storage unavailable */
+		}
+	});
 
 	let rows = $state<IssueRow[]>([]);
 	$effect(() => {
