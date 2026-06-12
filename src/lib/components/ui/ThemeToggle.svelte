@@ -1,14 +1,13 @@
 <script lang="ts">
-	import { theme, type ThemeMode } from '$lib/stores/theme.svelte';
+	import { theme } from '$lib/stores/theme.svelte';
 
-	// Header control that cycles light → dark → system (gw-ui-redesign.5). Icon-only
-	// with a descriptive aria-label/title so the current mode is announced.
-	const meta: Record<ThemeMode, { glyph: string; label: string }> = {
+	// Header control toggling light ↔ dark over the resolved scheme (hq-5c91d3).
+	// Icon-only with a descriptive aria-label/title so the current mode is announced.
+	const meta = {
 		light: { glyph: '☀', label: 'Tema: claro' },
-		dark: { glyph: '☾', label: 'Tema: oscuro' },
-		system: { glyph: '◑', label: 'Tema: sistema' }
-	};
-	const current = $derived(meta[theme.mode]);
+		dark: { glyph: '☾', label: 'Tema: oscuro' }
+	} as const;
+	const current = $derived(meta[theme.resolved]);
 </script>
 
 <button

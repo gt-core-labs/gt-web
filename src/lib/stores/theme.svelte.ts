@@ -14,7 +14,6 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export const STORAGE_KEY = 'gw-theme';
-const MODES: ThemeMode[] = ['light', 'dark', 'system'];
 
 function isMode(v: string | null): v is ThemeMode {
 	return v === 'light' || v === 'dark' || v === 'system';
@@ -68,9 +67,15 @@ class Theme {
 		apply(mode);
 	}
 
-	/** Cycle light → dark → system → light (drives the header toggle). */
+	/** The concrete scheme in effect ('system' resolved to the OS scheme). */
+	get resolved(): 'light' | 'dark' {
+		return resolve(this.mode);
+	}
+
+	/** Two-state toggle over the RESOLVED scheme (hq-5c91d3): a legacy stored
+	 * 'system' lands on the opposite concrete mode on first click. */
 	cycle(): void {
-		this.set(MODES[(MODES.indexOf(this.mode) + 1) % MODES.length]);
+		this.set(this.resolved === 'dark' ? 'light' : 'dark');
 	}
 }
 
