@@ -27,6 +27,7 @@
 
 	const canWrite = $derived(hasScope(data.user?.scopes, 'issues.write'));
 	const scopeKey = $derived({ rig: data.rig, workspace: data.boardWorkspace });
+	const totalCards = $derived(columns.reduce((acc, c) => acc + c.cards.length, 0));
 
 	let error = $state('');
 	let selected = $state<BoardCard | null>(null);
@@ -168,7 +169,7 @@
 	<!-- Intro / toolbar -->
 	<header class="flex flex-wrap items-center gap-3">
 		<div class="min-w-0 flex-1">
-			<h1 class="text-lg font-semibold">Kanban · {data.rig}</h1>
+			<h1 class="text-lg font-semibold">Kanban · {data.rig} <span class="rounded bg-[var(--gw-color-primary)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--gw-color-primary)]">{totalCards} tareas</span></h1>
 			<p class="text-xs text-[var(--gw-color-text-muted)]">
 				Board {data.rig}/{data.boardWorkspace} — drag to move; order persists (lexorank).
 			</p>

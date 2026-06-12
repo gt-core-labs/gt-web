@@ -114,6 +114,7 @@
 		);
 	});
 	const totalHours = $derived(sections.reduce((acc, s) => acc + s.hours, 0));
+	const totalTasks = $derived(sections.reduce((acc, s) => acc + s.items.length, 0));
 
 	const STATUS: Record<string, { label: string; cls: string }> = {
 		open: { label: 'Pending', cls: 'bg-[var(--gw-color-surface-2)] text-[var(--gw-color-text-muted)]' },
@@ -240,7 +241,7 @@
 <div class="space-y-4 p-4">
 	<header class="flex flex-wrap items-center gap-3">
 		<div class="min-w-0 flex-1">
-			<h1 class="text-lg font-semibold">Planning · {data.rig}</h1>
+			<h1 class="text-lg font-semibold">Planning · {data.rig} <span class="rounded bg-[var(--gw-color-primary)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--gw-color-primary)]">{totalTasks} tareas</span></h1>
 			<p class="text-xs text-[var(--gw-color-text-muted)]">
 				Grouped by {groupBy === 'week' ? 'week' : 'module (epic)'} — edit hours/dates/assignee inline; click a task to open its card.
 			</p>
