@@ -261,7 +261,6 @@
 				onclick={() => (showCreate = true)}
 			>New task</button>
 		{/if}
-		<ViewSwitcher active="planning" />
 		<button
 			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)]"
 			title="Export CSV (visible rows)"
@@ -281,7 +280,8 @@
 			title={data.archived ? 'Back to planning' : 'View archived'}
 			aria-label={data.archived ? 'Back to planning' : 'View archived'}
 		><Icon icon={data.archived ? 'lucide:archive-restore' : 'lucide:archive'} size={16} /></a>
-		<a class="text-sm text-[var(--gw-color-primary)] hover:underline" href="/kanban">View Kanban →</a>
+
+		<ViewSwitcher active="planning" />
 	</header>
 
 	{#if error}<p class="text-sm text-[var(--gw-color-danger)]">{error}</p>{/if}

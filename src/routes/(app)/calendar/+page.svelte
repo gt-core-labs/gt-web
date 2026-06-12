@@ -172,8 +172,6 @@
 			</p>
 		</div>
 
-		<ViewSwitcher active={mode === 'timeline' ? 'timeline' : 'calendar'} />
-
 		<div class="flex items-center gap-1 text-sm">
 			<button
 				class="rounded border border-[var(--gw-color-border)] px-2 py-1 hover:bg-[var(--gw-color-surface-2)]"
@@ -191,6 +189,8 @@
 			>→</button>
 		</div>
 		<h2 class="w-44 text-right text-sm font-semibold">{monthLabel}</h2>
+
+		<ViewSwitcher active={mode === 'timeline' ? 'timeline' : 'calendar'} />
 	</header>
 
 	{#if mode === 'timeline'}
