@@ -304,8 +304,9 @@
 	});
 
 	// ── Model breakdown chart ────────────────────────────────────────────────
-	// Aggregate TokensSampled events by model: total input / output / cache per model.
-	const modelData = $derived.by(() => {
+	// Aggregate TokensSampled events by model, rendered as an ECharts horizontal
+	// stacked bar (gallery: bar-y-category-stack, gtweb-f3a794).
+	const modelChart = $derived.by(() => {
 		const samples: TokenSample[] = data.tokens ?? [];
 		if (samples.length === 0) return null;
 
@@ -320,25 +321,57 @@
 			existing.total += s.input + s.output + s.cache_read + s.cache_creation;
 			byModel.set(key, existing);
 		}
-		const rows = [...byModel.values()].sort((a, b) => b.total - a.total);
-		const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+		// Ascending so the heaviest model lands on the top row of the category axis.
+		const rows = [...byModel.values()].sort((a, b) => a.total - b.total);
 
-		// Bar dimensions
-		const BAR_H = 18;
-		const BAR_GAP = 10;
-		const LABEL_W = 160;
-		const BAR_W = 340;
-		const chartH = rows.length * (BAR_H + BAR_GAP) + 4;
-
-		const bars = rows.map((r, i) => {
-			const y = i * (BAR_H + BAR_GAP);
-			const inputW = (r.input / maxTotal) * BAR_W;
-			const outputW = (r.output / maxTotal) * BAR_W;
-			const cacheW = (r.cache / maxTotal) * BAR_W;
-			return { ...r, y, inputW, outputW, cacheW };
+		const mk = (name: string, key: 'input' | 'output' | 'cache', color: string) => ({
+			name,
+			type: 'bar' as const,
+			stack: 'total',
+			color,
+			emphasis: { focus: 'series' as const },
+			data: rows.map((r) => r[key]),
 		});
 
-		return { rows, bars, LABEL_W, BAR_W, BAR_H, chartH, total: samples.length };
+		const option = {
+			animationDuration: 300,
+			grid: { left: 8, right: 48, top: 32, bottom: 8, containLabel: true },
+			legend: {
+				top: 0,
+				icon: 'circle',
+				itemWidth: 8,
+				itemHeight: 8,
+				textStyle: { fontSize: 10, color: '#71717a' },
+			},
+			tooltip: {
+				trigger: 'axis' as const,
+				axisPointer: { type: 'shadow' as const },
+				textStyle: { fontSize: 11 },
+				valueFormatter: (v: unknown) => Number(v).toLocaleString(),
+			},
+			xAxis: {
+				type: 'value' as const,
+				axisLabel: { fontSize: 9, color: '#71717a', formatter: compactNum },
+				splitLine: { lineStyle: { color: '#e4e4e7' } },
+			},
+			yAxis: {
+				type: 'category' as const,
+				data: rows.map((r) => r.model),
+				axisLabel: { fontSize: 10, color: '#71717a' },
+			},
+			series: [
+				mk('Input', 'input', 'oklch(60% 0.22 250)'),
+				mk('Output', 'output', 'oklch(62% 0.20 160)'),
+				mk('Cache', 'cache', 'oklch(58% 0.12 80)'),
+			],
+		};
+
+		return {
+			option,
+			samples: samples.length,
+			models: rows.length,
+			height: Math.max(120, rows.length * 36 + 64),
+		};
 	});
 
 	// Behaviour filter: window kind (the account filter is ECharts' native legend).
@@ -902,66 +935,15 @@
 	{/if}
 
 	<!-- ── Model breakdown chart ───────────────────────────────────────────── -->
-	{#if modelData}
+	{#if modelChart}
 		<section class="entry entry-2 bezel" aria-label="Token usage by model">
 			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
-				<div class="mb-[var(--gw-space-4)] flex items-center justify-between">
-					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
-						Tokens by model
-					</h2>
-					<!-- Legend -->
-					<div class="flex items-center gap-[var(--gw-space-4)]">
-						{#each [['Input', 'oklch(60% 0.22 250)'], ['Output', 'oklch(62% 0.20 160)'], ['Cache', 'oklch(58% 0.12 80)']] as [label, color]}
-							<span class="flex items-center gap-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
-								<span class="inline-block h-2 w-3 rounded-[2px] flex-shrink-0" style="background-color:{color}"></span>
-								{label}
-							</span>
-						{/each}
-					</div>
-				</div>
-				<svg
-					width="100%"
-					viewBox="0 0 {modelData.LABEL_W + modelData.BAR_W + 8} {modelData.chartH}"
-					style="display:block; height:{modelData.chartH}px; overflow:visible"
-					aria-hidden="true"
-				>
-					{#each modelData.bars as bar}
-						<!-- Model label -->
-						<text
-							x={modelData.LABEL_W - 8} y={bar.y + modelData.BAR_H / 2 + 3.5}
-							text-anchor="end" font-size="10"
-							fill="var(--gw-color-text-muted)"
-							font-family="var(--gw-font-mono)"
-						>{bar.model}</text>
-						<!-- Input segment -->
-						<rect x={modelData.LABEL_W} y={bar.y}
-							width={bar.inputW} height={modelData.BAR_H}
-							fill="oklch(60% 0.22 250)" rx="2">
-							<title>{bar.model} · input: {bar.input.toLocaleString()}</title>
-						</rect>
-						<!-- Output segment -->
-						<rect x={modelData.LABEL_W + bar.inputW} y={bar.y}
-							width={bar.outputW} height={modelData.BAR_H}
-							fill="oklch(62% 0.20 160)" rx="2">
-							<title>{bar.model} · output: {bar.output.toLocaleString()}</title>
-						</rect>
-						<!-- Cache segment -->
-						<rect x={modelData.LABEL_W + bar.inputW + bar.outputW} y={bar.y}
-							width={bar.cacheW} height={modelData.BAR_H}
-							fill="oklch(58% 0.12 80)" rx="2">
-							<title>{bar.model} · cache: {bar.cache.toLocaleString()}</title>
-						</rect>
-						<!-- Total label -->
-						<text
-							x={modelData.LABEL_W + bar.inputW + bar.outputW + bar.cacheW + 6}
-							y={bar.y + modelData.BAR_H / 2 + 3.5}
-							font-size="9" fill="var(--gw-color-text-muted)"
-							font-family="var(--gw-font-mono)"
-						>{bar.total.toLocaleString()}</text>
-					{/each}
-				</svg>
-				<p class="mt-[var(--gw-space-2)] text-[10px] text-[var(--gw-color-text-muted)]">
-					{modelData.total.toLocaleString()} samples · {modelData.rows.length} model{modelData.rows.length === 1 ? '' : 's'}
+				<h2 class="mb-[var(--gw-space-2)] text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+					Tokens by model
+				</h2>
+				<EChart option={modelChart.option} height={modelChart.height} />
+				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
+					{modelChart.samples.toLocaleString()} samples · {modelChart.models} model{modelChart.models === 1 ? '' : 's'} · click legend to toggle
 				</p>
 			</div>
 		</section>
