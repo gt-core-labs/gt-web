@@ -9,6 +9,15 @@ export const load: PageServerLoad = async (event) => {
 	if (!hasScope(event.locals.user?.scopes, 'system.read'))
 		throw error(403, 'Requires system.read');
 
+	// Resolve the user's active rig prefix (same logic as /planning) so the
+	// test-report form defaults to the rig currently in focus, not the first
+	// alphabetical one (which is rarely what the operator wants).
+	const { activeRig, rigs: layoutRigs } = await event.parent();
+	const activeRigPrefix: string | null = activeRig
+		? (layoutRigs.find((r: { name: string; prefix?: string }) => r.name === activeRig)?.prefix ||
+			activeRig)
+		: null;
+
 	const describe = (err: unknown): string =>
 		err instanceof TrackerError
 			? err.status === 404
@@ -78,5 +87,5 @@ export const load: PageServerLoad = async (event) => {
 	}
 
 	const sessionWorkspace = event.locals.user?.workspace ?? null;
-	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes, sessionWorkspace };
+	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes, sessionWorkspace, activeRigPrefix };
 };

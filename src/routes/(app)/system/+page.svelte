@@ -113,7 +113,11 @@
 	// Test report state
 	let tKind = $state(data.reportKinds?.[0] ?? 'planning-digest');
 	let tWorkspace = $state(scopeWorkspaces()[0] ?? 'default');
-	let tRig = $state(defaultRigFor(scopeWorkspaces()[0] ?? 'default'));
+	let tRig = $state(
+		data.activeRigPrefix && rigOptionsFor(tWorkspace).includes(data.activeRigPrefix)
+			? data.activeRigPrefix
+			: defaultRigFor(tWorkspace)
+	);
 	let tEmail = $state('');
 	let testBusy = $state(false);
 	let testMessage = $state('');
