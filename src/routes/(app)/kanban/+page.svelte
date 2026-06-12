@@ -12,6 +12,7 @@
 	import { hasScope } from '$lib/api/auth';
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
+	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
 	import type { PageData } from './$types';
@@ -172,6 +173,8 @@
 				Board {data.rig}/{data.boardWorkspace} — drag to move; order persists (lexorank).
 			</p>
 		</div>
+
+		<ViewSwitcher active="kanban" />
 
 		<label class="text-xs">
 			Group by

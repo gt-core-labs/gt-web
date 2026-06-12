@@ -6,6 +6,7 @@
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import AssigneeSelect from '$lib/components/tracker/AssigneeSelect.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
+	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
 	import type { PageData } from './$types';
@@ -21,7 +22,24 @@
 	let error = $state('');
 	let showCreate = $state(false);
 	let selected = $state<IssueRow | null>(null);
+	// Group-by persists across reloads (hq-039316).
 	let groupBy = $state<'module' | 'week'>('week');
+	$effect(() => {
+		try {
+			const saved = localStorage.getItem('gt:planning-group');
+			if (saved === 'module' || saved === 'week') groupBy = saved;
+		} catch {
+			/* storage unavailable */
+		}
+	});
+	const setGroupBy = (v: 'module' | 'week') => {
+		groupBy = v;
+		try {
+			localStorage.setItem('gt:planning-group', v);
+		} catch {
+			/* storage unavailable */
+		}
+	};
 
 	// Module = epic (ADR D5, epic-per-module via external_ref). Epics title the
 	// sections and are not task rows; the no-module tail renders last.
@@ -231,7 +249,7 @@
 			{#each [['week', 'By week'], ['module', 'By module']] as [value, label] (value)}
 				<button
 					class="px-3 py-1.5 {groupBy === value ? 'bg-[var(--gw-color-primary)] text-white' : 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)]'}"
-					onclick={() => (groupBy = value as 'module' | 'week')}
+					onclick={() => setGroupBy(value as 'module' | 'week')}
 				>{label}</button>
 			{/each}
 		</div>
@@ -242,12 +260,7 @@
 				onclick={() => (showCreate = true)}
 			>New task</button>
 		{/if}
-		<a
-			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)]"
-			href="/calendar"
-			title="Calendar view"
-			aria-label="Switch to calendar view"
-		><Icon icon="lucide:calendar" size={16} /></a>
+		<ViewSwitcher active="planning" />
 		<button
 			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)]"
 			title="Export CSV (visible rows)"
