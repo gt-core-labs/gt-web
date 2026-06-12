@@ -106,8 +106,8 @@
 					fresh.push({
 						id: `${acct.id}:${was}→${acct.status}`,
 						message: activated
-							? `${acct.id} — cuenta reactivada (${was} → Healthy)`
-							: `${acct.id} — cuenta desactivada (${was} → ${acct.status})`,
+							? `${acct.id} — account reactivated (${was} → Healthy)`
+							: `${acct.id} — account deactivated (${was} → ${acct.status})`,
 						level: activated ? 'success' : 'warn',
 					});
 				}
@@ -136,7 +136,7 @@
 		const w = acct.window ?? acct.weekly_window ?? null;
 		if (!w) return null;
 		const rem = w.resets_at_secs - nowSecs;
-		if (rem <= 0) return 'pronto';
+		if (rem <= 0) return 'soon';
 		const h = Math.floor(rem / 3600);
 		const m = Math.floor((rem % 3600) / 60);
 		if (h > 0) return `${h}h ${m}m`;
@@ -369,7 +369,7 @@
 						{/if}
 					</span>
 					<span class="notif-msg">{n.message}</span>
-					<button class="notif-dismiss" onclick={() => dismissNotif(n.id)} aria-label="Cerrar notificación">
+					<button class="notif-dismiss" onclick={() => dismissNotif(n.id)} aria-label="Dismiss notification">
 						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
 							stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 							<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -579,7 +579,7 @@
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Resets</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
-								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Activa en</th>
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Activates in</th>
 							{#if canWrite}
 								<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-right text-[10px] font-semibold
 									uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Actions</th>
