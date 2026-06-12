@@ -176,10 +176,21 @@
 		return () => clearInterval(t);
 	});
 
-	function activatesIn(acct: { status: string; window: QuotaWindow | null; weekly_window?: QuotaWindow | null }): string | null {
-		if (acct.status === 'Healthy') return null;
-		const w = acct.window ?? acct.weekly_window ?? null;
-		if (!w) return null;
+	function activatesIn(
+		acct: { status: string; window: QuotaWindow | null; weekly_window?: QuotaWindow | null },
+		atRisk = false
+	): string | null {
+		if (acct.status === 'Disabled') return null;
+		const wins = [acct.window, acct.weekly_window ?? null].filter((w): w is QuotaWindow => !!w);
+		if (wins.length === 0) return null;
+		let w: QuotaWindow;
+		if (acct.status === 'Healthy') {
+			if (!atRisk) return null;
+			// At-risk (orange pill): count down on whichever window drives the warning.
+			w = wins.reduce((a, b) => (warningPct(a, nowSecs) >= warningPct(b, nowSecs) ? a : b));
+		} else {
+			w = wins[0];
+		}
 		const rem = w.resets_at_secs - nowSecs;
 		if (rem <= 0) return 'soon';
 		const h = Math.floor(rem / 3600);
@@ -985,9 +996,9 @@
 									{/if}
 								</td>
 								<td class="hidden whitespace-nowrap px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
-									{#if activatesIn(acct)}
+									{#if activatesIn(acct, maxWarnPct >= 90)}
 										<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
-											text-[var(--gw-color-text-muted)]">{activatesIn(acct)}</span>
+											text-[var(--gw-color-text-muted)]">{activatesIn(acct, maxWarnPct >= 90)}</span>
 									{:else}
 										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 									{/if}
