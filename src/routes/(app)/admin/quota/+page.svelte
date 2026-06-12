@@ -83,10 +83,14 @@
 		return `${Math.floor(d / 3600)}h ago`;
 	};
 
+	/** A window whose reset instant already passed: the provider quota re-opened, so any
+	 *  `consumed` still on the row is stale until the next probe overwrites it. */
+	const isExpired = (w: QuotaWindow, now: number) => now >= w.resets_at_secs;
+
 	/** Bar widths for the two-tone probe bar.
 	 *  confirmed = provider-verified portion; sampled = local unverified tail. */
-	const barWidths = (w: QuotaWindow, sampledSinceProbe: number) => {
-		if (w.limit === 0) return { confirmed: 0, sampled: 0 };
+	const barWidths = (w: QuotaWindow, sampledSinceProbe: number, now: number) => {
+		if (w.limit === 0 || isExpired(w, now)) return { confirmed: 0, sampled: 0 };
 		const confirmed = Math.min(100, ((w.consumed - sampledSinceProbe) / w.limit) * 100);
 		const sampled   = Math.min(100 - confirmed, (sampledSinceProbe / w.limit) * 100);
 		return { confirmed: Math.max(0, confirmed), sampled: Math.max(0, sampled) };
@@ -95,13 +99,16 @@
 	/**
 	 * Percentage to flag for the badge colour, taking the higher of:
 	 *   - actual:    consumed / limit
-	 *   - projected: rate × window_duration / limit
+	 *   - projected: rate × window_duration / limit (Rolling5h only — a Weekly window is
+	 *     seeded with started_at = probe instant, so elapsed starts near the 60s floor while
+	 *     duration spans days and the projection saturates on minimal consumption)
 	 * A 60s floor on elapsed avoids div-by-zero and startup noise.
-	 * Returns 0 when limit is unknown (0).
+	 * Returns 0 when limit is unknown (0) or the window already reset (stale `consumed`).
 	 */
 	const warningPct = (w: QuotaWindow, now: number): number => {
-		if (w.limit === 0) return 0;
+		if (w.limit === 0 || isExpired(w, now)) return 0;
 		const actual = (w.consumed / w.limit) * 100;
+		if (w.kind !== 'Rolling5h') return Math.min(100, actual);
 		const elapsed = Math.max(now - w.started_at_secs, 60);
 		const rate = w.consumed / elapsed; // cost-units / sec
 		const duration = w.resets_at_secs - w.started_at_secs;
@@ -157,10 +164,15 @@
 		} catch { /* localStorage unavailable */ }
 	});
 
-	// ── Live countdown ───────────────────────────────────────────────────────
+	// ── Live countdown + data refresh ────────────────────────────────────────
+	// invalidateAll re-runs the load so server-side status lifts (probe sweeps flipping
+	// Cooldown/Limited/Blocked → Healthy) reach the pills without a manual reload.
 	let nowSecs = $state(Math.floor(Date.now() / 1000));
 	$effect(() => {
-		const t = setInterval(() => { nowSecs = Math.floor(Date.now() / 1000); }, 30_000);
+		const t = setInterval(() => {
+			nowSecs = Math.floor(Date.now() / 1000);
+			void invalidateAll();
+		}, 30_000);
 		return () => clearInterval(t);
 	});
 
@@ -379,6 +391,12 @@
 		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
 		background-color: oklch(97% 0.03 25); border: 1px solid oklch(88% 0.1 25);
 		color: oklch(45% 0.22 25); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
+	}
+	.badge-reset {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(96% 0.04 190); border: 1px solid oklch(85% 0.08 190);
+		color: oklch(42% 0.12 190); font-size: 10px; font-weight: 600;
 		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
 	}
 
@@ -833,6 +851,7 @@
 							{@const wins = [acct.window, acct.weekly_window].filter((w) => !!w) as QuotaWindow[]}
 							{@const sampled = acct.sampled_since_probe ?? 0}
 							{@const maxWarnPct = wins.length ? Math.max(...wins.map((w) => warningPct(w, nowSecs))) : 0}
+							{@const allExpired = wins.length > 0 && wins.every((w) => isExpired(w, nowSecs))}
 							<tr class="data-row">
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 									<span class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-sm)]
@@ -855,6 +874,14 @@
 										<span class="badge-healthy">
 											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 											{acct.status}
+										</span>
+									{:else if allExpired}
+										<!-- Every known window already reset: the block/cooldown is stale and the
+										     account is merely awaiting the re-probe that lifts it to Healthy
+										     (mirrors the domain's is_genuinely_blocked freshness rule). -->
+										<span class="badge-reset" title="{acct.status} — window reset, awaiting re-probe">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											Resetting
 										</span>
 									{:else}
 										<span class="badge-warn">
@@ -897,7 +924,7 @@
 									{#if wins.length}
 										<div class="flex flex-col gap-[var(--gw-space-3)]">
 											{#each wins as w}
-												{@const bw = barWidths(w, sampled)}
+												{@const bw = barWidths(w, sampled, nowSecs)}
 												{@const dcx = 18}
 												{@const dcy = 18}
 												{@const dr = 13}
