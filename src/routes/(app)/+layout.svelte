@@ -37,7 +37,8 @@
 	type NavItem = { href: string; label: string; scope: string | null; icon: string };
 	const NAV: NavItem[] = [
 		{ href: '/', label: 'Home', scope: null, icon: 'lucide:home' },
-		{ href: '/kanban', label: 'Kanban', scope: 'issues.read', icon: 'lucide:kanban' },
+		// Kanban/Calendar/Timeline ride the in-page ViewSwitcher (hq-039316);
+		// Planning is the single navbar entry into the board projections.
 		{ href: '/planning', label: 'Planning', scope: 'issues.read', icon: 'lucide:calendar-range' },
 		{ href: '/analytics', label: 'Analytics', scope: 'issues.read', icon: 'lucide:line-chart' },
 		{ href: '/orchestration', label: 'Orchestration', scope: 'agent.read', icon: 'lucide:workflow' },

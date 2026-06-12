@@ -236,13 +236,14 @@
 			</div>
 		</div>
 	{:else}
-		<div class="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-[var(--gw-color-border)] bg-[var(--gw-color-border)]">
+		<!-- Month grid fills the page height: 6 equal week rows under the weekday header. -->
+		<div class="grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(7rem,1fr))] gap-px overflow-auto rounded-xl border border-[var(--gw-color-border)] bg-[var(--gw-color-border)]">
 			{#each WEEKDAYS as d (d)}
 				<div class="bg-[var(--gw-color-surface-2)] px-2 py-1 text-[11px] font-semibold uppercase text-[var(--gw-color-text-muted)]">{d}</div>
 			{/each}
 			{#each cells as cell (cell.key)}
 				{@const items = byDay.get(cell.key) ?? []}
-				<div class="min-h-24 bg-[var(--gw-color-surface)] p-1 {cell.inMonth ? '' : 'opacity-40'}">
+				<div class="min-h-0 overflow-y-auto bg-[var(--gw-color-surface)] p-1 {cell.inMonth ? '' : 'opacity-40'}">
 					<p class="px-1 text-right text-[11px] {cell.key === todayKey ? 'font-bold text-[var(--gw-color-primary)]' : 'text-[var(--gw-color-text-muted)]'}">
 						{cell.day}
 					</p>
