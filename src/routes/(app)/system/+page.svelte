@@ -93,10 +93,14 @@
 		// No scope data at all (old backend) ⇒ catalog fallback.
 		return data.rigs ?? [];
 	}
-	/** Keep the rig valid for the workspace: reset to the first real option. */
+	/** Keep the rig valid for the workspace: reset to the first real option.
+	 * A boardless workspace yields `''` — the control blocks and the backend's
+	 * "rig is required" validation stops a save (hq-3650e8). */
 	function defaultRigFor(ws: string, current?: string): string {
 		const opts = rigOptionsFor(ws);
-		return current && opts.includes(current) ? current : (opts[0] ?? current ?? 'hq');
+		if (current && opts.includes(current)) return current;
+		if (opts.length > 0) return opts[0];
+		return (data.scopes ?? []).length > 0 ? '' : (current ?? 'hq');
 	}
 
 	// Test report state
@@ -674,6 +678,9 @@
 										<option value={r}>{r}</option>
 									{/each}
 								</select>
+							{:else if (data.scopes ?? []).length > 0}
+								<input id="test-rig" class="gw-input-num" style="width: 100%" type="text"
+									value="" placeholder="sin rigs en este workspace" disabled />
 							{:else}
 								<input id="test-rig" class="gw-input-num" style="width: 100%" type="text"
 									bind:value={tRig} disabled={testBusy || !canWrite} />
@@ -892,6 +899,9 @@
 												<option value={r}>{r}</option>
 											{/each}
 										</select>
+									{:else if (data.scopes ?? []).length > 0}
+										<input id="sch-rig" class="gw-input-num" type="text"
+											value="" placeholder="sin rigs en este workspace" disabled />
 									{:else}
 										<input id="sch-rig" class="gw-input-num" type="text"
 											bind:value={fRig} disabled={busy} />
