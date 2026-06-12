@@ -73,6 +73,10 @@
 	}
 
 	const fmtTime = (secs: number) => new Date(secs * 1000).toLocaleString();
+	const fmtShort = (secs: number) =>
+		new Date(secs * 1000).toLocaleString(undefined, {
+			month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+		});
 
 	/** Relative "X ago" label for probe freshness. */
 	const probeAge = (last: number | null | undefined, now: number): string => {
@@ -241,6 +245,96 @@
 	const CHART_H = 120;
 	const CHART_PAD = { top: 8, right: 8, bottom: 24, left: 48 };
 
+	// ── Burn-rate chart ──────────────────────────────────────────────────────
+	// Consumption over time in adaptive buckets, stacked by a selectable dimension
+	// (model / session / account). TokensSampled events carry now_secs, so this is
+	// pure client-side aggregation.
+	type BurnBy = 'model' | 'session' | 'account';
+	let burnBy = $state<BurnBy>('model');
+
+	const BURN_W = 600;
+	const BURN_H = 140;
+	const BURN_PAD = { top: 8, right: 8, bottom: 24, left: 48 };
+	/** Legend cap: groups beyond the top N fold into "other" (sessions can be many). */
+	const BURN_TOP_GROUPS = 7;
+
+	const burnData = $derived.by(() => {
+		const samples: TokenSample[] = (data.tokens ?? []).filter((s) => (s.now_secs ?? 0) > 0);
+		if (samples.length === 0) return null;
+
+		const groupOf = (s: TokenSample) =>
+			(burnBy === 'model' ? s.model : burnBy === 'session' ? s.session : s.account) || 'unknown';
+		const tokensOf = (s: TokenSample) => s.input + s.output + s.cache_read + s.cache_creation;
+
+		// Rank groups by total burn; the tail folds into "other".
+		const totalsByGroup = new Map<string, number>();
+		for (const s of samples) {
+			const g = groupOf(s);
+			totalsByGroup.set(g, (totalsByGroup.get(g) ?? 0) + tokensOf(s));
+		}
+		const ranked = [...totalsByGroup.entries()].sort((a, b) => b[1] - a[1]).map(([g]) => g);
+		const top = new Set(ranked.slice(0, BURN_TOP_GROUPS));
+		const groups = [
+			...ranked.slice(0, BURN_TOP_GROUPS),
+			...(ranked.length > BURN_TOP_GROUPS ? ['other'] : []),
+		];
+
+		const palette = [
+			'oklch(60% 0.22 250)',
+			'oklch(62% 0.20 160)',
+			'oklch(58% 0.20 300)',
+			'oklch(60% 0.22 40)',
+			'oklch(60% 0.18 120)',
+			'oklch(55% 0.18 0)',
+			'oklch(65% 0.15 200)',
+		];
+		const groupColor = new Map(
+			groups.map((g, i) => [g, g === 'other' ? 'oklch(70% 0.02 270)' : palette[i % palette.length]])
+		);
+
+		// Adaptive buckets: ~40 across the sample span, snapped to 5-minute multiples.
+		const times = samples.map((s) => s.now_secs);
+		const tMin = Math.min(...times);
+		const tMax = Math.max(...times);
+		const bucket = Math.max(300, Math.ceil((tMax - tMin) / 40 / 300) * 300);
+		const nBuckets = Math.floor((tMax - tMin) / bucket) + 1;
+
+		const sums: Map<string, number>[] = Array.from({ length: nBuckets }, () => new Map());
+		for (const s of samples) {
+			const i = Math.floor((s.now_secs - tMin) / bucket);
+			const g0 = groupOf(s);
+			const g = top.has(g0) ? g0 : 'other';
+			sums[i].set(g, (sums[i].get(g) ?? 0) + tokensOf(s));
+		}
+		const maxBucket = Math.max(...sums.map((m) => [...m.values()].reduce((a, b) => a + b, 0)), 1);
+
+		const innerW = BURN_W - BURN_PAD.left - BURN_PAD.right;
+		const innerH = BURN_H - BURN_PAD.top - BURN_PAD.bottom;
+		const colW = Math.max(1.5, innerW / nBuckets - 1.5);
+
+		const cols = sums.map((m, i) => {
+			const x = BURN_PAD.left + (i / nBuckets) * innerW;
+			let yTop = BURN_PAD.top + innerH;
+			const segs = groups
+				.filter((g) => (m.get(g) ?? 0) > 0)
+				.map((g) => {
+					const v = m.get(g) ?? 0;
+					const h = (v / maxBucket) * innerH;
+					yTop -= h;
+					return { g, v, y: yTop, h, color: groupColor.get(g) ?? palette[0] };
+				});
+			const t0 = tMin + i * bucket;
+			return { x, w: colW, segs, t0, t1: t0 + bucket };
+		});
+
+		const yTicks = [0, 0.5, 1].map((f) => ({
+			y: BURN_PAD.top + innerH * (1 - f),
+			label: Math.round(maxBucket * f).toLocaleString(),
+		}));
+
+		return { cols, yTicks, groups, groupColor, tMin, tEnd: tMin + nBuckets * bucket, bucket };
+	});
+
 	// ── Model breakdown chart ────────────────────────────────────────────────
 	// Aggregate TokensSampled events by model: total input / output / cache per model.
 	const modelData = $derived.by(() => {
@@ -319,10 +413,6 @@
 		}));
 
 		// X-axis time labels: first and last reset, so the index-ordered bars map to real time.
-		const fmtShort = (secs: number) =>
-			new Date(secs * 1000).toLocaleString(undefined, {
-				month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-			});
 		const xLabels =
 			n === 1
 				? [{ x: CHART_PAD.left, label: fmtShort(resets[0].resets_at_secs), anchor: 'start' }]
@@ -489,6 +579,20 @@
 
 	.data-row { transition: background-color 140ms cubic-bezier(0.32, 0.72, 0, 1); }
 	.data-row:hover { background-color: var(--gw-color-surface-3); }
+
+	/* Burn-chart group-by toggle */
+	.burn-toggle {
+		border-radius: 9999px; border: 1px solid var(--gw-color-border);
+		background-color: var(--gw-color-surface-3); color: var(--gw-color-text-muted);
+		font-size: 10px; font-weight: 600; padding: 2px 10px; cursor: pointer;
+		text-transform: uppercase; letter-spacing: 0.06em;
+		transition: color 120ms, border-color 120ms, background-color 120ms;
+	}
+	.burn-toggle:hover { color: var(--gw-color-text); }
+	.burn-toggle-active {
+		background-color: var(--gw-color-surface); color: var(--gw-color-text);
+		border-color: var(--gw-color-primary);
+	}
 
 	/* Sortable column header — inherits the th typography */
 	.th-sort {
@@ -818,6 +922,82 @@
 				</svg>
 				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
 					{chartData.bars.length} window reset{chartData.bars.length === 1 ? '' : 's'} recorded
+				</p>
+			</div>
+		</section>
+	{/if}
+
+	<!-- ── Burn-rate chart (over time, by model/session/account) ───────────── -->
+	{#if burnData}
+		<section class="entry entry-2 bezel" aria-label="Token burn over time">
+			<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+				<div class="mb-[var(--gw-space-3)] flex flex-wrap items-center justify-between gap-[var(--gw-space-2)]">
+					<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
+						Token burn over time
+					</h2>
+					<div class="flex items-center gap-[var(--gw-space-1)]" role="group" aria-label="Group burn chart by">
+						<button type="button" class="burn-toggle {burnBy === 'model' ? 'burn-toggle-active' : ''}"
+							onclick={() => (burnBy = 'model')}>Model</button>
+						<button type="button" class="burn-toggle {burnBy === 'session' ? 'burn-toggle-active' : ''}"
+							onclick={() => (burnBy = 'session')}>Session</button>
+						<button type="button" class="burn-toggle {burnBy === 'account' ? 'burn-toggle-active' : ''}"
+							onclick={() => (burnBy = 'account')}>Account</button>
+					</div>
+				</div>
+				<!-- Legend -->
+				<div class="mb-[var(--gw-space-2)] flex flex-wrap items-center gap-[var(--gw-space-3)]">
+					{#each burnData.groups as g (g)}
+						<span class="flex items-center gap-[var(--gw-space-1)] font-[family-name:var(--gw-font-mono)] text-[10px] text-[var(--gw-color-text-muted)]"
+							title={g}>
+							<span class="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+								style="background-color:{burnData.groupColor.get(g)}"></span>
+							{g.length > 24 ? g.slice(0, 21) + '…' : g}
+						</span>
+					{/each}
+				</div>
+				<svg
+					width="100%"
+					viewBox="0 0 {BURN_W} {BURN_H}"
+					preserveAspectRatio="none"
+					style="display:block; height:{BURN_H}px; overflow:visible"
+					aria-hidden="true"
+				>
+					<!-- Y-axis grid + labels -->
+					{#each burnData.yTicks as tick}
+						<line
+							x1={BURN_PAD.left} y1={tick.y}
+							x2={BURN_W - BURN_PAD.right} y2={tick.y}
+							stroke="var(--gw-color-border-subtle)" stroke-width="1"
+						/>
+						<text x={BURN_PAD.left - 4} y={tick.y + 3.5}
+							text-anchor="end" font-size="8"
+							fill="var(--gw-color-text-muted)"
+							font-family="var(--gw-font-mono)">{tick.label}</text>
+					{/each}
+					<!-- Stacked columns -->
+					{#each burnData.cols as col}
+						{#each col.segs as seg (seg.g)}
+							<rect x={col.x} y={seg.y} width={col.w} height={seg.h}
+								fill={seg.color} opacity="0.85" rx="0.5">
+								<title>{seg.g} · {Math.ceil(seg.v).toLocaleString()} tokens · {fmtShort(col.t0)} – {fmtShort(col.t1)}</title>
+							</rect>
+						{/each}
+					{/each}
+					<!-- X baseline + time labels -->
+					<line
+						x1={BURN_PAD.left} y1={BURN_H - BURN_PAD.bottom}
+						x2={BURN_W - BURN_PAD.right} y2={BURN_H - BURN_PAD.bottom}
+						stroke="var(--gw-color-border-subtle)" stroke-width="1"
+					/>
+					<text x={BURN_PAD.left} y={BURN_H - BURN_PAD.bottom + 12}
+						text-anchor="start" font-size="8" fill="var(--gw-color-text-muted)"
+						font-family="var(--gw-font-mono)">{fmtShort(burnData.tMin)}</text>
+					<text x={BURN_W - BURN_PAD.right} y={BURN_H - BURN_PAD.bottom + 12}
+						text-anchor="end" font-size="8" fill="var(--gw-color-text-muted)"
+						font-family="var(--gw-font-mono)">{fmtShort(burnData.tEnd)}</text>
+				</svg>
+				<p class="mt-[var(--gw-space-1)] text-[10px] text-[var(--gw-color-text-muted)]">
+					{Math.round(burnData.bucket / 60)}min buckets
 				</p>
 			</div>
 		</section>
