@@ -63,7 +63,7 @@
 					transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
 					focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
 					{active
-						? 'bg-[var(--gw-color-primary)]/10 font-medium text-[var(--gw-color-primary)]'
+						? 'bg-[var(--gw-color-primary)]/10 font-semibold text-[var(--gw-color-primary)]'
 						: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]'}"
 			>
 				<!-- Indicator stays mounted across navigations and fades in/out, so it
@@ -76,7 +76,16 @@
 				></span>
 				<span class="flex items-center gap-2.5 pl-1">
 					{#if item.icon}
-						<span class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] {active ? '' : 'group-hover:translate-x-px'}">
+						<!-- Active: icon sits in a filled primary chip (white glyph, bezel
+						     inset like the brand mark) for an unmistakable "you are here".
+						     Inactive: flat muted glyph in the same 24px box (no jump). -->
+						<span
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg
+								transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+								{active
+									? 'bg-[var(--gw-color-primary)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]'
+									: 'group-hover:translate-x-px'}"
+						>
 							<Icon icon={item.icon} size={15} />
 						</span>
 					{/if}
@@ -103,7 +112,7 @@
 						transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
 						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1
 						{active
-							? 'bg-[var(--gw-color-primary)]/10 font-medium text-[var(--gw-color-primary)]'
+							? 'bg-[var(--gw-color-primary)]/10 font-semibold text-[var(--gw-color-primary)]'
 							: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-3)] hover:text-[var(--gw-color-text)]'}"
 				>
 					<!-- Same always-mounted, opacity-faded indicator as the main items. -->
@@ -115,7 +124,14 @@
 					></span>
 					<span class="flex items-center gap-2.5 pl-1">
 						{#if item.icon}
-							<span class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] {active ? '' : 'group-hover:translate-x-px'}">
+							<!-- Same active-chip treatment as the main items. -->
+							<span
+								class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg
+									transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
+									{active
+										? 'bg-[var(--gw-color-primary)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]'
+										: 'group-hover:translate-x-px'}"
+							>
 								<Icon icon={item.icon} size={15} />
 							</span>
 						{/if}
