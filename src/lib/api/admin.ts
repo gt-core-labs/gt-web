@@ -184,15 +184,22 @@ export function admin(doFetch: Fetcher) {
 				await doFetch('/api/v1/quota/probe/sweep', JSON_POST)
 			);
 		},
-		/** All quota.window_reset.v1 payloads for this workspace, in log order. */
+		/** All quota.window_reset.v1 payloads for this workspace, in log order.
+		 *  The REST surface serializes each record as the externally-tagged QuotaEvent enum
+		 *  (`{"WindowReset": {...}}`) — unwrap the tag, tolerating an already-flat record. */
 		async quotaHistory(): Promise<WindowReset[]> {
-			const j = await unwrap<{ resets: WindowReset[] }>(await doFetch('/api/v1/quota/history'));
-			return j.resets ?? [];
+			const j = await unwrap<{ resets: Array<WindowReset | { WindowReset: WindowReset }> }>(
+				await doFetch('/api/v1/quota/history')
+			);
+			return (j.resets ?? []).map((r) => ('WindowReset' in r ? r.WindowReset : r));
 		},
-		/** All quota.tokens_sampled.v1 payloads for this workspace, in log order. */
+		/** All quota.tokens_sampled.v1 payloads for this workspace, in log order.
+		 *  Same externally-tagged shape as quotaHistory (`{"TokensSampled": {...}}`). */
 		async quotaTokens(): Promise<TokenSample[]> {
-			const j = await unwrap<{ samples: TokenSample[] }>(await doFetch('/api/v1/quota/tokens'));
-			return j.samples ?? [];
+			const j = await unwrap<{ samples: Array<TokenSample | { TokensSampled: TokenSample }> }>(
+				await doFetch('/api/v1/quota/tokens')
+			);
+			return (j.samples ?? []).map((s) => ('TokensSampled' in s ? s.TokensSampled : s));
 		}
 	};
 }
