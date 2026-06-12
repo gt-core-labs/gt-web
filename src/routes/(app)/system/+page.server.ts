@@ -8,19 +8,32 @@ export const load: PageServerLoad = async (event) => {
 	if (!hasScope(event.locals.user?.scopes, 'system.read'))
 		throw error(403, 'Requires system.read');
 
+	const describe = (err: unknown): string =>
+		err instanceof TrackerError
+			? err.status === 404
+				? 'Endpoint not available — backend may need to be redeployed.'
+				: `${err.status}: ${err.message || 'request failed'}`
+			: String(err);
+
 	let config = null;
 	let configError: string | null = null;
 	try {
 		config = await serverSystemApi(event).getConfig();
 	} catch (err) {
-		if (err instanceof TrackerError) {
-			configError = err.status === 404
-				? 'System config endpoint not available — backend may need to be redeployed.'
-				: `${err.status}: ${err.message || 'request failed'}`;
-		} else {
-			configError = String(err);
-		}
+		configError = describe(err);
 	}
 
-	return { config, configError };
+	// Report digest (hq-b97264): schedule + subscribers, best-effort like config.
+	let reportSchedule = null;
+	let reportSubscribers = null;
+	let reportError: string | null = null;
+	try {
+		const api = serverSystemApi(event);
+		reportSchedule = await api.getReportSchedule();
+		reportSubscribers = await api.listReportSubscribers();
+	} catch (err) {
+		reportError = describe(err);
+	}
+
+	return { config, configError, reportSchedule, reportSubscribers, reportError };
 };

@@ -52,7 +52,52 @@
 		}, '');
 	}
 
-	type Section = 'archive';
+	// ── Report digest (hq-b97264) ─────────────────────────────────────────
+	let repEnabled = $state(data.reportSchedule?.enabled ?? false);
+	let repHour = $state(data.reportSchedule?.hour ?? 8);
+	let repMinute = $state(data.reportSchedule?.minute ?? 0);
+	let newSubscriber = $state('');
+
+	function saveReportSchedule() {
+		run(
+			() =>
+				browserSystem().updateReportSchedule({
+					enabled: repEnabled,
+					hour: repHour,
+					minute: repMinute
+				}),
+			'Report schedule saved.'
+		);
+	}
+
+	function addSubscriber() {
+		const email = newSubscriber.trim();
+		if (!email) return;
+		run(async () => {
+			await browserSystem().addReportSubscriber(email);
+			newSubscriber = '';
+		}, `Subscribed ${email}.`);
+	}
+
+	function removeSubscriber(email: string) {
+		run(() => browserSystem().removeReportSubscriber(email), `Removed ${email}.`);
+	}
+
+	function toggleSubscriber(email: string, enabled: boolean) {
+		run(
+			() => browserSystem().toggleReportSubscriber(email, enabled),
+			enabled ? `${email} will receive the digest.` : `${email} excluded from sends.`
+		);
+	}
+
+	function sendReportNow() {
+		run(async () => {
+			const result = await browserSystem().runReportNow();
+			message = `Digest queued to ${result.queued} subscriber(s).`;
+		}, '');
+	}
+
+	type Section = 'archive' | 'reports';
 	let section = $state<Section>('archive');
 </script>
 
@@ -257,6 +302,13 @@
 		>
 			Tracker Archive
 		</button>
+		<button
+			class="tab {section === 'reports' ? 'tab-active' : ''}"
+			onclick={() => (section = 'reports')}
+			aria-current={section === 'reports' ? 'page' : undefined}
+		>
+			Email Reports
+		</button>
 	</nav>
 
 	<!-- ── Archive section ─────────────────────────────────────────────────── -->
@@ -424,6 +476,211 @@
 					{/each}
 				</div>
 			{/if}
+
+		</div>
+	{/if}
+
+	<!-- ── Email reports section (hq-b97264) ──────────────────────────────── -->
+	{#if section === 'reports'}
+		<div class="entry entry-3 max-w-xl space-y-[var(--gw-space-4)]">
+
+			<!-- Schedule card -->
+			<div class="bezel">
+				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+
+					<div class="mb-[var(--gw-space-4)] flex items-center justify-between gap-[var(--gw-space-4)]">
+						<div class="flex items-center gap-[var(--gw-space-3)]">
+							<div
+								class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--gw-radius-lg)]
+									border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)]"
+								aria-hidden="true"
+							>
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+									stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+									style="color: var(--gw-color-text-muted)">
+									<rect x="2" y="4" width="20" height="16" rx="2"/>
+									<polyline points="22,6 12,13 2,6"/>
+								</svg>
+							</div>
+							<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
+								Report Digest
+							</h2>
+						</div>
+						{#if repEnabled}
+							<span class="badge-enabled">
+								<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+								Enabled
+							</span>
+						{:else}
+							<span class="badge-disabled">Disabled</span>
+						{/if}
+					</div>
+
+					<p class="mb-[var(--gw-space-4)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+						Daily HTML report (planning log + analytics KPIs) emailed at the configured local time
+						to every enabled subscriber below.
+					</p>
+
+					{#if data.reportError}
+						<p class="warn-callout mb-[var(--gw-space-4)]">{data.reportError}</p>
+					{/if}
+
+					<div class="field-divider mb-[var(--gw-space-4)]"></div>
+
+					<form
+						class="space-y-[var(--gw-space-4)]"
+						onsubmit={(e) => { e.preventDefault(); saveReportSchedule(); }}
+					>
+						<label class="flex cursor-pointer items-center gap-[var(--gw-space-2)]">
+							<input
+								type="checkbox"
+								class="gw-check"
+								bind:checked={repEnabled}
+								disabled={!canWrite || busy}
+							/>
+							<span class="text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">
+								Enable scheduled sending
+							</span>
+						</label>
+
+						<div class="grid gap-[var(--gw-space-4)] sm:grid-cols-2">
+							<div class="space-y-[var(--gw-space-1)]">
+								<label for="report-hour" class="field-label">Hour (0–23)</label>
+								<input
+									id="report-hour"
+									class="gw-input-num"
+									type="number"
+									min="0"
+									max="23"
+									bind:value={repHour}
+									disabled={!canWrite || busy}
+								/>
+							</div>
+							<div class="space-y-[var(--gw-space-1)]">
+								<label for="report-minute" class="field-label">Minute (0–59)</label>
+								<input
+									id="report-minute"
+									class="gw-input-num"
+									type="number"
+									min="0"
+									max="59"
+									bind:value={repMinute}
+									disabled={!canWrite || busy}
+								/>
+							</div>
+						</div>
+
+						{#if data.reportSchedule?.last_sent_date}
+							<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+								Last sent: <span class="font-[family-name:var(--gw-font-mono)]">{data.reportSchedule.last_sent_date}</span>
+							</p>
+						{/if}
+
+						{#if canWrite}
+							<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
+								<button type="submit" class="cta" disabled={busy}>
+									{#if busy}
+										<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+										</svg>
+										<span>Saving…</span>
+									{:else}
+										<span>Save</span>
+										<span class="cta-arrow" aria-hidden="true">→</span>
+									{/if}
+								</button>
+								<button type="button" class="btn-ghost" disabled={busy} onclick={sendReportNow}>
+									Send now
+								</button>
+							</div>
+						{/if}
+					</form>
+
+					{#if message}
+						<p
+							class="mt-[var(--gw-space-3)] text-[var(--gw-text-xs)]"
+							style="color: {isError ? 'var(--gw-color-error)' : 'oklch(42% 0.16 150)'}"
+						>
+							{message}
+						</p>
+					{/if}
+
+				</div>
+			</div>
+
+			<!-- Subscribers card -->
+			<div class="bezel">
+				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+
+					<h2 class="mb-[var(--gw-space-1)] text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
+						Subscribers
+					</h2>
+					<p class="mb-[var(--gw-space-4)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+						The checkbox selects who receives: unchecked subscribers stay listed but are excluded
+						from sends.
+					</p>
+
+					{#if canWrite}
+						<form
+							class="mb-[var(--gw-space-4)] flex items-center gap-[var(--gw-space-2)]"
+							onsubmit={(e) => { e.preventDefault(); addSubscriber(); }}
+						>
+							<input
+								class="gw-input-num"
+								style="width: 16rem"
+								type="email"
+								placeholder="correo@dominio.com"
+								bind:value={newSubscriber}
+								disabled={busy}
+							/>
+							<button type="submit" class="btn-ghost" disabled={busy || !newSubscriber.trim()}>
+								Add
+							</button>
+						</form>
+					{/if}
+
+					{#if data.reportSubscribers && data.reportSubscribers.length > 0}
+						<div class="space-y-[var(--gw-space-1)]">
+							{#each data.reportSubscribers as sub (sub.id)}
+								<div class="flex items-center justify-between gap-[var(--gw-space-2)] rounded-[var(--gw-radius-lg)]
+									border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)]
+									px-[var(--gw-space-3)] py-[var(--gw-space-2)]">
+									<label class="flex min-w-0 cursor-pointer items-center gap-[var(--gw-space-2)]">
+										<input
+											type="checkbox"
+											class="gw-check"
+											checked={sub.enabled}
+											disabled={!canWrite || busy}
+											onchange={(e) => toggleSubscriber(sub.email, e.currentTarget.checked)}
+										/>
+										<span class="truncate font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
+											text-[var(--gw-color-text)]" class:opacity-50={!sub.enabled}>
+											{sub.email}
+										</span>
+									</label>
+									{#if canWrite}
+										<button
+											type="button"
+											class="btn-ghost"
+											style="padding: 0.25rem 0.625rem; font-size: 11px"
+											disabled={busy}
+											onclick={() => removeSubscriber(sub.email)}
+										>
+											Remove
+										</button>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else if !data.reportError}
+						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							No subscribers yet.
+						</p>
+					{/if}
+
+				</div>
+			</div>
 
 		</div>
 	{/if}
