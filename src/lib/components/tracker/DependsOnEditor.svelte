@@ -22,6 +22,19 @@
 	let draft = $state('');
 	let open = $state(false);
 	let active = $state(0);
+	let inputEl = $state<HTMLInputElement | null>(null);
+	// Fixed-position anchor: the drawer scroll container clips an absolute
+	// dropdown, so the list overlays at viewport coords instead (hq-f3174d).
+	let anchor = $state({ top: 0, left: 0, width: 0 });
+
+	function place() {
+		const r = inputEl?.getBoundingClientRect();
+		if (r) anchor = { top: r.bottom + 4, left: r.left, width: r.width };
+	}
+	function show() {
+		place();
+		open = true;
+	}
 
 	const candidates = $derived(options.filter((o) => !ids.includes(o.id)));
 	const matches = $derived.by(() => {
@@ -70,6 +83,9 @@
 	});
 </script>
 
+<!-- Re-anchor on viewport changes; capture phase also catches the drawer's inner scroll. -->
+<svelte:window onresize={() => open && place()} onscrollcapture={() => open && place()} />
+
 <div class="space-y-1.5">
 	<div class="flex flex-wrap gap-1">
 		{#each ids as id (id)}
@@ -99,9 +115,10 @@
 				aria-expanded={open}
 				aria-controls="deps-suggestions"
 				aria-autocomplete="list"
+				bind:this={inputEl}
 				bind:value={draft}
-				onfocus={() => (open = true)}
-				oninput={() => (open = true)}
+				onfocus={show}
+				oninput={show}
 				onblur={() => setTimeout(() => (open = false), 150)}
 				{onkeydown}
 			/>
@@ -115,7 +132,8 @@
 				<ul
 					id="deps-suggestions"
 					role="listbox"
-					class="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] py-1 shadow-lg"
+					class="fixed z-50 max-h-48 overflow-y-auto rounded-lg border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] py-1 shadow-lg"
+					style="top: {anchor.top}px; left: {anchor.left}px; width: {anchor.width}px"
 				>
 					{#each matches as o, i (o.id)}
 						<li role="option" aria-selected={i === active}>
