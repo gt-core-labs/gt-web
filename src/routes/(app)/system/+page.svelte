@@ -85,12 +85,13 @@
 	}
 	function rigOptionsFor(ws: string): string[] {
 		const scopes = data.scopes ?? [];
-		const rigs = [...new Set(scopes.filter((s) => s.workspace === ws).map((s) => s.rig))];
-		if (rigs.length > 0) return rigs;
-		// Empty workspace: the usable rigs are the bead namespaces seen anywhere
-		// (catalog rig names need not match them, e.g. `hq`); catalog last.
-		const known = [...new Set(scopes.map((s) => s.rig))];
-		return known.length > 0 ? known : (data.rigs ?? []);
+		// STRICT per-workspace (hq-59de0e): only rigs with a real board in the
+		// selected workspace. Empty (e.g. a fresh workspace) ⇒ the template
+		// falls back to a free-text input, never another workspace's rigs.
+		if (scopes.length > 0)
+			return [...new Set(scopes.filter((s) => s.workspace === ws).map((s) => s.rig))];
+		// No scope data at all (old backend) ⇒ catalog fallback.
+		return data.rigs ?? [];
 	}
 	/** Keep the rig valid for the workspace: reset to the first real option. */
 	function defaultRigFor(ws: string, current?: string): string {
