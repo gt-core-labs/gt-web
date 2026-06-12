@@ -80,74 +80,45 @@
 	};
 	const sliceHeight = (slices: Slice[]) => Math.max(60, Math.min(slices.length, 6) * 24 + 12);
 
-	// Progress by module as a radar (gtweb-1cd122): each module is an indicator whose max is
-	// the module's scope, so the Total polygon traces the outer rim and the Closed polygon
-	// shows progress towards it. A radar degenerates below 3 axes — stacked bar fallback.
+	// Progress by module — gallery pick: bar-animation-delay (gtweb-6fc29f). Total and
+	// Closed bars side by side per module, each bar entering with a staggered elastic
+	// animation; updates (filter changes) re-stagger via animationDelayUpdate.
 	const moduleChart = $derived.by(() => {
 		const mods = s.avance.by_module;
 		if (mods.length === 0) return null;
-
-		if (mods.length >= 3) {
-			const option = {
-				animationDuration: 300,
-				legend: LEGEND,
-				tooltip: { trigger: 'item' as const, textStyle: { fontSize: 11 } },
-				radar: {
-					indicator: mods.map((m) => ({
-						name: m.module || 'No module',
-						max: Math.max(1, m.total),
-					})),
-					radius: '65%',
-					axisName: { fontSize: 9, color: '#71717a' },
-					splitLine: { lineStyle: { color: '#e4e4e7' } },
-					splitArea: { show: false },
-					axisLine: { lineStyle: { color: '#e4e4e7' } },
-				},
-				series: [
-					{
-						type: 'radar' as const,
-						data: [
-							{
-								name: 'Total',
-								value: mods.map((m) => m.total),
-								itemStyle: { color: 'oklch(70% 0.03 270)' },
-								lineStyle: { type: 'dashed' as const },
-								areaStyle: { opacity: 0.06 },
-								symbolSize: 3,
-							},
-							{
-								name: 'Closed',
-								value: mods.map((m) => m.closed),
-								itemStyle: { color: 'oklch(62% 0.20 160)' },
-								areaStyle: { opacity: 0.25 },
-								symbolSize: 4,
-							},
-						],
-					},
-				],
-			};
-			return { option, height: Math.max(240, Math.min(mods.length * 30 + 160, 360)) };
-		}
-
-		// Fallback: stacked closed/open bar, heaviest module on top.
-		const rows = [...mods].sort((a, b) => a.total - b.total);
+		const rows = [...mods].sort((a, b) => b.total - a.total);
 		const option = {
-			animationDuration: 300,
-			grid: { left: 4, right: 36, top: 30, bottom: 4, containLabel: true },
+			animationEasing: 'elasticOut' as const,
+			animationDelayUpdate: (idx: number) => idx * 5,
+			grid: { left: 8, right: 8, top: 30, bottom: 4, containLabel: true },
 			legend: LEGEND,
 			tooltip: TOOLTIP,
-			xAxis: { type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { lineStyle: { color: '#e4e4e7' } } },
-			yAxis: {
+			xAxis: {
 				type: 'category' as const,
 				data: rows.map((m) => m.module || 'No module'),
-				axisLabel: { ...AXIS_LABEL, width: 120, overflow: 'truncate' as const },
+				axisLabel: { ...AXIS_LABEL, rotate: rows.length > 6 ? 30 : 0, overflow: 'truncate' as const, width: 90 },
 			},
+			yAxis: { type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { lineStyle: { color: '#e4e4e7' } } },
 			series: [
-				{ name: 'Closed', type: 'bar' as const, stack: 't', color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.closed) },
-				{ name: 'Open', type: 'bar' as const, stack: 't', color: 'oklch(70% 0.03 270)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.total - m.closed) },
+				{
+					name: 'Total',
+					type: 'bar' as const,
+					color: 'oklch(70% 0.03 270)',
+					emphasis: { focus: 'series' as const },
+					data: rows.map((m) => m.total),
+					animationDelay: (idx: number) => idx * 100,
+				},
+				{
+					name: 'Closed',
+					type: 'bar' as const,
+					color: 'oklch(62% 0.20 160)',
+					emphasis: { focus: 'series' as const },
+					data: rows.map((m) => m.closed),
+					animationDelay: (idx: number) => idx * 100 + 100,
+				},
 			],
 		};
-		return { option, height: Math.max(100, rows.length * 26 + 46) };
+		return { option, height: 220 };
 	});
 </script>
 
