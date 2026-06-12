@@ -70,6 +70,14 @@
 	let fEnabled = $state(true);
 	let fSubscribers = $state('');
 
+	// Test report state
+	let tKind = $state(data.reportKinds?.[0] ?? 'planning-digest');
+	let tRig = $state(data.rigs?.[0] ?? 'hq');
+	let tWorkspace = $state(data.workspaces?.[0] ?? 'default');
+	let testBusy = $state(false);
+	let testMessage = $state('');
+	let testError = $state(false);
+
 	function openCreate() {
 		editingId = null;
 		fKind = data.reportKinds?.[0] ?? 'planning-digest';
@@ -78,8 +86,8 @@
 		fDate = '';
 		fHour = 8;
 		fMinute = 0;
-		fRig = 'hq';
-		fWorkspace = 'default';
+		fRig = data.rigs?.[0] ?? 'hq';
+		fWorkspace = data.workspaces?.[0] ?? 'default';
 		fEnabled = true;
 		fSubscribers = '';
 		showForm = true;
@@ -127,10 +135,10 @@
 		run(() => browserSystem().deleteReportSchedule(s.id), 'Schedule deleted.');
 	}
 
-	function toggleSchedule(s: ReportSchedule, enabled: boolean) {
+	function toggleSchedule(s: ReportSchedule, val: boolean) {
 		run(
-			() => browserSystem().updateReportSchedule(s.id, { enabled }),
-			enabled ? 'Schedule enabled.' : 'Schedule disabled.'
+			() => browserSystem().updateReportSchedule(s.id, { enabled: val }),
+			val ? 'Schedule enabled.' : 'Schedule disabled.'
 		);
 	}
 
@@ -141,12 +149,40 @@
 		}, '');
 	}
 
+	async function sendTestReport() {
+		testBusy = true;
+		testMessage = '';
+		testError = false;
+		try {
+			const api = browserSystem();
+			const today = new Date().toISOString().slice(0, 10);
+			const s = await api.createReportSchedule({
+				kind: tKind,
+				mode: 'once',
+				date: today,
+				hour: 0,
+				minute: 0,
+				rig: tRig,
+				workspace: tWorkspace,
+				enabled: false
+			});
+			const result = await api.runReportSchedule(s.id);
+			await api.deleteReportSchedule(s.id);
+			testMessage = `Queued to ${result.queued} recipient(s).`;
+		} catch (err) {
+			testError = true;
+			testMessage = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
+		} finally {
+			testBusy = false;
+		}
+	}
+
 	const two = (n: number) => String(n).padStart(2, '0');
 	function modeLabel(s: ReportSchedule): string {
 		const at = `${two(s.hour)}:${two(s.minute)}`;
-		if (s.mode === 'daily') return `diario ${at}`;
-		if (s.mode === 'every_n_days') return `cada ${s.n_days} día(s) ${at}`;
-		return `el ${s.date ?? '—'} ${at}`;
+		if (s.mode === 'daily') return `daily at ${at}`;
+		if (s.mode === 'every_n_days') return `every ${s.n_days} day(s) at ${at}`;
+		return `on ${s.date ?? '—'} at ${at}`;
 	}
 
 	function addSubscriber() {
@@ -162,10 +198,10 @@
 		run(() => browserSystem().removeReportSubscriber(email), `Removed ${email}.`);
 	}
 
-	function toggleSubscriber(email: string, enabled: boolean) {
+	function toggleSubscriber(email: string, val: boolean) {
 		run(
-			() => browserSystem().toggleReportSubscriber(email, enabled),
-			enabled ? `${email} will receive the digest.` : `${email} excluded from sends.`
+			() => browserSystem().toggleReportSubscriber(email, val),
+			val ? `${email} will receive the digest.` : `${email} excluded from sends.`
 		);
 	}
 
@@ -556,6 +592,113 @@
 	{#if section === 'reports'}
 		<div class="entry entry-3 max-w-2xl space-y-[var(--gw-space-4)]">
 
+			<!-- Test report card -->
+			<div class="bezel">
+				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+
+					<div class="mb-[var(--gw-space-4)] flex items-center gap-[var(--gw-space-3)]">
+						<div
+							class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--gw-radius-lg)]
+								border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)]"
+							aria-hidden="true"
+						>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+								stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+								style="color: var(--gw-color-text-muted)">
+								<polygon points="5 3 19 12 5 21 5 3"/>
+							</svg>
+						</div>
+						<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
+							Send Test Report
+						</h2>
+					</div>
+
+					<p class="mb-[var(--gw-space-4)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+						Fire a one-off report immediately — sent to the global subscriber list. Does not create
+						a permanent schedule.
+					</p>
+
+					<div class="grid gap-[var(--gw-space-4)] sm:grid-cols-3">
+						<div class="space-y-[var(--gw-space-1)]">
+							<label for="test-kind" class="field-label">Report</label>
+							{#if (data.reportKinds ?? []).length > 0}
+								<select id="test-kind" class="gw-input-num" style="width: 100%"
+									bind:value={tKind} disabled={testBusy || !canWrite}>
+									{#each data.reportKinds ?? [] as k (k)}
+										<option value={k}>{k}</option>
+									{/each}
+								</select>
+							{:else}
+								<input id="test-kind" class="gw-input-num" style="width: 100%" type="text"
+									bind:value={tKind} disabled={testBusy || !canWrite} />
+							{/if}
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label for="test-rig" class="field-label">Rig</label>
+							{#if (data.rigs ?? []).length > 0}
+								<select id="test-rig" class="gw-input-num" style="width: 100%"
+									bind:value={tRig} disabled={testBusy || !canWrite}>
+									{#each data.rigs ?? [] as r (r)}
+										<option value={r}>{r}</option>
+									{/each}
+								</select>
+							{:else}
+								<input id="test-rig" class="gw-input-num" style="width: 100%" type="text"
+									bind:value={tRig} disabled={testBusy || !canWrite} />
+							{/if}
+						</div>
+						<div class="space-y-[var(--gw-space-1)]">
+							<label for="test-ws" class="field-label">Workspace</label>
+							{#if (data.workspaces ?? []).length > 0}
+								<select id="test-ws" class="gw-input-num" style="width: 100%"
+									bind:value={tWorkspace} disabled={testBusy || !canWrite}>
+									{#each data.workspaces ?? [] as w (w)}
+										<option value={w}>{w}</option>
+									{/each}
+								</select>
+							{:else}
+								<input id="test-ws" class="gw-input-num" style="width: 100%" type="text"
+									bind:value={tWorkspace} disabled={testBusy || !canWrite} />
+							{/if}
+						</div>
+					</div>
+
+					{#if canWrite}
+						<div class="mt-[var(--gw-space-4)]">
+							<button type="button" class="cta" disabled={testBusy} onclick={sendTestReport}>
+								{#if testBusy}
+									<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+									</svg>
+									<span>Sending…</span>
+								{:else}
+									<span>Send test</span>
+									<span class="cta-arrow" aria-hidden="true">→</span>
+								{/if}
+							</button>
+						</div>
+					{/if}
+
+					{#if testMessage}
+						<p
+							class="mt-[var(--gw-space-3)] text-[var(--gw-text-xs)]"
+							style="color: {testError ? 'var(--gw-color-error)' : 'oklch(42% 0.16 150)'}"
+						>
+							{#if !testError}
+								<svg class="mr-1 inline-block" width="11" height="11" viewBox="0 0 24 24"
+									fill="none" stroke="currentColor" stroke-width="2.5"
+									stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="20 6 9 17 4 12"/>
+								</svg>
+							{/if}
+							{testMessage}
+						</p>
+					{/if}
+
+				</div>
+			</div>
+
 			<!-- Schedules card -->
 			<div class="bezel">
 				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
@@ -615,8 +758,8 @@
 											</span>
 											<span class="block text-[10px] text-[var(--gw-color-text-muted)]">
 												{modeLabel(s)}
-												{#if s.last_sent_date} · último: {s.last_sent_date}{/if}
-												{#if s.subscribers} · {s.subscribers.length} destinatario(s) propios{/if}
+												{#if s.last_sent_date} · last: {s.last_sent_date}{/if}
+												{#if s.subscribers} · {s.subscribers.length} custom recipient(s){/if}
 											</span>
 										</span>
 									</label>
@@ -671,21 +814,21 @@
 									<label for="sch-mode" class="field-label">Mode</label>
 									<select id="sch-mode" class="gw-input-num" style="width: 100%"
 										bind:value={fMode} disabled={busy}>
-										<option value="daily">Diario</option>
-										<option value="every_n_days">Cada N días</option>
-										<option value="once">Fecha única</option>
+										<option value="daily">Daily</option>
+										<option value="every_n_days">Every N days</option>
+										<option value="once">Once (date)</option>
 									</select>
 								</div>
 								{#if fMode === 'every_n_days'}
 									<div class="space-y-[var(--gw-space-1)]">
-										<label for="sch-ndays" class="field-label">Cada (días)</label>
+										<label for="sch-ndays" class="field-label">Every (days)</label>
 										<input id="sch-ndays" class="gw-input-num" type="number" min="1" max="365"
 											bind:value={fNDays} disabled={busy} />
 									</div>
 								{/if}
 								{#if fMode === 'once'}
 									<div class="space-y-[var(--gw-space-1)]">
-										<label for="sch-date" class="field-label">Fecha</label>
+										<label for="sch-date" class="field-label">Date</label>
 										<input id="sch-date" class="gw-input-num" type="date"
 											bind:value={fDate} disabled={busy} />
 									</div>
@@ -702,18 +845,36 @@
 								</div>
 								<div class="space-y-[var(--gw-space-1)]">
 									<label for="sch-rig" class="field-label">Rig</label>
-									<input id="sch-rig" class="gw-input-num" type="text"
-										bind:value={fRig} disabled={busy} />
+									{#if (data.rigs ?? []).length > 0}
+										<select id="sch-rig" class="gw-input-num" style="width: 100%"
+											bind:value={fRig} disabled={busy}>
+											{#each data.rigs ?? [] as r (r)}
+												<option value={r}>{r}</option>
+											{/each}
+										</select>
+									{:else}
+										<input id="sch-rig" class="gw-input-num" type="text"
+											bind:value={fRig} disabled={busy} />
+									{/if}
 								</div>
 								<div class="space-y-[var(--gw-space-1)]">
 									<label for="sch-ws" class="field-label">Workspace</label>
-									<input id="sch-ws" class="gw-input-num" type="text"
-										bind:value={fWorkspace} disabled={busy} />
+									{#if (data.workspaces ?? []).length > 0}
+										<select id="sch-ws" class="gw-input-num" style="width: 100%"
+											bind:value={fWorkspace} disabled={busy}>
+											{#each data.workspaces ?? [] as w (w)}
+												<option value={w}>{w}</option>
+											{/each}
+										</select>
+									{:else}
+										<input id="sch-ws" class="gw-input-num" type="text"
+											bind:value={fWorkspace} disabled={busy} />
+									{/if}
 								</div>
 							</div>
 							<div class="space-y-[var(--gw-space-1)]">
 								<label for="sch-subs" class="field-label">
-									Destinatarios propios (coma-separados; vacío = lista global)
+									Per-schedule recipients (comma-separated; blank = global list)
 								</label>
 								<input id="sch-subs" class="gw-input-num" style="width: 100%" type="text"
 									placeholder="ana@x.com, bob@x.com"
@@ -753,11 +914,11 @@
 				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
 
 					<h2 class="mb-[var(--gw-space-1)] text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
-						Subscribers
+						Global Subscribers
 					</h2>
 					<p class="mb-[var(--gw-space-4)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-						The checkbox selects who receives: unchecked subscribers stay listed but are excluded
-						from sends.
+						Fallback list for schedules with no per-schedule recipients. Uncheck to exclude from
+						sends without removing.
 					</p>
 
 					{#if canWrite}
@@ -769,7 +930,7 @@
 								class="gw-input-num"
 								style="width: 16rem"
 								type="email"
-								placeholder="correo@dominio.com"
+								placeholder="email@domain.com"
 								bind:value={newSubscriber}
 								disabled={busy}
 							/>

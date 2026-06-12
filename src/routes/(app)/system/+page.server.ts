@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import { TrackerError } from '$lib/api/tracker';
-import { serverSystemApi } from '$lib/server/api';
+import { serverSystemApi, serverAdmin } from '$lib/server/api';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -37,5 +37,17 @@ export const load: PageServerLoad = async (event) => {
 		reportError = describe(err);
 	}
 
-	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError };
+	// Rigs + workspaces for selectors, best-effort.
+	let rigs: string[] = [];
+	let workspaces: string[] = [];
+	try {
+		const adm = serverAdmin(event);
+		const [rs, ws] = await Promise.all([adm.rigs(), adm.workspaces()]);
+		rigs = rs.map((r) => r.name);
+		workspaces = ws.map((w) => w.name);
+	} catch {
+		// non-fatal — selectors fall back to free-text inputs
+	}
+
+	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces };
 };
