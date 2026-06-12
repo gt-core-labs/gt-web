@@ -73,13 +73,24 @@
 	// Real board scopes (hq-c697bb): selectors contrast against the distinct
 	// (rig, workspace) pairs that actually have beads, not the catalog
 	// cross-product. Catalog lists remain the fallback when scopes are empty.
+	// `archive` is the manual-archive sink, never a report target (hq-1c7890).
+	const ARCHIVE_WS = 'archive';
 	function scopeWorkspaces(): string[] {
-		const ws = [...new Set((data.scopes ?? []).map((s) => s.workspace))];
-		return ws.length > 0 ? ws : (data.workspaces ?? []);
+		// Union with the catalog so a real-but-empty workspace (no beads yet)
+		// stays selectable (hq-1c7890).
+		const real = (data.scopes ?? []).map((s) => s.workspace);
+		return [...new Set([...real, ...(data.workspaces ?? [])])].filter(
+			(w) => w !== ARCHIVE_WS
+		);
 	}
 	function rigOptionsFor(ws: string): string[] {
-		const rigs = (data.scopes ?? []).filter((s) => s.workspace === ws).map((s) => s.rig);
-		return rigs.length > 0 ? rigs : (data.rigs ?? []);
+		const scopes = data.scopes ?? [];
+		const rigs = [...new Set(scopes.filter((s) => s.workspace === ws).map((s) => s.rig))];
+		if (rigs.length > 0) return rigs;
+		// Empty workspace: the usable rigs are the bead namespaces seen anywhere
+		// (catalog rig names need not match them, e.g. `hq`); catalog last.
+		const known = [...new Set(scopes.map((s) => s.rig))];
+		return known.length > 0 ? known : (data.rigs ?? []);
 	}
 	/** Keep the rig valid for the workspace: reset to the first real option. */
 	function defaultRigFor(ws: string, current?: string): string {
