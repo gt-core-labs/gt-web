@@ -47,9 +47,9 @@
 				{ type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { show: false } },
 			],
 			series: [
-				{ name: 'Creadas', type: 'bar' as const, color: 'oklch(60% 0.22 250)', emphasis: { focus: 'series' as const }, data: pts.map((p) => p.created) },
-				{ name: 'Resueltas', type: 'bar' as const, color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: pts.map((p) => p.closed) },
-				{ name: 'Restante', type: 'line' as const, yAxisIndex: 1, smooth: 0.2, symbolSize: 4, color: '#f59e0b', data: pts.map((p) => p.remaining) },
+				{ name: 'Created', type: 'bar' as const, color: 'oklch(60% 0.22 250)', emphasis: { focus: 'series' as const }, data: pts.map((p) => p.created) },
+				{ name: 'Resolved', type: 'bar' as const, color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: pts.map((p) => p.closed) },
+				{ name: 'Remaining', type: 'line' as const, yAxisIndex: 1, smooth: 0.2, symbolSize: 4, color: '#f59e0b', data: pts.map((p) => p.remaining) },
 			],
 		};
 	});
@@ -80,10 +80,56 @@
 	};
 	const sliceHeight = (slices: Slice[]) => Math.max(60, Math.min(slices.length, 6) * 24 + 12);
 
-	// Avance por módulo: stacked closed/open per module, heaviest module on top.
+	// Progress by module as a radar (gtweb-1cd122): each module is an indicator whose max is
+	// the module's scope, so the Total polygon traces the outer rim and the Closed polygon
+	// shows progress towards it. A radar degenerates below 3 axes — stacked bar fallback.
 	const moduleChart = $derived.by(() => {
 		const mods = s.avance.by_module;
 		if (mods.length === 0) return null;
+
+		if (mods.length >= 3) {
+			const option = {
+				animationDuration: 300,
+				legend: LEGEND,
+				tooltip: { trigger: 'item' as const, textStyle: { fontSize: 11 } },
+				radar: {
+					indicator: mods.map((m) => ({
+						name: m.module || 'No module',
+						max: Math.max(1, m.total),
+					})),
+					radius: '65%',
+					axisName: { fontSize: 9, color: '#71717a' },
+					splitLine: { lineStyle: { color: '#e4e4e7' } },
+					splitArea: { show: false },
+					axisLine: { lineStyle: { color: '#e4e4e7' } },
+				},
+				series: [
+					{
+						type: 'radar' as const,
+						data: [
+							{
+								name: 'Total',
+								value: mods.map((m) => m.total),
+								itemStyle: { color: 'oklch(70% 0.03 270)' },
+								lineStyle: { type: 'dashed' as const },
+								areaStyle: { opacity: 0.06 },
+								symbolSize: 3,
+							},
+							{
+								name: 'Closed',
+								value: mods.map((m) => m.closed),
+								itemStyle: { color: 'oklch(62% 0.20 160)' },
+								areaStyle: { opacity: 0.25 },
+								symbolSize: 4,
+							},
+						],
+					},
+				],
+			};
+			return { option, height: Math.max(240, Math.min(mods.length * 30 + 160, 360)) };
+		}
+
+		// Fallback: stacked closed/open bar, heaviest module on top.
 		const rows = [...mods].sort((a, b) => a.total - b.total);
 		const option = {
 			animationDuration: 300,
@@ -93,12 +139,12 @@
 			xAxis: { type: 'value' as const, axisLabel: AXIS_LABEL, splitLine: { lineStyle: { color: '#e4e4e7' } } },
 			yAxis: {
 				type: 'category' as const,
-				data: rows.map((m) => m.module || 'Sin módulo'),
+				data: rows.map((m) => m.module || 'No module'),
 				axisLabel: { ...AXIS_LABEL, width: 120, overflow: 'truncate' as const },
 			},
 			series: [
-				{ name: 'Cerradas', type: 'bar' as const, stack: 't', color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.closed) },
-				{ name: 'Abiertas', type: 'bar' as const, stack: 't', color: 'oklch(70% 0.03 270)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.total - m.closed) },
+				{ name: 'Closed', type: 'bar' as const, stack: 't', color: 'oklch(62% 0.20 160)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.closed) },
+				{ name: 'Open', type: 'bar' as const, stack: 't', color: 'oklch(70% 0.03 270)', emphasis: { focus: 'series' as const }, data: rows.map((m) => m.total - m.closed) },
 			],
 		};
 		return { option, height: Math.max(100, rows.length * 26 + 46) };
@@ -112,31 +158,31 @@
 		<div class="min-w-0 flex-1">
 			<h1 class="text-lg font-semibold">Analytics · {data.rig}</h1>
 			<p class="text-xs text-[var(--gw-color-text-muted)]">
-				Mismos números que el tablero y el reporte (proyección única) · hoy {s.today}
+				Same numbers as the board and the report (single projection) · today {s.today}
 			</p>
 		</div>
 		<label class="text-xs">
-			Serie
+			Series
 			<select
 				class="ml-1 rounded border border-[var(--gw-color-border)] bg-transparent px-2 py-1 text-sm"
 				value={String(data.days)}
 				onchange={(e) => setParam('days', (e.currentTarget as HTMLSelectElement).value)}
 			>
-				<option value="14">14 días</option>
-				<option value="30">30 días</option>
-				<option value="90">90 días</option>
+				<option value="14">14 days</option>
+				<option value="30">30 days</option>
+				<option value="90">90 days</option>
 			</select>
 		</label>
 		<label class="text-xs">
-			Riesgo
+			Risk
 			<select
 				class="ml-1 rounded border border-[var(--gw-color-border)] bg-transparent px-2 py-1 text-sm"
 				value={String(data.risk)}
 				onchange={(e) => setParam('risk', (e.currentTarget as HTMLSelectElement).value)}
 			>
-				<option value="3">3 días</option>
-				<option value="7">7 días</option>
-				<option value="14">14 días</option>
+				<option value="3">3 days</option>
+				<option value="7">7 days</option>
+				<option value="14">14 days</option>
 			</select>
 		</label>
 	</header>
@@ -144,49 +190,49 @@
 	<!-- ── the four headline KPIs ─────────────────────────────────────────── -->
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 		<div class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Avance</p>
+			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Progress</p>
 			<p class="text-2xl font-semibold">{s.avance.pct.toFixed(0)}%</p>
-			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.avance.closed}/{s.avance.total} cerradas</p>
+			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.avance.closed}/{s.avance.total} closed</p>
 		</div>
 		<div class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Errores</p>
+			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Errors</p>
 			<p class="text-2xl font-semibold">{s.errores.total}</p>
-			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.errores.defects} defectos · {s.errores.reopens} reaperturas</p>
+			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.errores.defects} defects · {s.errores.reopens} reopens</p>
 		</div>
 		<div class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Pendientes</p>
+			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Pending</p>
 			<p class="text-2xl font-semibold">{s.pendientes.total}</p>
-			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.pendientes.open} abiertas · {s.pendientes.working} en curso</p>
+			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.pendientes.open} open · {s.pendientes.working} in progress</p>
 		</div>
 		<div class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Retrasos</p>
+			<p class="text-xs uppercase text-[var(--gw-color-text-muted)]">Overdue</p>
 			<p class="text-2xl font-semibold text-[var(--gw-color-danger,#ef4444)]">{s.retrasos.overdue}</p>
-			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.retrasos.at_risk} en riesgo (≤{s.retrasos.at_risk_days}d)</p>
+			<p class="text-xs text-[var(--gw-color-text-muted)]">{s.retrasos.at_risk} at risk (≤{s.retrasos.at_risk_days}d)</p>
 		</div>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-2">
 		<!-- Burndown + created-vs-resolved -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<h2 class="mb-2 text-sm font-semibold">Burndown · creadas vs resueltas ({data.days}d)</h2>
+			<h2 class="mb-2 text-sm font-semibold">Burndown · created vs resolved ({data.days}d)</h2>
 			{#if burndownChart}
 				<EChart option={burndownChart} height={190} />
 				<p class="mt-1 text-[11px] text-[var(--gw-color-text-muted)]">
-					línea: alcance restante (eje derecho) · rueda/arrastre para zoom · clic en la leyenda para filtrar
+					line: remaining scope (right axis) · scroll/drag to zoom · click legend to filter
 				</p>
 			{:else}
-				<p class="text-xs text-[var(--gw-color-text-muted)]">Sin serie.</p>
+				<p class="text-xs text-[var(--gw-color-text-muted)]">No series.</p>
 			{/if}
 		</section>
 
 		<!-- Distribution -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<h2 class="mb-2 text-sm font-semibold">Distribución de trabajo</h2>
+			<h2 class="mb-2 text-sm font-semibold">Work distribution</h2>
 			<div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
 				{#each [
-					{ title: 'Por estado', slices: s.by_status },
-					{ title: 'Pendiente por responsable', slices: s.pendientes.by_assignee },
-					{ title: 'Pendiente por prioridad', slices: s.pendientes.by_priority }
+					{ title: 'By status', slices: s.by_status },
+					{ title: 'Pending by assignee', slices: s.pendientes.by_assignee },
+					{ title: 'Pending by priority', slices: s.pendientes.by_priority }
 				] as group (group.title)}
 					<div>
 						<p class="mb-1 font-medium text-[var(--gw-color-text-muted)]">{group.title}</p>
@@ -200,31 +246,31 @@
 			</div>
 		</section>
 
-		<!-- Avance por módulo -->
+		<!-- Progress by module -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3">
-			<h2 class="mb-2 text-sm font-semibold">Avance por módulo</h2>
+			<h2 class="mb-2 text-sm font-semibold">Progress by module</h2>
 			{#if moduleChart}
 				<EChart option={moduleChart.option} height={moduleChart.height} />
 			{:else}
-				<p class="text-xs text-[var(--gw-color-text-muted)]">Sin módulos.</p>
+				<p class="text-xs text-[var(--gw-color-text-muted)]">No modules.</p>
 			{/if}
 		</section>
 
-		<!-- Retrasos + errores drill-down -->
+		<!-- Delays + errors drill-down -->
 		<section class="rounded-xl border border-[var(--gw-color-border)] p-3 text-xs">
-			<h2 class="mb-2 text-sm font-semibold">Retrasos y errores</h2>
+			<h2 class="mb-2 text-sm font-semibold">Delays and errors</h2>
 			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<p class="mb-1 font-medium text-[var(--gw-color-text-muted)]">Días de retraso</p>
+					<p class="mb-1 font-medium text-[var(--gw-color-text-muted)]">Days late</p>
 					<ul class="space-y-0.5">
 						{#each s.retrasos.days_late as sl (sl.key)}
-							<li class="flex justify-between"><span>{sl.key} días</span><span>{sl.count}</span></li>
+							<li class="flex justify-between"><span>{sl.key} days</span><span>{sl.count}</span></li>
 						{:else}
-							<li class="text-[var(--gw-color-text-muted)]">Sin retrasos 🎉</li>
+							<li class="text-[var(--gw-color-text-muted)]">No delays 🎉</li>
 						{/each}
 					</ul>
 					{#if s.retrasos.overdue_ids.length}
-						<p class="mt-2 mb-1 font-medium text-[var(--gw-color-text-muted)]">Tarjetas vencidas</p>
+						<p class="mt-2 mb-1 font-medium text-[var(--gw-color-text-muted)]">Overdue cards</p>
 						<ul class="max-h-32 space-y-0.5 overflow-y-auto font-mono">
 							{#each s.retrasos.overdue_ids as id (id)}
 								<li><a class="hover:underline" href="/tracker/{id}">{id}</a></li>
@@ -233,15 +279,15 @@
 					{/if}
 				</div>
 				<div>
-					<p class="mb-1 font-medium text-[var(--gw-color-text-muted)]">Errores por Nivel</p>
+					<p class="mb-1 font-medium text-[var(--gw-color-text-muted)]">Errors by level</p>
 					<ul class="space-y-0.5">
 						{#each s.errores.by_nivel as sl (sl.key)}
 							<li class="flex justify-between"><span>{sl.key}</span><span>{sl.count}</span></li>
 						{:else}
-							<li class="text-[var(--gw-color-text-muted)]">Sin defectos.</li>
+							<li class="text-[var(--gw-color-text-muted)]">No defects.</li>
 						{/each}
 					</ul>
-					<p class="mt-2 mb-1 font-medium text-[var(--gw-color-text-muted)]">Errores por módulo</p>
+					<p class="mt-2 mb-1 font-medium text-[var(--gw-color-text-muted)]">Errors by module</p>
 					<ul class="space-y-0.5 font-mono">
 						{#each s.errores.by_module.slice(0, 6) as sl (sl.key)}
 							<li class="flex justify-between"><span class="truncate">{sl.key || '—'}</span><span>{sl.count}</span></li>
