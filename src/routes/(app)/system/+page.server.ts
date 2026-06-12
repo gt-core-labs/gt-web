@@ -38,15 +38,25 @@ export const load: PageServerLoad = async (event) => {
 		reportError = describe(err);
 	}
 
-	// Real board scopes — the distinct (rig, workspace) pairs with beads
-	// (hq-c697bb). Selectors are conditioned on these, not on the catalog
-	// cross-product (which offers boardless combinations and misses bead
-	// namespaces like `hq`).
+	// Scope options for the rig/workspace selectors. Preferred source: the
+	// operator endpoint (hq-00ed29) — per workspace, bead namespaces with
+	// boards ∪ that tenant's own rig-catalog prefixes, folded server-side
+	// (a cross-tenant catalog read is impossible from this session).
+	// Fallback: the beads-only board.scopes pairs (hq-c697bb).
 	let scopes: BoardScope[] = [];
 	try {
-		scopes = await serverBoard(event).scopes();
+		scopes = (await serverSystemApi(event).listReportScopes()).flatMap((o) =>
+			o.rigs.map((rig) => ({ rig, workspace: o.workspace }))
+		);
 	} catch {
-		// non-fatal — selectors fall back to the catalog lists below
+		// older backend — beads-only pairs
+	}
+	if (scopes.length === 0) {
+		try {
+			scopes = await serverBoard(event).scopes();
+		} catch {
+			// non-fatal — selectors fall back to the catalog lists below
+		}
 	}
 
 	// Catalog rigs + workspaces. The rig catalog is per-workspace (tenant

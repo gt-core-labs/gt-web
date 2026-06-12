@@ -37,6 +37,14 @@ export type ReportSchedulePatch = Partial<
 	Omit<ReportSchedule, 'id' | 'last_sent_date' | 'subscribers'>
 > & { subscribers?: string[] };
 
+/** Operator scope option (hq-00ed29): one workspace and the rigs a report
+ * can target there — bead namespaces with boards ∪ the tenant's own
+ * rig-catalog prefixes, folded server-side. */
+export interface ReportScopeOption {
+	workspace: string;
+	rigs: string[];
+}
+
 /** One digest subscriber; `enabled` = the send-selection switch. */
 export interface ReportSubscriber {
 	id: string;
@@ -122,6 +130,12 @@ function systemClient(fetch: Fetcher) {
 		return (await res.json()).kinds;
 	}
 
+	async function listReportScopes(): Promise<ReportScopeOption[]> {
+		const res = await fetch('/api/v1/system/report/scopes');
+		if (!res.ok) throw new TrackerError(res.status, await res.text());
+		return (await res.json()).scopes ?? [];
+	}
+
 	async function listReportSubscribers(): Promise<ReportSubscriber[]> {
 		const res = await fetch('/api/v1/system/report/subscribers');
 		if (!res.ok) throw new TrackerError(res.status, await res.text());
@@ -163,6 +177,7 @@ function systemClient(fetch: Fetcher) {
 		deleteReportSchedule,
 		runReportSchedule,
 		listReportKinds,
+		listReportScopes,
 		listReportSubscribers,
 		addReportSubscriber,
 		removeReportSubscriber,
