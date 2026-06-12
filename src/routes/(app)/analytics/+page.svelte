@@ -54,11 +54,22 @@
 		};
 	});
 
+	/** Stable palette shared by the distribution bars (one colour per category row). */
+	const SLICE_PALETTE = [
+		'oklch(60% 0.22 250)',  // blue
+		'oklch(62% 0.20 160)',  // teal
+		'oklch(58% 0.20 300)',  // purple
+		'oklch(60% 0.22 40)',   // orange
+		'oklch(60% 0.18 120)',  // green
+		'oklch(55% 0.18 0)',    // red
+	];
+
 	/** Horizontal bar option for a top-6 slice group (distribution mini-charts). */
 	const sliceOption = (slices: Slice[]) => {
 		const rows = slices.slice(0, 6).reverse(); // reversed: biggest on the top row
 		return {
 			animationDuration: 300,
+			color: SLICE_PALETTE,
 			grid: { left: 4, right: 28, top: 4, bottom: 4, containLabel: true },
 			tooltip: TOOLTIP,
 			xAxis: { type: 'value' as const, axisLabel: { show: false }, splitLine: { show: false } },
@@ -70,7 +81,7 @@
 			series: [
 				{
 					type: 'bar' as const,
-					color: 'oklch(60% 0.22 250)',
+					colorBy: 'data' as const,
 					barWidth: 10,
 					data: rows.map((r) => r.count),
 					label: { show: true, position: 'right' as const, fontSize: 9, color: '#71717a' },
