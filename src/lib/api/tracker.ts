@@ -14,6 +14,14 @@
 export type IssueStatus = 'open' | 'working' | 'closed';
 
 /**
+ * The closed `issue_type` set the backend accepts on create/update (hq-48ca5c —
+ * `IssueType` enum in gt-issues). Legacy rows may carry other strings; the read
+ * path stays `string`, but every type *editor* must offer exactly this set.
+ */
+export const ISSUE_TYPES = ['epic', 'task', 'bug', 'spike', 'chore', 'feature'] as const;
+export type IssueType = (typeof ISSUE_TYPES)[number];
+
+/**
  * Event kinds the backend emits on `/stream?channel=issues` (the SSE feed every
  * issue mutation — REST or MCP — publishes into). The names carry the `.v1`
  * version suffix exactly as the stream frames them, so an `EventSource` listener

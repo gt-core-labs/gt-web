@@ -3,6 +3,7 @@
 	import { browserComments, type BoardCard, type Comment } from '$lib/api/board';
 	import {
 		browserTracker,
+		ISSUE_TYPES,
 		parseJsonArray,
 		TrackerError,
 		type IssueDetail,
@@ -91,8 +92,12 @@
 	const depOptions = $derived(
 		allIssues.filter((r) => r.id !== card.id).map((r) => ({ id: r.id, title: r.title }))
 	);
+	// Closed set (hq-48ca5c) + the row's own legacy value so the select never
+	// renders blank on a pre-enum row.
 	const typeOptions = $derived(
-		[...new Set(allIssues.map((r) => r.issue_type).filter(Boolean))].sort()
+		detail && !(ISSUE_TYPES as readonly string[]).includes(detail.issue_type)
+			? [detail.issue_type, ...ISSUE_TYPES]
+			: [...ISSUE_TYPES]
 	);
 
 	const PRIORITY = ['P0', 'P1', 'P2'];
@@ -160,19 +165,17 @@
 					<option value="1">P1</option>
 					<option value="2">P2</option>
 				</select>
-				<input
-					class="{editCls} w-20"
-					list="drawer-issue-types"
+				<select
+					class={editCls}
 					value={detail.issue_type}
 					aria-label="Type"
 					onchange={(e) => {
-						const v = (e.currentTarget as HTMLInputElement).value.trim();
-						if (v) patch({ issue_type: v });
+						const v = (e.currentTarget as HTMLSelectElement).value;
+						if (v !== detail!.issue_type) patch({ issue_type: v });
 					}}
-				/>
-				<datalist id="drawer-issue-types">
-					{#each typeOptions as t (t)}<option value={t}></option>{/each}
-				</datalist>
+				>
+					{#each typeOptions as t (t)}<option value={t}>{t}</option>{/each}
+				</select>
 				<AssigneeSelect
 					class="{editCls} max-w-36"
 					value={detail.assignee ?? ''}

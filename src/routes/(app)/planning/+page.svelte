@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { browserReport } from '$lib/api/board';
-	import { browserTracker, TrackerError, parseJsonArray, type IssueRow } from '$lib/api/tracker';
+	import { browserTracker, ISSUE_TYPES, TrackerError, parseJsonArray, type IssueRow } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import AssigneeSelect from '$lib/components/tracker/AssigneeSelect.svelte';
@@ -163,9 +163,10 @@
 		}
 	}
 
-	/** Type categories already in use on this board — the datalist lets the user
-	 * pick one or type a new category (hq-039316). */
-	const typeOptions = $derived([...new Set(rows.map((r) => r.issue_type).filter(Boolean))].sort());
+	/** Closed type set (hq-48ca5c) — the backend rejects anything outside it, so
+	 * the cell is a select. A row's legacy value is prepended per-row in the
+	 * template so the select never renders blank on a pre-enum row. */
+	const typeOptions = ISSUE_TYPES;
 
 	// ── export (hq-039316): client-side CSV of the visible sections ─────────
 	function csvCell(v: string | number | null | undefined): string {
@@ -351,13 +352,17 @@
 								</span>
 							</td>
 							<td class="px-2 py-1.5">
-								<input
+								<select
 									class={inputCls}
-									list="issue-types"
 									value={row.issue_type}
 									disabled={!canWrite}
-									onchange={(e) => patch(row, 'issue_type', (e.currentTarget as HTMLInputElement).value)}
-								/>
+									onchange={(e) => patch(row, 'issue_type', (e.currentTarget as HTMLSelectElement).value)}
+								>
+									{#if !(typeOptions as readonly string[]).includes(row.issue_type)}
+										<option value={row.issue_type}>{row.issue_type}</option>
+									{/if}
+									{#each typeOptions as t (t)}<option value={t}>{t}</option>{/each}
+								</select>
 							</td>
 							<td class="px-2 py-1.5">
 								<select
@@ -431,10 +436,6 @@
 	</footer>
 </div>
 
-<!-- Shared type-category datalist: pick an existing category or type a new one. -->
-<datalist id="issue-types">
-	{#each typeOptions as t (t)}<option value={t}></option>{/each}
-</datalist>
 
 {#if selected}
 	<CardDrawer

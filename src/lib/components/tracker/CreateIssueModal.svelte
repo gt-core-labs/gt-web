@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { browserTracker, TrackerError } from '$lib/api/tracker';
+	import { browserTracker, ISSUE_TYPES, TrackerError } from '$lib/api/tracker';
 
 	interface Props {
 		createdBy: string;
@@ -103,7 +103,9 @@
 						<div class="flex flex-col gap-1.5">
 							<label for="bead-type" class="field-label">Type</label>
 							<div class="field-wrap">
-								<input id="bead-type" class="field-input" bind:value={issueType} required />
+								<select id="bead-type" class="field-input" bind:value={issueType} required>
+									{#each ISSUE_TYPES as t (t)}<option value={t}>{t}</option>{/each}
+								</select>
 							</div>
 						</div>
 					</div>
