@@ -44,7 +44,9 @@ export const load: PageServerLoad = async (event) => {
 		const adm = serverAdmin(event);
 		const [rs, ws] = await Promise.all([adm.rigs(), adm.workspaces()]);
 		rigs = rs.map((r) => r.name);
-		workspaces = ws.map((w) => w.name);
+		// Board/issues scope keys by workspace ID (slug), not display name —
+		// a schedule saved with the name filters zero rows (hq-866962).
+		workspaces = ws.map((w) => w.id);
 	} catch {
 		// non-fatal — selectors fall back to free-text inputs
 	}
