@@ -70,11 +70,49 @@
 	const blankModel = (): ModelConfig => ({ model: '', permission_mode: '', effort: '' });
 	let models = $state<Record<string, ModelConfig>>({});
 	$effect(() => {
+		// Seed EVERY role (gtweb-c7ba4b): a role without a binding yet still renders the picker
+		// (all-default) instead of the section vanishing behind `{#if models[role]}`.
+		const byRole = new Map(data.bindings.map((b) => [b.role, b.model_config]));
 		const seed: Record<string, ModelConfig> = {};
-		for (const b of data.bindings) seed[b.role] = b.model_config ?? blankModel();
+		for (const r of ROLES) seed[r] = byRole.get(r) ?? blankModel();
 		models = seed;
 	});
-	const saveModel = () => run(() => browserSkills().setRoleModel(role, models[role] ?? blankModel()));
+
+	// Pill pickers with immediate save (gtweb-c7ba4b): mirrors the Skills toggles — click a pill,
+	// the PUT lands, invalidateAll reseeds from the server truth, and the chosen pill STAYS
+	// highlighted. No separate Save button whose reseed made the dropdowns look like they "jumped".
+	type ModelField = keyof ModelConfig;
+	const MODEL_PICKERS: {
+		field: ModelField;
+		label: string;
+		hint?: string;
+		options: { value: string; label: string }[];
+	}[] = [
+		{
+			field: 'model',
+			label: 'Model',
+			options: MODELS.map((m) => ({ value: m, label: m || 'default' }))
+		},
+		{
+			field: 'permission_mode',
+			label: 'Permission',
+			hint: 'interactive sessions only — autonomous agents always keep bypass (hq-e90522)',
+			options: [{ value: '', label: 'unset' }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]
+		},
+		{
+			field: 'effort',
+			label: 'Effort',
+			options: [{ value: '', label: 'default' }, ...EFFORT_LEVELS.map((e) => ({ value: e, label: e }))]
+		}
+	];
+	const modelFieldOn = (field: ModelField, value: string) =>
+		(models[role]?.[field] ?? '') === value;
+	const setModelField = (field: ModelField, value: string) =>
+		run(async () => {
+			const next = { ...(models[role] ?? blankModel()), [field]: value };
+			models = { ...models, [role]: next };
+			await browserSkills().setRoleModel(role, next);
+		});
 
 	// ── Scopes (permissions, hq-role-scopes) ────────────────────────────
 	// The grantable catalog feeds the picker (no free text). When it's unavailable the editor
@@ -320,44 +358,44 @@
 
 			<!-- ══ MODEL ═════════════════════════════════════════════════ -->
 			{:else if section === 'model'}
-				{#if models[role]}
-					<div class="bezel">
-						<div class="bezel-core p-[var(--gw-space-4)]">
-							<div class="mb-[var(--gw-space-3)] flex items-center justify-between">
-								<p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
-									Claude launch — <code class="font-[family-name:var(--gw-font-mono)]">--model</code> /
-									<code class="font-[family-name:var(--gw-font-mono)]">--permission-mode</code> /
-									<code class="font-[family-name:var(--gw-font-mono)]">--effort</code>. Blank = account default.
+				<div class="bezel">
+					<div class="bezel-core space-y-[var(--gw-space-3)] p-[var(--gw-space-4)]">
+						<p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+							Claude launch for <span class="text-[var(--gw-color-text)]">{role}</span> —
+							<code class="font-[family-name:var(--gw-font-mono)]">--model</code> /
+							<code class="font-[family-name:var(--gw-font-mono)]">--permission-mode</code> /
+							<code class="font-[family-name:var(--gw-font-mono)]">--effort</code>.
+							Click a pill to apply; the selection persists.
+						</p>
+						{#each MODEL_PICKERS as grp (grp.field)}
+							<div>
+								<p class="mb-1 text-xs text-[var(--gw-color-text-muted)]">
+									{grp.label}{#if grp.hint}
+										<span class="ml-1 opacity-70">({grp.hint})</span>
+									{/if}
 								</p>
-								{#if canWrite}
-									<Button type="button" disabled={busy} onclick={saveModel}>Save</Button>
-								{/if}
+								<div class="flex flex-wrap gap-1.5">
+									{#each grp.options as opt (opt.value)}
+										<button
+											type="button"
+											disabled={busy || !canWrite}
+											aria-pressed={modelFieldOn(grp.field, opt.value)}
+											class="rounded-full border px-2.5 py-0.5 text-[11px] font-medium
+												transition-all duration-[150ms] ease-[cubic-bezier(0.32,0.72,0,1)]
+												disabled:opacity-50
+												{modelFieldOn(grp.field, opt.value)
+													? 'border-[var(--gw-color-primary)] bg-[var(--gw-color-primary-subtle)] text-[var(--gw-color-primary)]'
+													: 'border-[var(--gw-color-border)] text-[var(--gw-color-text-muted)] hover:border-[var(--gw-color-primary)] hover:text-[var(--gw-color-primary)]'}"
+											onclick={() => setModelField(grp.field, opt.value)}
+										>
+											{opt.label}
+										</button>
+									{/each}
+								</div>
 							</div>
-							<div class="grid grid-cols-3 gap-[var(--gw-space-2)]">
-								<label class="space-y-1 text-xs">
-									<span class="text-[var(--gw-color-text-muted)]">Model</span>
-									<select class="select text-xs" bind:value={models[role].model} disabled={!canWrite}>
-										{#each MODELS as m (m)}<option value={m}>{m === '' ? 'default' : m}</option>{/each}
-									</select>
-								</label>
-								<label class="space-y-1 text-xs">
-									<span class="text-[var(--gw-color-text-muted)]">Permission</span>
-									<select class="select text-xs" bind:value={models[role].permission_mode} disabled={!canWrite}>
-										<option value="">unset</option>
-										{#each PERMISSION_MODES as pm (pm)}<option value={pm}>{pm}</option>{/each}
-									</select>
-								</label>
-								<label class="space-y-1 text-xs">
-									<span class="text-[var(--gw-color-text-muted)]">Effort</span>
-									<select class="select text-xs" bind:value={models[role].effort} disabled={!canWrite}>
-										<option value="">default</option>
-										{#each EFFORT_LEVELS as e (e)}<option value={e}>{e}</option>{/each}
-									</select>
-								</label>
-							</div>
-						</div>
+						{/each}
 					</div>
-				{/if}
+				</div>
 
 			<!-- ══ SCOPES ════════════════════════════════════════════════ -->
 			{:else}
