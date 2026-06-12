@@ -194,9 +194,11 @@
 	</header>
 
 	{#if mode === 'timeline'}
-		<!-- Timeline: 12-week day grid, one row per scheduled task. -->
-		<div class="overflow-x-auto rounded-xl border border-[var(--gw-color-border)]">
-			<div style="width: {WIN_DAYS * DAY_PX}px">
+		<!-- Timeline: 12-week day grid, one row per scheduled task. Fills the
+		     page height so the horizontal scrollbar sits at the viewport
+		     bottom instead of glued under the last bar. -->
+		<div class="min-h-0 flex-1 overflow-auto rounded-xl border border-[var(--gw-color-border)]">
+			<div class="min-h-full" style="width: {WIN_DAYS * DAY_PX}px">
 				<!-- Week group header -->
 				<div class="grid border-b border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)]" style="grid-template-columns: repeat({WIN_DAYS / 7}, {7 * DAY_PX}px)">
 					{#each winWeeks as w, i (i)}
@@ -216,12 +218,12 @@
 				</div>
 				<!-- Task rows -->
 				{#each bars as b (b.task.id)}
-					<div class="relative grid h-8 items-center" style="grid-template-columns: repeat({WIN_DAYS}, {DAY_PX}px)">
+					<div class="relative grid h-10 items-center" style="grid-template-columns: repeat({WIN_DAYS}, {DAY_PX}px)">
 						{#each winDays as d (d.key)}
 							<div class="h-full border-l border-[var(--gw-color-border)]/30 {d.key === todayKey ? 'bg-[var(--gw-color-primary)]/8' : d.weekend ? 'bg-[var(--gw-color-surface-2)]/60' : ''} first:border-l-0"></div>
 						{/each}
 						<button
-							class="absolute z-10 mx-0.5 flex h-6 min-w-0 items-center gap-1 truncate border px-1.5 text-left text-[11px] hover:brightness-110 {PRIORITY_BAR[b.task.priority] ?? PRIORITY_BAR[2]} {b.task.status === 'closed' ? 'line-through opacity-50' : ''} {b.clippedStart ? 'rounded-r' : b.clippedEnd ? 'rounded-l' : 'rounded'}"
+							class="absolute z-10 mx-0.5 flex h-7 min-w-0 items-center gap-1 truncate border px-1.5 text-left text-xs hover:brightness-110 {PRIORITY_BAR[b.task.priority] ?? PRIORITY_BAR[2]} {b.task.status === 'closed' ? 'line-through opacity-50' : ''} {b.clippedStart ? 'rounded-r' : b.clippedEnd ? 'rounded-l' : 'rounded'}"
 							style="left: {(b.from - 1) * DAY_PX}px; width: {(b.to - b.from) * DAY_PX - 4}px"
 							title="{b.task.id} — {b.task.title} ({b.task.start_date ?? '?'} → {b.task.due_date ?? '?'})"
 							onclick={() => (selected = b.task)}
