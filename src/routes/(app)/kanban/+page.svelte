@@ -27,7 +27,7 @@
 
 	const canWrite = $derived(hasScope(data.user?.scopes, 'issues.write'));
 	const scopeKey = $derived({ rig: data.rig, workspace: data.boardWorkspace });
-	const totalCards = $derived(columns.reduce((acc, c) => acc + c.cards.filter((x) => x.issue_type !== 'epic').length, 0));
+	const totalCards = $derived(columns.reduce((acc, c) => acc + c.cards.length, 0));
 
 	let error = $state('');
 	let selected = $state<BoardCard | null>(null);
