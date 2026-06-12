@@ -35,8 +35,8 @@
 >
 	{#each VIEWS as v (v.key)}
 		<a
-			class="flex items-center p-1.5 {active === v.key
-				? 'bg-[var(--gw-color-surface-2)] text-[var(--gw-color-text)]'
+			class="flex items-center p-1.5 transition-colors {active === v.key
+				? 'bg-[var(--gw-color-primary)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]'
 				: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]'} border-l border-[var(--gw-color-border)] first:border-l-0"
 			href={v.href}
 			title={v.label}
