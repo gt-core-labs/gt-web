@@ -524,6 +524,7 @@
 		{canWrite}
 		users={data.users}
 		allIssues={rows}
+		onNavigate={(c) => (selected = c)}
 		onClose={() => (selected = null)}
 	/>
 {/if}

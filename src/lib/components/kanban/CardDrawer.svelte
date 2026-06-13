@@ -24,8 +24,12 @@
 		users?: string[];
 		/** The board's rows — depends_on candidates + type categories. */
 		allIssues?: IssueRow[];
+		/** Re-target the drawer to another card (gtweb-b4f9f3): parent-epic chip
+		 * and epic children list navigate through this — the host page owns the
+		 * `selected` card, so the drawer asks it to swap. */
+		onNavigate?: (card: IssueRow) => void;
 	}
-	let { card, onClose, canWrite = false, users = [], allIssues = [] }: Props = $props();
+	let { card, onClose, canWrite = false, users = [], allIssues = [], onNavigate }: Props = $props();
 
 	let detail = $state<IssueDetail | null>(null);
 	let thread = $state<Comment[]>([]);
@@ -103,6 +107,19 @@
 	// Epic picker options: the scope's epics (minus this card itself).
 	const epicOptions = $derived(allIssues.filter((r) => r.issue_type === 'epic' && r.id !== card.id));
 	const epicTitle = (id: string) => allIssues.find((r) => r.id === id)?.title ?? id;
+
+	// Parent↔children navigation (gtweb-b4f9f3), off the SSR-resolved parent_id.
+	const parentCard = $derived(
+		card.parent_id ? (allIssues.find((r) => r.id === card.parent_id) ?? null) : null
+	);
+	const children = $derived(
+		card.issue_type === 'epic' ? allIssues.filter((r) => r.parent_id === card.id) : []
+	);
+	const CHILD_STATUS: Record<string, string> = {
+		open: 'bg-[var(--gw-color-surface-2)] text-[var(--gw-color-text-muted)]',
+		working: 'bg-amber-500/15 text-amber-500',
+		closed: 'bg-emerald-500/15 text-emerald-500'
+	};
 
 	const dependsOn = $derived(detail ? parseJsonArray(detail.depends_on_json) : []);
 	const depOptions = $derived(
@@ -223,6 +240,14 @@
 						<option value="">— no epic —</option>
 						{#each epicOptions as ep (ep.id)}<option value={ep.id}>{ep.title}</option>{/each}
 					</select>
+					{#if parentCard && onNavigate}
+						<button
+							class="rounded p-1 text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]"
+							title="Open epic {parentCard.id}"
+							aria-label="Open parent epic {parentCard.id}"
+							onclick={() => onNavigate?.(parentCard)}
+						><Icon icon="lucide:arrow-up-right" size={14} /></button>
+					{/if}
 				{/if}
 				{#if card.estimated_hours != null}<span class={chipCls}>{card.estimated_hours}h</span>{/if}
 				{#if card.due_date}<span class={chipCls}>due {card.due_date}</span>{/if}
@@ -233,7 +258,17 @@
 				<span class={chipCls}>{PRIORITY[card.priority] ?? `P${card.priority}`}</span>
 				<span class={chipCls}>{card.issue_type}</span>
 				{#if card.assignee}<span class={chipCls}>@{card.assignee}</span>{/if}
-				{#if card.parent_id}<span class={chipCls}>epic {epicTitle(card.parent_id)}</span>{/if}
+				{#if card.parent_id}
+					{#if parentCard && onNavigate}
+						<button
+							class="{chipCls} text-[var(--gw-color-primary)] hover:underline"
+							title="Open epic {card.parent_id}"
+							onclick={() => onNavigate?.(parentCard)}
+						>epic {epicTitle(card.parent_id)}</button>
+					{:else}
+						<span class={chipCls}>epic {epicTitle(card.parent_id)}</span>
+					{/if}
+				{/if}
 				{#if card.estimated_hours != null}<span class={chipCls}>{card.estimated_hours}h</span>{/if}
 				{#if card.due_date}<span class={chipCls}>due {card.due_date}</span>{/if}
 			</div>
@@ -256,6 +291,33 @@
 				<section>
 					<h3 class="mb-1 text-xs font-semibold uppercase text-[var(--gw-color-text-muted)]">Acceptance criteria</h3>
 					<Markdown text={detail.acceptance_criteria} />
+				</section>
+			{/if}
+
+			{#if card.issue_type === 'epic'}
+				<section>
+					<h3 class="mb-1 text-xs font-semibold uppercase text-[var(--gw-color-text-muted)]">
+						Children ({children.length})
+					</h3>
+					{#if children.length}
+						<ul class="divide-y divide-[var(--gw-color-border)] rounded-lg border border-[var(--gw-color-border)]">
+							{#each children as child (child.id)}
+								<li>
+									<button
+										class="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-[var(--gw-color-surface-2)] disabled:cursor-default"
+										disabled={!onNavigate}
+										onclick={() => onNavigate?.(child)}
+									>
+										<span class="shrink-0 rounded px-1.5 py-0.5 text-[11px] {CHILD_STATUS[child.status] ?? ''}">{child.status}</span>
+										<span class="shrink-0 font-mono text-[11px] text-[var(--gw-color-text-muted)]">{child.id}</span>
+										<span class="min-w-0 truncate">{child.title}</span>
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="text-sm text-[var(--gw-color-text-muted)]">No children yet — assign beads to this epic to see them here.</p>
+					{/if}
 				</section>
 			{/if}
 

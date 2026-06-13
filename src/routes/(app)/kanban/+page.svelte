@@ -385,6 +385,7 @@
 		{canWrite}
 		users={data.users}
 		allIssues={columns.flatMap((c) => c.cards)}
+		onNavigate={(c) => (selected = c)}
 		onClose={() => (selected = null)}
 	/>
 {/if}
