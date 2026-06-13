@@ -362,10 +362,21 @@
 				{/if}
 				{#if section.badge}
 					<span class="rounded bg-[var(--gw-color-primary)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--gw-color-primary)]">{section.badge}</span>
+				{:else if groupBy === 'module' && section.id}
+					<span class="rounded bg-[var(--gw-color-primary)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--gw-color-primary)]">EPIC</span>
 				{/if}
 				<h2 class="text-sm font-semibold">{section.title}</h2>
 				{#if groupBy === 'module' && section.id}
+					{@const epicRow = epics.find((e) => e.id === section.id)}
 					<span class="font-mono text-[11px] text-[var(--gw-color-text-muted)]">{section.id}</span>
+					{#if epicRow}
+						<button
+							class="rounded p-0.5 text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface)] hover:text-[var(--gw-color-text)]"
+							title="Open epic {section.id}"
+							aria-label="Open epic {section.id}"
+							onclick={() => (selected = epicRow)}
+						><Icon icon="lucide:panel-right-open" size={14} /></button>
+					{/if}
 				{/if}
 				{#if section.range}
 					<span class="text-xs text-[var(--gw-color-text-muted)]">{section.range}</span>
@@ -395,14 +406,8 @@
 					</tr>
 				</thead>
 				<tbody>
-					<!-- Epic-as-first-row (gtweb-00ed70): the section IS the epic's
-					     table, so the parent heads it as an editable row. -->
-					{#if groupBy === 'module' && section.id}
-						{@const epicRow = epics.find((e) => e.id === section.id)}
-						{#if epicRow}{@render taskRow(epicRow, true)}{/if}
-					{/if}
 					{#each section.items as row (row.id)}
-						{@render taskRow(row, false)}
+						{@render taskRow(row)}
 					{/each}
 				</tbody>
 			</table>
@@ -412,14 +417,14 @@
 		<p class="text-sm text-[var(--gw-color-text-muted)]">No tasks in this rig.</p>
 	{/each}
 
-	{#snippet taskRow(row: IssueRow, isEpic: boolean)}
-						<tr class="border-t border-[var(--gw-color-border)] {isEpic ? 'bg-[var(--gw-color-primary)]/5' : ''}">
+	{#snippet taskRow(row: IssueRow)}
+						<tr class="border-t border-[var(--gw-color-border)]">
 							<td class="px-3 py-1.5">
 								<button
-									class="block w-full truncate text-left hover:text-[var(--gw-color-primary)] hover:underline {isEpic ? 'font-semibold' : ''}"
+									class="block w-full truncate text-left hover:text-[var(--gw-color-primary)] hover:underline"
 									title={row.id}
 									onclick={() => (selected = row)}
-								>{#if isEpic}<span class="mr-1.5 rounded bg-[var(--gw-color-primary)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--gw-color-primary)]">EPIC</span>{/if}{row.title}</button>
+								>{row.title}</button>
 							</td>
 							{#if groupBy === 'week'}
 								<!-- Parent module chip (gtweb-eee2fc): the week grouping loses the
