@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { browserReport } from '$lib/api/board';
 	import { browserTracker, ISSUE_TYPES, TrackerError, parseJsonArray, type IssueRow } from '$lib/api/tracker';
@@ -42,6 +43,33 @@
 		}
 	};
 
+	// ── collapsible module sections (gtweb-eee2fc) ──────────────────────────
+	let collapsed = $state<Record<string, boolean>>({});
+	$effect(() => {
+		try {
+			collapsed = JSON.parse(localStorage.getItem('gt:planning-collapsed') ?? '{}');
+		} catch {
+			/* storage unavailable */
+		}
+	});
+	function toggleSection(id: string) {
+		collapsed = { ...collapsed, [id]: !collapsed[id] };
+		try {
+			localStorage.setItem('gt:planning-collapsed', JSON.stringify(collapsed));
+		} catch {
+			/* storage unavailable */
+		}
+	}
+
+	/** From a week row's Module chip: switch to module grouping and land on the
+	 * epic's section, expanding it if it was collapsed. */
+	async function jumpToModule(epicId: string) {
+		if (collapsed[epicId]) toggleSection(epicId);
+		setGroupBy('module');
+		await tick();
+		document.getElementById(`planning-section-${epicId}`)?.scrollIntoView({ behavior: 'smooth' });
+	}
+
 	// Module = epic (ADR D5, epic-per-module via the child_of relation). Epics
 	// title the sections and are not task rows; the no-module tail renders last.
 	const epics = $derived(rows.filter((r) => r.issue_type === 'epic'));
@@ -57,6 +85,8 @@
 		range?: string;
 		items: IssueRow[];
 		hours: number;
+		/** Children closed so far — module grouping rollup (gtweb-eee2fc). */
+		done?: number;
 	}
 
 	// ── week grouping: ISO week of start_date (due_date fallback) ───────────
@@ -93,7 +123,17 @@
 		const out = [...byKey.entries()].map(([id, items]): Section => {
 			const hours = items.reduce((acc, r) => acc + (r.estimated_hours ?? 0), 0);
 			if (groupBy === 'module') {
-				return { id, title: id ? epicTitle(id) : 'No module', items, hours };
+				// Hierarchy rollups (gtweb-eee2fc): children progress + planned
+				// date envelope (min start → max due) on the epic header.
+				const done = items.filter((r) => r.status === 'closed').length;
+				const starts = items.map((r) => r.start_date).filter(Boolean).sort() as string[];
+				const dues = items.map((r) => r.due_date).filter(Boolean).sort() as string[];
+				const fmt = (raw: string) => fmtDay(new Date(`${raw}T00:00:00Z`));
+				const range =
+					starts.length || dues.length
+						? `${starts[0] ? fmt(starts[0]) : '…'} → ${dues.at(-1) ? fmt(dues.at(-1)!) : '…'}`
+						: undefined;
+				return { id, title: id ? epicTitle(id) : 'No module', items, hours, done, range };
 			}
 			if (!id) return { id, title: 'Unscheduled', items, hours };
 			const monday = new Date(`${id}T00:00:00Z`);
@@ -176,13 +216,14 @@
 		return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 	}
 	function exportCsv() {
-		const header = ['section', 'id', 'title', 'status', 'type', 'priority', 'tags', 'hours', 'assignee', 'start_date', 'due_date'];
+		const header = ['section', 'module', 'id', 'title', 'status', 'type', 'priority', 'tags', 'hours', 'assignee', 'start_date', 'due_date'];
 		const lines = [header.join(',')];
 		for (const s of sections) {
 			for (const r of s.items) {
 				lines.push(
 					[
 						s.title,
+						r.parent_id ? epicTitle(r.parent_id) : '',
 						r.id,
 						r.title,
 						r.status,
@@ -305,23 +346,43 @@
 	<EpicsOverview {epics} tasks={rows} onpick={(e) => (selected = e)} />
 
 	{#each sections as section (section.id)}
-		<section class="overflow-x-auto rounded-xl border border-[var(--gw-color-border)]">
-			<header class="flex items-center gap-2 border-b border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)] px-3 py-2">
+		{@const isCollapsed = groupBy === 'module' && !!collapsed[section.id]}
+		<section
+			id="planning-section-{section.id}"
+			class="overflow-x-auto rounded-xl border border-[var(--gw-color-border)]"
+		>
+			<header class="flex items-center gap-2 bg-[var(--gw-color-surface-2)] px-3 py-2 {isCollapsed ? '' : 'border-b border-[var(--gw-color-border)]'}">
+				{#if groupBy === 'module'}
+					<button
+						class="text-xs text-[var(--gw-color-text-muted)]"
+						title={isCollapsed ? 'Expand' : 'Collapse'}
+						aria-expanded={!isCollapsed}
+						onclick={() => toggleSection(section.id)}
+					>{isCollapsed ? '▸' : '▾'}</button>
+				{/if}
 				{#if section.badge}
 					<span class="rounded bg-[var(--gw-color-primary)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--gw-color-primary)]">{section.badge}</span>
 				{/if}
 				<h2 class="text-sm font-semibold">{section.title}</h2>
-				{#if section.range}
-					<span class="text-xs text-[var(--gw-color-text-muted)]">{section.range}</span>
-				{:else if groupBy === 'module' && section.id}
+				{#if groupBy === 'module' && section.id}
 					<span class="font-mono text-[11px] text-[var(--gw-color-text-muted)]">{section.id}</span>
 				{/if}
-				<span class="ml-auto text-xs text-[var(--gw-color-text-muted)]">{section.items.length} tasks · {section.hours} h</span>
+				{#if section.range}
+					<span class="text-xs text-[var(--gw-color-text-muted)]">{section.range}</span>
+				{/if}
+				<span class="ml-auto text-xs text-[var(--gw-color-text-muted)]">
+					{#if section.done != null}
+						<span class="tabular-nums">{section.done}/{section.items.length} done</span> ·
+					{/if}
+					{section.items.length} tasks · {section.hours} h
+				</span>
 			</header>
+			{#if !isCollapsed}
 			<table class="w-full text-sm">
 				<thead>
 					<tr class="text-left text-[11px] uppercase text-[var(--gw-color-text-muted)]">
 						<th class="px-3 py-1.5">Task</th>
+						{#if groupBy === 'week'}<th class="px-2 py-1.5">Module</th>{/if}
 						<th class="px-2 py-1.5">Status</th>
 						<th class="px-2 py-1.5">Tags</th>
 						<th class="px-2 py-1.5 w-24">Type</th>
@@ -343,6 +404,21 @@
 									onclick={() => (selected = row)}
 								>{row.title}</button>
 							</td>
+							{#if groupBy === 'week'}
+								<!-- Parent module chip (gtweb-eee2fc): the week grouping loses the
+								     epic, so surface it per row; click lands on the module section. -->
+								<td class="px-2 py-1.5">
+									{#if row.parent_id}
+										<button
+											class="max-w-44 truncate rounded bg-[var(--gw-color-primary)]/10 px-1.5 py-0.5 text-left text-[11px] text-[var(--gw-color-primary)] hover:bg-[var(--gw-color-primary)]/20"
+											title="Go to module {row.parent_id}"
+											onclick={() => jumpToModule(row.parent_id!)}
+										>{epicTitle(row.parent_id)}</button>
+									{:else}
+										<span class="text-[var(--gw-color-text-muted)]">—</span>
+									{/if}
+								</td>
+							{/if}
 							<td class="px-2 py-1.5">
 								<span class="rounded px-2 py-0.5 text-xs {STATUS[row.status]?.cls ?? ''}">
 									{STATUS[row.status]?.label ?? row.status}
@@ -430,6 +506,7 @@
 					{/each}
 				</tbody>
 			</table>
+			{/if}
 		</section>
 	{:else}
 		<p class="text-sm text-[var(--gw-color-text-muted)]">No tasks in this rig.</p>
