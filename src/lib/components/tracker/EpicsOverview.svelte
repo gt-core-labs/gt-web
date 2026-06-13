@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { IssueRow } from '$lib/api/tracker';
+	import { Icon } from '$lib/ui';
 
 	/**
 	 * Epics overview (gtweb-1c27cf): the operator's first dedicated view of the
@@ -13,8 +14,11 @@
 		tasks: IssueRow[];
 		/** Open the epic's card drawer (NOT the create modal — AC: view ≠ create). */
 		onpick?: (epic: IssueRow) => void;
+		/** Filter the host view to the epic's children (gtweb-20e211). When set,
+		 * the title click filters and the drawer moves to a dedicated button. */
+		onfilter?: (epic: IssueRow) => void;
 	}
-	let { epics, tasks, onpick }: Props = $props();
+	let { epics, tasks, onpick, onfilter }: Props = $props();
 
 	let open = $state(true);
 
@@ -63,9 +67,17 @@
 						</span>
 						<button
 							class="min-w-0 flex-1 truncate text-left text-sm hover:text-[var(--gw-color-primary)] hover:underline"
-							title={epic.id}
-							onclick={() => onpick?.(epic)}
+							title={onfilter ? `Filter to children of ${epic.id}` : epic.id}
+							onclick={() => (onfilter ?? onpick)?.(epic)}
 						>{epic.title}</button>
+						{#if onfilter && onpick}
+							<button
+								class="shrink-0 rounded px-1 text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]"
+								title="Open card {epic.id}"
+								aria-label="Open card {epic.id}"
+								onclick={() => onpick?.(epic)}
+							><Icon icon="lucide:panel-right-open" size={14} /></button>
+						{/if}
 						<span class="hidden shrink-0 font-mono text-[11px] text-[var(--gw-color-text-muted)] sm:inline">{epic.id}</span>
 						<div class="hidden h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-[var(--gw-color-surface-2)] sm:block">
 							<div class="h-full rounded-full bg-emerald-500" style:width="{pct}%"></div>

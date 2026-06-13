@@ -284,7 +284,12 @@
 		</p>
 	{/if}
 
-	<EpicsOverview {epics} tasks={allCards} onpick={(e) => (selected = e)} />
+	<EpicsOverview
+		{epics}
+		tasks={allCards}
+		onpick={(e) => (selected = e)}
+		onfilter={(e) => setParam('epic', data.epic === e.id ? '' : e.id)}
+	/>
 
 	<!-- Board -->
 	<div class="grid min-h-0 flex-1 grid-cols-3 gap-3">
@@ -349,6 +354,19 @@
 										</span>
 									{/if}
 								</button>
+								<!-- Parent epic chip (gtweb-20e211): locate the card's parent at a
+								     glance; click filters the board to the epic's children. Sibling
+								     of the main button — a button can't nest a button. -->
+								{#if card.parent_id}
+									<button
+										class="mt-1 max-w-full truncate rounded bg-[var(--gw-color-primary)]/10 px-1.5 py-0.5 text-left text-[11px] text-[var(--gw-color-primary)] hover:bg-[var(--gw-color-primary)]/20"
+										title="Filter board to epic {card.parent_id}"
+										onclick={(e) => {
+											e.stopPropagation();
+											setParam('epic', card.parent_id ?? '');
+										}}
+									>{epicTitle(card.parent_id)}</button>
+								{/if}
 							</div>
 						{/each}
 						{#if dropHint && dropHint.status === status && dropHint.index === visible.length && dragged}
