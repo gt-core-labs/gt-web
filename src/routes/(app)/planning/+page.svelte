@@ -116,6 +116,9 @@
 
 	const sections = $derived.by<Section[]>(() => {
 		const byKey = new Map<string, IssueRow[]>();
+		// Every epic owns a module section even with zero children (gtweb-2907e0)
+		// — otherwise a childless epic only exists in the overview panel.
+		if (groupBy === 'module') for (const e of epics) byKey.set(e.id, []);
 		for (const t of tasks) {
 			const key = groupBy === 'module' ? (t.parent_id ?? '') : weekKey(t);
 			byKey.set(key, [...(byKey.get(key) ?? []), t]);
