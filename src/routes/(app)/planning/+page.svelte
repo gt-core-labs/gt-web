@@ -7,7 +7,6 @@
 	import CardDrawer from '$lib/components/kanban/CardDrawer.svelte';
 	import AssigneeSelect from '$lib/components/tracker/AssigneeSelect.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
-	import EpicsOverview from '$lib/components/tracker/EpicsOverview.svelte';
 	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
@@ -345,8 +344,6 @@
 			{/if}
 		</p>
 	{/if}
-
-	<EpicsOverview {epics} tasks={rows} onpick={(e) => (selected = e)} />
 
 	{#each sections as section (section.id)}
 		{@const isCollapsed = groupBy === 'module' && !!collapsed[section.id]}
