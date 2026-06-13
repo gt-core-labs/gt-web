@@ -395,14 +395,31 @@
 					</tr>
 				</thead>
 				<tbody>
+					<!-- Epic-as-first-row (gtweb-00ed70): the section IS the epic's
+					     table, so the parent heads it as an editable row. -->
+					{#if groupBy === 'module' && section.id}
+						{@const epicRow = epics.find((e) => e.id === section.id)}
+						{#if epicRow}{@render taskRow(epicRow, true)}{/if}
+					{/if}
 					{#each section.items as row (row.id)}
-						<tr class="border-t border-[var(--gw-color-border)]">
+						{@render taskRow(row, false)}
+					{/each}
+				</tbody>
+			</table>
+			{/if}
+		</section>
+	{:else}
+		<p class="text-sm text-[var(--gw-color-text-muted)]">No tasks in this rig.</p>
+	{/each}
+
+	{#snippet taskRow(row: IssueRow, isEpic: boolean)}
+						<tr class="border-t border-[var(--gw-color-border)] {isEpic ? 'bg-[var(--gw-color-primary)]/5' : ''}">
 							<td class="px-3 py-1.5">
 								<button
-									class="block w-full truncate text-left hover:text-[var(--gw-color-primary)] hover:underline"
+									class="block w-full truncate text-left hover:text-[var(--gw-color-primary)] hover:underline {isEpic ? 'font-semibold' : ''}"
 									title={row.id}
 									onclick={() => (selected = row)}
-								>{row.title}</button>
+								>{#if isEpic}<span class="mr-1.5 rounded bg-[var(--gw-color-primary)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--gw-color-primary)]">EPIC</span>{/if}{row.title}</button>
 							</td>
 							{#if groupBy === 'week'}
 								<!-- Parent module chip (gtweb-eee2fc): the week grouping loses the
@@ -503,14 +520,7 @@
 								</td>
 							{/if}
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-			{/if}
-		</section>
-	{:else}
-		<p class="text-sm text-[var(--gw-color-text-muted)]">No tasks in this rig.</p>
-	{/each}
+	{/snippet}
 
 	<footer class="flex justify-end rounded-xl border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)] px-4 py-2 text-sm font-semibold">
 		TOTAL HOURS: {totalHours} h
