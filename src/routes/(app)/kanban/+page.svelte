@@ -321,7 +321,7 @@
 									onclick={() => (selected = card)}
 								>
 									<span class="font-mono text-[11px] text-[var(--gw-color-text-muted)]">{card.id}</span>
-									<span class="block truncate">{card.title}</span>
+									<span class="block break-words">{card.title}</span>
 								</button>
 							{/each}
 						{/each}
@@ -346,7 +346,7 @@
 											<span class="ml-auto shrink-0 text-[11px] text-[var(--gw-color-text-muted)]">{card.estimated_hours}h</span>
 										{/if}
 									</span>
-									<span class="mt-0.5 block truncate">{card.title}</span>
+									<span class="mt-0.5 block break-words">{card.title}</span>
 									{#if card.assignee || card.due_date}
 										<span class="mt-1 flex gap-2 text-[11px] text-[var(--gw-color-text-muted)]">
 											{#if card.assignee}<span>@{card.assignee}</span>{/if}
