@@ -181,6 +181,39 @@ async function postBody(doFetch: Fetcher, path: string, body: unknown): Promise<
 	await unwrap(await doFetch(path, { ...JSON_POST, body: JSON.stringify(body) }));
 }
 
+// ── A2A messaging (hq-a2a-msg-rest) ────────────────────────────────────────
+
+export interface A2aMessage {
+	id: string;
+	from: string;
+	body: string;
+	in_reply_to: string | null;
+}
+
+export function a2a(doFetch: Fetcher) {
+	return {
+		async inbox(session: string, limit = 50): Promise<A2aMessage[]> {
+			const url = `/api/v1/a2a/inbox?session=${encodeURIComponent(session)}&limit=${limit}`;
+			const j = await unwrap<{ messages: A2aMessage[]; count: number }>(await doFetch(url));
+			return j.messages ?? [];
+		},
+		async send(to: string, body: string, inReplyTo?: string): Promise<void> {
+			await postBody(doFetch, '/api/v1/a2a/send', {
+				to,
+				body,
+				...(inReplyTo ? { in_reply_to: inReplyTo } : {})
+			});
+		},
+		async ack(id: string): Promise<void> {
+			await postBody(doFetch, '/api/v1/a2a/ack', { id });
+		}
+	};
+}
+
+export function browserA2a() {
+	return a2a((path, init) => fetch(path, { credentials: 'same-origin', ...init }));
+}
+
 export function browserOrch() {
 	return orch((path, init) => fetch(path, { credentials: 'same-origin', ...init }));
 }

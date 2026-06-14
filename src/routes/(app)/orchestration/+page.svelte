@@ -7,6 +7,7 @@
 	import { Badge, Button, Input } from '$lib/ui';
 	import { Alert, EmptyState } from '$lib/components/ui';
 	import LiveFeed from '$lib/components/orchestration/LiveFeed.svelte';
+	import MessageDrawer from '$lib/components/orchestration/MessageDrawer.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -15,6 +16,9 @@
 	let tab = $state<Tab>('sessions');
 	let error = $state('');
 	let busy = $state(false);
+
+	// A2A message drawer state — null when closed, session id when open.
+	let drawerSession = $state<string | null>(null);
 
 	const canAgent = $derived(hasScope(data.user?.scopes, 'agent.write'));
 	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
@@ -509,6 +513,7 @@
 										<td><Badge variant={stateVariant(s.state)}>{s.state}</Badge></td>
 										<td>
 											<div class="flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
+												<Button variant="tonal" class="btn-sm" onclick={() => (drawerSession = s.id)}>Msg</Button>
 												{#if canTerminal}
 													<Button variant="tonal" class="btn-sm" onclick={() => openTerminal(s.id)}>Terminal</Button>
 												{/if}
@@ -778,3 +783,7 @@
 
 	<LiveFeed />
 </div>
+
+{#if drawerSession}
+	<MessageDrawer session={drawerSession} onclose={() => (drawerSession = null)} />
+{/if}
