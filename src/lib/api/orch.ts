@@ -186,14 +186,25 @@ async function postBody(doFetch: Fetcher, path: string, body: unknown): Promise<
 export interface A2aMessage {
 	id: string;
 	from: string;
+	to?: string;
 	body: string;
 	in_reply_to: string | null;
+	acked?: boolean;
 }
 
 export function a2a(doFetch: Fetcher) {
 	return {
 		async inbox(session: string, limit = 50): Promise<A2aMessage[]> {
 			const url = `/api/v1/a2a/inbox?session=${encodeURIComponent(session)}&limit=${limit}`;
+			const j = await unwrap<{ messages: A2aMessage[]; count: number }>(await doFetch(url));
+			return j.messages ?? [];
+		},
+		/** All messages in the workspace (or involving a specific session). */
+		async threads(session?: string, limit = 100): Promise<A2aMessage[]> {
+			const params = new URLSearchParams();
+			if (session) params.set('session', session);
+			params.set('limit', String(limit));
+			const url = `/api/v1/a2a/threads?${params}`;
 			const j = await unwrap<{ messages: A2aMessage[]; count: number }>(await doFetch(url));
 			return j.messages ?? [];
 		},

@@ -1,15 +1,16 @@
 <script lang="ts">
 	/**
-	 * MessageDrawer — slide-over panel showing a session's A2A inbox with a
-	 * compose form. The operator can read messages from the agent, send new
-	 * ones, and ack (mark as read). Polls every 5 s while open.
+	 * MessageDrawer — slide-over panel showing a session's A2A conversation
+	 * (all messages involving the session, not just unread). The operator can
+	 * send messages, read agent replies, and ack unread ones. Polls every 5s.
 	 */
 	import { browserA2a, type A2aMessage } from '$lib/api/orch';
 	import { TrackerError } from '$lib/api/tracker';
 	import { Button, Input } from '$lib/ui';
 
 	interface Props {
-		session: string;
+		/** Session to show. null = all conversations in the workspace. */
+		session: string | null;
 		onclose: () => void;
 	}
 	let { session, onclose }: Props = $props();
@@ -23,22 +24,22 @@
 
 	async function refresh() {
 		try {
-			messages = await client.inbox(session);
+			messages = await client.threads(session ?? undefined, 100);
 			error = '';
 		} catch (e) {
 			error = e instanceof TrackerError ? e.message : String(e);
 		}
 	}
 
-	// Initial load + poll every 5 seconds while drawer is open.
 	$effect(() => {
-		const s = session; // track reactivity
+		const _s = session;
 		refresh();
 		const t = setInterval(refresh, 5_000);
 		return () => clearInterval(t);
 	});
 
 	async function send() {
+		if (!session) return; // can't send without a target
 		const body = newMsg.trim();
 		if (!body || busy) return;
 		busy = true;
@@ -62,6 +63,8 @@
 			error = e instanceof TrackerError ? e.message : String(e);
 		}
 	}
+
+	const title = $derived(session ? 'Buzón' : 'Todas las conversaciones');
 </script>
 
 <!-- Backdrop -->
@@ -84,11 +87,13 @@
 	>
 		<div>
 			<h2 class="text-[var(--gw-text-sm)] font-semibold text-[var(--gw-color-text)]">
-				Buzón
+				{title}
 			</h2>
-			<p class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-				{session}
-			</p>
+			{#if session}
+				<p class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+					{session}
+				</p>
+			{/if}
 		</div>
 		<button
 			class="rounded-[var(--gw-radius-md)] p-[var(--gw-space-1)] text-[var(--gw-color-text-muted)]
@@ -110,11 +115,11 @@
 
 		{#if messages.length === 0}
 			<p class="py-8 text-center text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-				Sin mensajes. Envía uno abajo.
+				Sin mensajes.{#if session} Envía uno abajo.{/if}
 			</p>
 		{:else}
 			{#each messages as m (m.id)}
-				{@const isFromSession = m.from === session}
+				{@const isFromSession = session ? m.from === session : false}
 				<div
 					class="rounded-[var(--gw-radius-md)] border border-[var(--gw-color-border-subtle)] p-[var(--gw-space-3)]
 						{isFromSession
@@ -122,11 +127,18 @@
 							: 'mr-6 bg-[var(--gw-color-surface-3)]'}"
 				>
 					<div class="mb-1 flex items-center justify-between gap-2">
-						<span class="font-[family-name:var(--gw-font-mono)] text-[10px] font-medium text-[var(--gw-color-text-muted)]">
+						<span class="flex items-center gap-1 font-[family-name:var(--gw-font-mono)] text-[10px] font-medium text-[var(--gw-color-text-muted)]">
 							{m.from}
+							<span class="text-[var(--gw-color-text-muted)] opacity-50">&rarr;</span>
+							{m.to ?? '?'}
 						</span>
-						<span class="font-[family-name:var(--gw-font-mono)] text-[9px] text-[var(--gw-color-text-muted)]">
-							{m.id}
+						<span class="flex items-center gap-1">
+							{#if m.acked}
+								<span class="text-[9px] text-[var(--gw-color-success)]" title="Leído">&check;</span>
+							{/if}
+							<span class="font-[family-name:var(--gw-font-mono)] text-[9px] text-[var(--gw-color-text-muted)]">
+								{m.id}
+							</span>
 						</span>
 					</div>
 					<p class="whitespace-pre-wrap text-[var(--gw-text-sm)] text-[var(--gw-color-text)]">
@@ -134,10 +146,10 @@
 					</p>
 					{#if m.in_reply_to}
 						<p class="mt-1 text-[10px] text-[var(--gw-color-text-muted)]">
-							↩ {m.in_reply_to}
+							&larr; {m.in_reply_to}
 						</p>
 					{/if}
-					{#if !isFromSession}
+					{#if !m.acked && !isFromSession}
 						<button
 							class="mt-1 text-[10px] text-[var(--gw-color-primary)] hover:underline"
 							onclick={() => ack(m.id)}
@@ -148,18 +160,20 @@
 		{/if}
 	</div>
 
-	<!-- Compose form -->
-	<form
-		class="flex items-center gap-[var(--gw-space-2)] border-t border-[var(--gw-color-border-subtle)]
-			px-[var(--gw-space-4)] py-[var(--gw-space-3)]"
-		onsubmit={(e) => { e.preventDefault(); send(); }}
-	>
-		<Input
-			class="min-w-0 flex-1"
-			placeholder="Mensaje para {session}…"
-			bind:value={newMsg}
-			disabled={busy}
-		/>
-		<Button type="submit" disabled={busy || !newMsg.trim()}>Enviar</Button>
-	</form>
+	<!-- Compose form (only when a session is targeted) -->
+	{#if session}
+		<form
+			class="flex items-center gap-[var(--gw-space-2)] border-t border-[var(--gw-color-border-subtle)]
+				px-[var(--gw-space-4)] py-[var(--gw-space-3)]"
+			onsubmit={(e) => { e.preventDefault(); send(); }}
+		>
+			<Input
+				class="min-w-0 flex-1"
+				placeholder="Mensaje para {session}…"
+				bind:value={newMsg}
+				disabled={busy}
+			/>
+			<Button type="submit" disabled={busy || !newMsg.trim()}>Enviar</Button>
+		</form>
+	{/if}
 </aside>

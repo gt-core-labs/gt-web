@@ -355,6 +355,7 @@
 					>
 						{rigSessions.length} total
 					</span>
+					<Button variant="tonal" class="btn-sm" onclick={() => (drawerSession = '')}>All Msg</Button>
 				</div>
 			</div>
 		</header>
@@ -784,6 +785,6 @@
 	<LiveFeed />
 </div>
 
-{#if drawerSession}
-	<MessageDrawer session={drawerSession} onclose={() => (drawerSession = null)} />
+{#if drawerSession !== null}
+	<MessageDrawer session={drawerSession || null} onclose={() => (drawerSession = null)} />
 {/if}
