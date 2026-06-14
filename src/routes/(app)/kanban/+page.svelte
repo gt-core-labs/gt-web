@@ -14,11 +14,16 @@
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
 	import EpicsOverview from '$lib/components/tracker/EpicsOverview.svelte';
 	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
+	import { restoreBoardView } from '$lib/components/tracker/restoreBoardView';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// Restore the last ViewSwitcher pick on mount (gtweb-968172): if the user
+	// chose Calendar/Timeline/Planning before, redirect there instead of kanban.
+	$effect(() => restoreBoardView('kanban'));
 
 	// Server snapshot, patched optimistically on drag and refreshed by SSE.
 	let columns = $state<BoardColumn[]>([]);

@@ -8,11 +8,16 @@
 	import AssigneeSelect from '$lib/components/tracker/AssigneeSelect.svelte';
 	import CreateIssueModal from '$lib/components/tracker/CreateIssueModal.svelte';
 	import ViewSwitcher from '$lib/components/tracker/ViewSwitcher.svelte';
+	import { restoreBoardView } from '$lib/components/tracker/restoreBoardView';
 	import { Icon } from '$lib/ui';
 	import { Spinner } from '$lib/components/ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	// Restore the last ViewSwitcher pick on mount (gtweb-968172): if the user
+	// chose Calendar/Timeline/Kanban before, redirect there instead of planning.
+	$effect(() => restoreBoardView('planning'));
 
 	let rows = $state<IssueRow[]>([]);
 	$effect(() => {
