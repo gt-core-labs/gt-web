@@ -1,0 +1,64 @@
+# Deploy gt-web to the Talos cluster (dev) — GATED on the CI → docker-publish chain.
+#
+# The chain is:
+#   1. CI (schema gate + type check + build)  — hard gate on every push/PR
+#   2. docker-publish (build+push image)       — only on green CI + push to main
+#   3. deploy (this workflow)                  — only on green docker-publish
+#
+# Rolls out the freshly published immutable image to dev:
+#   - deploy-dev → ns gt (gt-dev.codecsrayo.com), container `web`
+#
+# DEV ONLY. Prod gt-web (ns gt-prod) is built by Tilt to the in-cluster registry
+# (registry.codecsrayo.com/gt-web), promoted manually, and stays out of this
+# automation — same split gt-core's deploy.yml makes for the frontends.
+#
+# Mirrors gt-core/.github/workflows/deploy.yml. Required secrets:
+#   TS_OAUTH_CLIENT_ID  — Tailscale OAuth client ID (tag: tag:ci)
+#   TS_OAUTH_SECRET     — Tailscale OAuth client secret
+#   KUBE_CONFIG         — base64-encoded kubeconfig for the cluster
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [docker-publish]
+    types: [completed]
+  workflow_dispatch: {}
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    steps:
+      - name: Resolve commit SHA
+        id: vars
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "sha7=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Deploy gt-web (dev)
+        run: |
+          kubectl set image deploy/gt-web -n gt \
+            web=codecsrayo/gt-web:sha-${{ steps.vars.outputs.sha7 }}
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deploy/gt-web -n gt --timeout=180s
