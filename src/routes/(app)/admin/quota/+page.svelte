@@ -5,6 +5,7 @@
 	import EChart from '$lib/components/EChart.svelte';
 	import { hasScope } from '$lib/api/auth';
 	import { TrackerError } from '$lib/api/tracker';
+	import { normalizeModel } from '$lib/models';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -250,7 +251,9 @@
 		if (samples.length === 0) return null;
 
 		const groupOf = (s: TokenSample) =>
-			(burnBy === 'model' ? s.model : burnBy === 'session' ? s.session : s.account) || 'unknown';
+			burnBy === 'model'
+				? normalizeModel(s.model)
+				: (burnBy === 'session' ? s.session : s.account) || 'unknown';
 		const tokensOf = (s: TokenSample) => s.input + s.output + s.cache_read + s.cache_creation;
 
 		// Rank groups by total burn; the tail folds into "other".
@@ -313,7 +316,7 @@
 		type Row = { model: string; input: number; output: number; cache: number; total: number };
 		const byModel = new Map<string, Row>();
 		for (const s of samples) {
-			const key = s.model || 'unknown';
+			const key = normalizeModel(s.model);
 			const existing = byModel.get(key) ?? { model: key, input: 0, output: 0, cache: 0, total: 0 };
 			existing.input += s.input;
 			existing.output += s.output;
