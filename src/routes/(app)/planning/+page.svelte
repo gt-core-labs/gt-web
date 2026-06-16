@@ -543,6 +543,7 @@
 		card={selected}
 		{canWrite}
 		users={data.users}
+		me={data.user?.sub ?? ''}
 		allIssues={rows}
 		onNavigate={(c) => (selected = c)}
 		onClose={() => (selected = null)}

@@ -389,6 +389,7 @@
 		card={selected}
 		{canWrite}
 		users={data.users}
+		me={data.user?.sub ?? ''}
 		allIssues={columns.flatMap((c) => c.cards)}
 		onNavigate={(c) => (selected = c)}
 		onClose={() => (selected = null)}

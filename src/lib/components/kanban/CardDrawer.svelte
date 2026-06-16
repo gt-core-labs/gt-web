@@ -28,8 +28,12 @@
 		 * and epic children list navigate through this — the host page owns the
 		 * `selected` card, so the drawer asks it to swap. */
 		onNavigate?: (card: IssueRow) => void;
+		/** Current session principal (`data.user.sub`). Gates comment edit/delete
+		 * (gtweb-dd5355) to the comment's author, mirroring the backend `check_author`
+		 * which also lets `admin` moderate any comment. */
+		me?: string;
 	}
-	let { card, onClose, canWrite = false, users = [], allIssues = [], onNavigate }: Props = $props();
+	let { card, onClose, canWrite = false, users = [], allIssues = [], onNavigate, me = '' }: Props = $props();
 
 	let detail = $state<IssueDetail | null>(null);
 	let thread = $state<Comment[]>([]);
@@ -81,6 +85,7 @@
 		thread = [];
 		error = '';
 		editing = null;
+		editingComment = null;
 		parentRef = card.parent_id ?? '';
 		Promise.all([browserTracker().get(id), browserComments().list('card', id)])
 			.then(([d, c]) => {
@@ -94,6 +99,52 @@
 	/** Top-level comments first; replies indent under their parent. */
 	const roots = $derived(thread.filter((c) => !c.parent_id));
 	const repliesOf = (id: string) => thread.filter((c) => c.parent_id === id);
+
+	// Comment edit/delete (gtweb-dd5355). A comment is mine to moderate when I
+	// authored it or I'm the `admin` actor — same rule the backend enforces.
+	const canModerate = (c: Comment) => !!me && (c.author === me || me === 'admin');
+	let editingComment = $state<string | null>(null);
+	let commentDraft = $state('');
+
+	function startCommentEdit(c: Comment) {
+		editingComment = c.id;
+		commentDraft = c.body;
+	}
+	function cancelCommentEdit() {
+		editingComment = null;
+		commentDraft = '';
+	}
+	async function saveCommentEdit(id: string) {
+		const body = commentDraft.trim();
+		if (!body || busy) return;
+		busy = true;
+		error = '';
+		try {
+			const updated = await browserComments().update(id, body);
+			thread = thread.map((c) => (c.id === id ? updated : c));
+			cancelCommentEdit();
+		} catch (e) {
+			error = e instanceof TrackerError ? e.message : String(e);
+		} finally {
+			busy = false;
+		}
+	}
+	async function deleteComment(id: string) {
+		if (busy || !confirm('Delete this comment?')) return;
+		busy = true;
+		error = '';
+		try {
+			await browserComments().remove(id);
+			// Drop the comment and, if it was a root, its replies — the backend
+			// soft-deletes them out of the next list anyway.
+			thread = thread.filter((c) => c.id !== id && c.parent_id !== id);
+			if (editingComment === id) cancelCommentEdit();
+		} catch (e) {
+			error = e instanceof TrackerError ? e.message : String(e);
+		} finally {
+			busy = false;
+		}
+	}
 
 	async function send() {
 		const body = newComment.trim();
@@ -427,6 +478,41 @@
 				Comments ({thread.length})
 			</h3>
 			<ul class="space-y-3">
+				{#snippet commentBody(c: Comment)}
+					{#if editingComment === c.id}
+						<textarea
+							class="{editCls} mt-1 min-h-20 w-full"
+							value={commentDraft}
+							aria-label="Edit comment"
+							oninput={(e) => (commentDraft = (e.currentTarget as HTMLTextAreaElement).value)}
+							onkeydown={(e) => e.key === 'Escape' && cancelCommentEdit()}
+						></textarea>
+						<div class="mt-1 flex gap-2">
+							<button class="rounded bg-[var(--gw-color-primary)] px-2.5 py-1 text-xs text-white disabled:opacity-50" disabled={busy || !commentDraft.trim()} onclick={() => saveCommentEdit(c.id)}>Save</button>
+							<button class="rounded border border-[var(--gw-color-border)] px-2.5 py-1 text-xs text-[var(--gw-color-text-muted)]" onclick={cancelCommentEdit}>Cancel</button>
+						</div>
+					{:else}
+						<p class="whitespace-pre-wrap text-sm">{c.body}</p>
+					{/if}
+				{/snippet}
+
+				{#snippet commentActions(c: Comment, withReply: boolean)}
+					{#if editingComment !== c.id}
+						<div class="mt-1 flex gap-3 text-xs">
+							{#if withReply}
+								<button
+									class="text-[var(--gw-color-primary)] hover:underline"
+									onclick={() => (replyTo = replyTo === c.id ? null : c.id)}
+								>{replyTo === c.id ? 'Cancel' : 'Reply'}</button>
+							{/if}
+							{#if canModerate(c)}
+								<button class="text-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-text)] hover:underline" onclick={() => startCommentEdit(c)}>Edit</button>
+								<button class="text-[var(--gw-color-danger)] hover:underline disabled:opacity-50" disabled={busy} onclick={() => deleteComment(c.id)}>Delete</button>
+							{/if}
+						</div>
+					{/if}
+				{/snippet}
+
 				{#each roots as c (c.id)}
 					<li>
 						<div class="rounded-lg bg-[var(--gw-color-surface-2)] p-2">
@@ -435,19 +521,18 @@
 								· {new Date(c.created_at).toLocaleString()}
 								{#if c.edited_at}· edited{/if}
 							</p>
-							<p class="whitespace-pre-wrap text-sm">{c.body}</p>
-							<button
-								class="mt-1 text-xs text-[var(--gw-color-primary)] hover:underline"
-								onclick={() => (replyTo = replyTo === c.id ? null : c.id)}
-							>{replyTo === c.id ? 'Cancel' : 'Reply'}</button>
+							{@render commentBody(c)}
+							{@render commentActions(c, true)}
 						</div>
 						{#each repliesOf(c.id) as r (r.id)}
 							<div class="mt-1 ml-5 rounded-lg bg-[var(--gw-color-surface-2)] p-2">
 								<p class="text-xs text-[var(--gw-color-text-muted)]">
 									<span class="font-medium">{r.author}</span>
 									· {new Date(r.created_at).toLocaleString()}
+									{#if r.edited_at}· edited{/if}
 								</p>
-								<p class="whitespace-pre-wrap text-sm">{r.body}</p>
+								{@render commentBody(r)}
+								{@render commentActions(r, false)}
 							</div>
 						{/each}
 					</li>
