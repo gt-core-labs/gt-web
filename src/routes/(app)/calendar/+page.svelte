@@ -272,6 +272,7 @@
 		card={selected}
 		{canWrite}
 		users={data.users}
+		me={data.user?.sub ?? ''}
 		allIssues={data.rows}
 		onClose={() => (selected = null)}
 	/>
