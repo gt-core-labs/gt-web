@@ -42,6 +42,32 @@
 	// `parent_id` rides in on the board/table row (`card`), not the fetched detail.
 	let parentRef = $state(card.parent_id ?? '');
 
+	// Inline text-field editing (gtweb-f5b7ae): title / description / acceptance
+	// criteria. The chips above cover metadata; these three free-text columns were
+	// read-only. Same patch() PATCH underneath — only one field edits at a time.
+	type TextField = 'title' | 'description' | 'acceptance_criteria';
+	let editing = $state<TextField | null>(null);
+	let draft = $state('');
+
+	function startEdit(field: TextField) {
+		if (!detail) return;
+		draft = (detail[field] ?? '') as string;
+		editing = field;
+	}
+	function cancelEdit() {
+		editing = null;
+		draft = '';
+	}
+	async function saveEdit() {
+		if (!editing || !detail) return;
+		const field = editing;
+		if (field === 'title' && !draft.trim()) return; // title is NOT NULL
+		if (draft !== ((detail[field] ?? '') as string)) {
+			await patch({ [field]: draft } as UpdateIssueBody);
+		}
+		if (!error) cancelEdit();
+	}
+
 	async function copyId() {
 		await navigator.clipboard.writeText(card.id);
 		copied = true;
@@ -54,6 +80,7 @@
 		detail = null;
 		thread = [];
 		error = '';
+		editing = null;
 		parentRef = card.parent_id ?? '';
 		Promise.all([browserTracker().get(id), browserComments().list('card', id)])
 			.then(([d, c]) => {
@@ -173,7 +200,40 @@
 				</button>
 				{#if copied}<span class="text-[10px] text-emerald-500">copied</span>{/if}
 			</p>
-			<h2 class="truncate text-base font-semibold">{card.title}</h2>
+			{#if editing === 'title'}
+				<div class="flex items-center gap-1">
+					<!-- svelte-ignore a11y_autofocus -->
+					<input
+						class="{editCls} w-full text-base"
+						value={draft}
+						aria-label="Edit title"
+						autofocus
+						oninput={(e) => (draft = (e.currentTarget as HTMLInputElement).value)}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') saveEdit();
+							else if (e.key === 'Escape') cancelEdit();
+						}}
+					/>
+					<button class="rounded p-1 text-emerald-500 hover:bg-[var(--gw-color-surface-2)]" title="Save" aria-label="Save title" onclick={saveEdit}>
+						<Icon icon="lucide:check" size={14} />
+					</button>
+					<button class="rounded p-1 text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)]" title="Cancel" aria-label="Cancel title edit" onclick={cancelEdit}>
+						<Icon icon="lucide:x" size={14} />
+					</button>
+				</div>
+			{:else}
+				<div class="flex items-center gap-1">
+					<h2 class="truncate text-base font-semibold">{detail?.title ?? card.title}</h2>
+					{#if canWrite}
+						<button
+							class="shrink-0 rounded p-0.5 text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]"
+							title="Edit title"
+							aria-label="Edit title"
+							onclick={() => startEdit('title')}
+						><Icon icon="lucide:pencil" size={12} /></button>
+					{/if}
+				</div>
+			{/if}
 		</div>
 		<div class="flex shrink-0 items-center gap-1">
 			{#if canWrite}
@@ -281,18 +341,46 @@
 		{#if !detail}
 			<Spinner />
 		{:else}
-			{#if detail.description}
-				<section>
-					<h3 class="mb-1 text-xs font-semibold uppercase text-[var(--gw-color-text-muted)]">Description</h3>
-					<Markdown text={detail.description} />
-				</section>
-			{/if}
-			{#if detail.acceptance_criteria}
-				<section>
-					<h3 class="mb-1 text-xs font-semibold uppercase text-[var(--gw-color-text-muted)]">Acceptance criteria</h3>
-					<Markdown text={detail.acceptance_criteria} />
-				</section>
-			{/if}
+			<!-- Free-text columns (gtweb-f5b7ae): read-only Markdown, or a textarea
+			     when the operator (issues.write) clicks ✎. Shown even when empty so an
+			     editor can fill them in. -->
+			{#snippet textSection(label: string, field: 'description' | 'acceptance_criteria', value: string)}
+				{#if value || canWrite}
+					<section>
+						<div class="mb-1 flex items-center justify-between gap-2">
+							<h3 class="text-xs font-semibold uppercase text-[var(--gw-color-text-muted)]">{label}</h3>
+							{#if canWrite && editing !== field}
+								<button
+									class="rounded p-0.5 text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]"
+									title="Edit {label.toLowerCase()}"
+									aria-label="Edit {label.toLowerCase()}"
+									onclick={() => startEdit(field)}
+								><Icon icon="lucide:pencil" size={12} /></button>
+							{/if}
+						</div>
+						{#if editing === field}
+							<textarea
+								class="{editCls} min-h-32 w-full font-mono leading-relaxed"
+								value={draft}
+								aria-label="Edit {label.toLowerCase()}"
+								oninput={(e) => (draft = (e.currentTarget as HTMLTextAreaElement).value)}
+								onkeydown={(e) => e.key === 'Escape' && cancelEdit()}
+							></textarea>
+							<div class="mt-1.5 flex gap-2">
+								<button class="rounded bg-[var(--gw-color-primary)] px-2.5 py-1 text-xs text-white hover:opacity-90" onclick={saveEdit}>Save</button>
+								<button class="rounded border border-[var(--gw-color-border)] px-2.5 py-1 text-xs text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)]" onclick={cancelEdit}>Cancel</button>
+							</div>
+						{:else if value}
+							<Markdown text={value} />
+						{:else}
+							<p class="text-sm italic text-[var(--gw-color-text-muted)]">Empty — click ✎ to add.</p>
+						{/if}
+					</section>
+				{/if}
+			{/snippet}
+
+			{@render textSection('Description', 'description', detail.description)}
+			{@render textSection('Acceptance criteria', 'acceptance_criteria', detail.acceptance_criteria)}
 
 			{#if card.issue_type === 'epic'}
 				<section>
