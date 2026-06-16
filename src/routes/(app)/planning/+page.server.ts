@@ -17,9 +17,12 @@ export const load: PageServerLoad = async (event) => {
 	const { activeRig, rigs } = await event.parent();
 	const rig = rigs.find((r: { name: string }) => r.name === activeRig)?.prefix ?? 'hq';
 	// Manual archiving (hq-039316): archived cards live in the `archive` board
-	// workspace; `?archived=1` flips the whole view to that scope.
+	// workspace; `?archived=1` flips the whole view to that scope. Otherwise the
+	// board follows the session workspace (the header switcher,
+	// `locals.user.workspace`) so a client tenant sees its own board — `default`
+	// is just the anonymous/legacy fallback, not a hardcode (gtweb-370344).
 	const archived = event.url.searchParams.get('archived') === '1';
-	const workspace = archived ? 'archive' : 'default';
+	const workspace = archived ? 'archive' : (event.locals.user?.workspace ?? 'default');
 	const cookie = event.request.headers.get('cookie') ?? '';
 	const tr = serverTracker(event);
 	const fetcher = (path: string, init?: RequestInit) => backendFetch(path, cookie, init);

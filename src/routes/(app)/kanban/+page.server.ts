@@ -11,10 +11,11 @@ import type { PageServerLoad } from './$types';
  * - `rig` is the active rig's bead PREFIX (issues.rig == prefix), same
  *   resolution as the tracker page.
  * - `workspace` here is the BOARD project key (the hq.issues `workspace`
- *   column, hq-62130a) — every existing card backfilled to `default`, and the
- *   tenant itself is isolated by the cookie-resolved Dolt database, so one
- *   project per tenant means the literal `default` until a project selector
- *   lands. NOT the login workspace slug.
+ *   column, hq-62130a). It follows the session workspace (the header
+ *   `cotrafa · admin` switcher, `locals.user.workspace`) so a client tenant
+ *   sees its own board — `default` is just the fallback for an anonymous/legacy
+ *   session, not a hardcode (gtweb-370344). `?archived=1` overrides to the
+ *   `archive` scope.
  */
 export const load: PageServerLoad = async (event) => {
 	const { activeRig, rigs } = await event.parent();
@@ -23,7 +24,7 @@ export const load: PageServerLoad = async (event) => {
 	// Manual archiving (hq-039316): archived cards live in the `archive` board
 	// workspace; `?archived=1` flips the whole view to that scope.
 	const archived = url.searchParams.get('archived') === '1';
-	const workspace = archived ? 'archive' : 'default';
+	const workspace = archived ? 'archive' : (event.locals.user?.workspace ?? 'default');
 	const group_by = url.searchParams.get('group_by') as 'assignee' | 'epic' | 'priority' | null;
 	const epic = url.searchParams.get('epic');
 
