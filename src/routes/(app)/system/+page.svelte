@@ -65,6 +65,7 @@
 	let fDate = $state('');
 	let fWeekday = $state(1); // 0=domingo … 6=sábado
 	let fDayOfMonth = $state(1); // 1..=31
+	let fStart = $state(''); // optional YYYY-MM-DD gate for recurring modes
 	let fHour = $state(8);
 	let fMinute = $state(0);
 
@@ -148,6 +149,7 @@
 		fDate = '';
 		fWeekday = 1;
 		fDayOfMonth = 1;
+		fStart = '';
 		fTime = '08:00';
 		fHour = 8;
 		fMinute = 0;
@@ -166,6 +168,7 @@
 		fDate = s.date ?? '';
 		fWeekday = s.weekday ?? 1;
 		fDayOfMonth = s.day_of_month ?? 1;
+		fStart = s.start_date ?? '';
 		fTime = `${two(s.hour)}:${two(s.minute)}`;
 		fHour = s.hour;
 		fMinute = s.minute;
@@ -184,6 +187,7 @@
 			date: fDate,
 			weekday: fWeekday,
 			day_of_month: fDayOfMonth,
+			start_date: fStart,
 			hour: fHour,
 			minute: fMinute,
 			rig: fRig,
@@ -997,6 +1001,13 @@
 										<label for="sch-date" class="field-label">Date</label>
 										<input id="sch-date" class="gw-input-num" type="date"
 											bind:value={fDate} disabled={busy} />
+									</div>
+								{/if}
+								{#if fMode !== 'once'}
+									<div class="space-y-[var(--gw-space-1)]">
+										<label for="sch-start" class="field-label">Inicio (opcional)</label>
+										<input id="sch-start" class="gw-input-num" type="date"
+											bind:value={fStart} disabled={busy} />
 									</div>
 								{/if}
 								<div class="space-y-[var(--gw-space-1)]">
