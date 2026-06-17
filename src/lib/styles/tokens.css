@@ -195,3 +195,28 @@
   border-color: var(--gw-color-border-subtle);
   color: var(--gw-color-text);
 }
+
+/* ── Native <select> normalisation ───────────────────────────────────────────
+   The OS paints native form widgets and ignores the page `color-scheme`
+   (notably GTK on Linux/WSL), so every native <select> rendered as a light grey
+   field with dark text and a native chevron — breaking dark mode regardless of
+   our tokens. Strip the native appearance so CSS owns the control everywhere,
+   draw a chevron in its place, and pin the OS-rendered option popup to our
+   tokens. The `:root` prefix lifts specificity to (0,1,1) so this beats the
+   single-class field styles components define (`.gw-input`, `.field-input`,
+   `.select`…) for `padding-right`/`background-image` without `!important`,
+   while leaving each component's own `background-color`/`padding` intact. */
+:root select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23737373' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 0.85rem;
+  padding-right: 1.85rem;
+}
+select option {
+  background-color: var(--gw-color-surface-2);
+  color: var(--gw-color-text);
+}
