@@ -18,9 +18,15 @@ export interface ArchiveRunResult {
 export interface ReportSchedule {
 	id: string;
 	kind: string;
-	mode: 'daily' | 'every_n_days' | 'once';
+	mode: 'daily' | 'every_n_days' | 'once' | 'weekly' | 'monthly';
 	n_days: number;
 	date: string | null;
+	/** Weekly cadence: 0=domingo … 6=sábado. */
+	weekday?: number;
+	/** Monthly cadence: 1..=31. */
+	day_of_month?: number;
+	/** Optional first-send floor (YYYY-MM-DD). */
+	start_date?: string;
 	hour: number;
 	minute: number;
 	tz_offset_minutes: number;
