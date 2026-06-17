@@ -60,11 +60,28 @@
 	let showForm = $state(false);
 	let editingId = $state<string | null>(null);
 	let fKind = $state('planning-digest');
-	let fMode = $state<'daily' | 'every_n_days' | 'once'>('daily');
+	let fMode = $state<'daily' | 'every_n_days' | 'once' | 'weekly' | 'monthly'>('daily');
 	let fNDays = $state(7);
 	let fDate = $state('');
+	let fWeekday = $state(1); // 0=domingo … 6=sábado
+	let fDayOfMonth = $state(1); // 1..=31
 	let fHour = $state(8);
 	let fMinute = $state(0);
+
+	// Weekday labels for the weekly cadence selector (0=domingo … 6=sábado).
+	const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+	// Two-way bridge between the native <input type="time"> (HH:MM string) and
+	// the wire fields fHour/fMinute, so saveSchedule keeps sending hour/minute.
+	const two = (n: number) => String(n).padStart(2, '0');
+	let fTime = $state('08:00');
+	$effect(() => {
+		const [h, m] = fTime.split(':');
+		const hh = Number(h);
+		const mm = Number(m);
+		if (Number.isFinite(hh)) fHour = hh;
+		if (Number.isFinite(mm)) fMinute = mm;
+	});
 	let fRig = $state('hq');
 	let fWorkspace = $state('default');
 	let fEnabled = $state(true);
@@ -129,6 +146,9 @@
 		fMode = 'daily';
 		fNDays = 7;
 		fDate = '';
+		fWeekday = 1;
+		fDayOfMonth = 1;
+		fTime = '08:00';
 		fHour = 8;
 		fMinute = 0;
 		fWorkspace = scopeWorkspaces()[0] ?? 'default';
@@ -144,6 +164,9 @@
 		fMode = s.mode;
 		fNDays = s.n_days;
 		fDate = s.date ?? '';
+		fWeekday = s.weekday ?? 1;
+		fDayOfMonth = s.day_of_month ?? 1;
+		fTime = `${two(s.hour)}:${two(s.minute)}`;
 		fHour = s.hour;
 		fMinute = s.minute;
 		fRig = s.rig;
@@ -159,6 +182,8 @@
 			mode: fMode,
 			n_days: fNDays,
 			date: fDate,
+			weekday: fWeekday,
+			day_of_month: fDayOfMonth,
 			hour: fHour,
 			minute: fMinute,
 			rig: fRig,
@@ -224,11 +249,13 @@
 		}
 	}
 
-	const two = (n: number) => String(n).padStart(2, '0');
 	function modeLabel(s: ReportSchedule): string {
 		const at = `${two(s.hour)}:${two(s.minute)}`;
 		if (s.mode === 'daily') return `daily at ${at}`;
 		if (s.mode === 'every_n_days') return `every ${s.n_days} day(s) at ${at}`;
+		if (s.mode === 'weekly')
+			return `weekly on ${WEEKDAYS[s.weekday ?? 0] ?? '—'} at ${at}`;
+		if (s.mode === 'monthly') return `monthly on day ${s.day_of_month ?? '—'} at ${at}`;
 		return `on ${s.date ?? '—'} at ${at}`;
 	}
 
@@ -347,6 +374,48 @@
 		transform: rotate(45deg);
 	}
 	.gw-check:disabled { opacity: 0.4; cursor: not-allowed; }
+
+	/* Cadence radio group */
+	.gw-radio-group {
+		display: flex; flex-wrap: wrap; gap: var(--gw-space-2);
+	}
+	.gw-radio {
+		display: inline-flex; align-items: center; gap: var(--gw-space-2);
+		border-radius: var(--gw-radius-lg);
+		border: 1px solid var(--gw-color-border);
+		background-color: var(--gw-color-surface-3);
+		color: var(--gw-color-text);
+		font-size: var(--gw-text-sm); font-weight: 500;
+		padding: 0.4375rem 0.75rem; cursor: pointer;
+		transition: border-color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+		            background-color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.gw-radio:hover { border-color: var(--gw-color-primary); }
+	.gw-radio:has(input:checked) {
+		border-color: oklch(60% 0.22 250);
+		background-color: oklch(60% 0.22 250 / 0.08);
+	}
+	.gw-radio input {
+		appearance: none;
+		width: 0.875rem; height: 0.875rem; border-radius: 9999px;
+		border: 1px solid var(--gw-color-border);
+		background-color: var(--gw-color-surface);
+		cursor: pointer; flex-shrink: 0; position: relative;
+		transition: border-color 140ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.gw-radio input:checked {
+		border-color: oklch(60% 0.22 250);
+	}
+	.gw-radio input:checked::after {
+		content: ''; position: absolute; left: 50%; top: 50%;
+		width: 0.4375rem; height: 0.4375rem; border-radius: 9999px;
+		transform: translate(-50%, -50%);
+		background: linear-gradient(135deg, oklch(60% 0.22 250), oklch(50% 0.24 270));
+	}
+	.gw-radio input:focus-visible {
+		outline: 2px solid var(--gw-color-primary); outline-offset: 2px;
+	}
+	.gw-radio:has(input:disabled) { opacity: 0.4; cursor: not-allowed; }
 
 	/* CTA */
 	.cta {
@@ -868,20 +937,59 @@
 										{/each}
 									</select>
 								</div>
-								<div class="space-y-[var(--gw-space-1)]">
-									<label for="sch-mode" class="field-label">Mode</label>
-									<select id="sch-mode" class="gw-input-num" style="width: 100%"
-										bind:value={fMode} disabled={busy}>
-										<option value="daily">Daily</option>
-										<option value="every_n_days">Every N days</option>
-										<option value="once">Once (date)</option>
-									</select>
+								<div class="space-y-[var(--gw-space-1)] sm:col-span-2">
+									<span class="field-label">Cadencia</span>
+									<div class="gw-radio-group" role="radiogroup" aria-label="Cadencia">
+										<label class="gw-radio">
+											<input type="radio" name="sch-mode" value="daily"
+												bind:group={fMode} disabled={busy} />
+											<span>Diariamente</span>
+										</label>
+										<label class="gw-radio">
+											<input type="radio" name="sch-mode" value="weekly"
+												bind:group={fMode} disabled={busy} />
+											<span>Semanalmente</span>
+										</label>
+										<label class="gw-radio">
+											<input type="radio" name="sch-mode" value="monthly"
+												bind:group={fMode} disabled={busy} />
+											<span>Mensualmente</span>
+										</label>
+										<label class="gw-radio">
+											<input type="radio" name="sch-mode" value="once"
+												bind:group={fMode} disabled={busy} />
+											<span>Una vez</span>
+										</label>
+										<label class="gw-radio">
+											<input type="radio" name="sch-mode" value="every_n_days"
+												bind:group={fMode} disabled={busy} />
+											<span>Cada N días</span>
+										</label>
+									</div>
 								</div>
 								{#if fMode === 'every_n_days'}
 									<div class="space-y-[var(--gw-space-1)]">
 										<label for="sch-ndays" class="field-label">Every (days)</label>
 										<input id="sch-ndays" class="gw-input-num" type="number" min="1" max="365"
 											bind:value={fNDays} disabled={busy} />
+									</div>
+								{/if}
+								{#if fMode === 'weekly'}
+									<div class="space-y-[var(--gw-space-1)]">
+										<label for="sch-weekday" class="field-label">Día de la semana</label>
+										<select id="sch-weekday" class="gw-input-num" style="width: 100%"
+											bind:value={fWeekday} disabled={busy}>
+											{#each WEEKDAYS as day, i (i)}
+												<option value={i}>{day}</option>
+											{/each}
+										</select>
+									</div>
+								{/if}
+								{#if fMode === 'monthly'}
+									<div class="space-y-[var(--gw-space-1)]">
+										<label for="sch-dom" class="field-label">Día del mes (1–31)</label>
+										<input id="sch-dom" class="gw-input-num" type="number" min="1" max="31"
+											bind:value={fDayOfMonth} disabled={busy} />
 									</div>
 								{/if}
 								{#if fMode === 'once'}
@@ -892,14 +1000,9 @@
 									</div>
 								{/if}
 								<div class="space-y-[var(--gw-space-1)]">
-									<label for="sch-hour" class="field-label">Hour (0–23)</label>
-									<input id="sch-hour" class="gw-input-num" type="number" min="0" max="23"
-										bind:value={fHour} disabled={busy} />
-								</div>
-								<div class="space-y-[var(--gw-space-1)]">
-									<label for="sch-minute" class="field-label">Minute (0–59)</label>
-									<input id="sch-minute" class="gw-input-num" type="number" min="0" max="59"
-										bind:value={fMinute} disabled={busy} />
+									<label for="sch-time" class="field-label">Hora</label>
+									<input id="sch-time" class="gw-input-num" type="time"
+										bind:value={fTime} disabled={busy} />
 								</div>
 								<div class="space-y-[var(--gw-space-1)]">
 									<label for="sch-rig" class="field-label">Rig</label>
