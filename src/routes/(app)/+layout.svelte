@@ -9,6 +9,7 @@
 	import NotificationBell from '$lib/components/NotificationBell.svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import { ThemeToggle } from '$lib/components/ui';
+	import { Icon } from '$lib/ui';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
@@ -144,7 +145,8 @@
 			<!-- Left: workspace · rig context -->
 			<div class="flex items-center gap-2 text-sm">
 				{#if data.workspaces.length > 1}
-					<div class="ctx-wrap">
+					<div class="ctx-wrap has-ico">
+						<Icon icon="lucide:layout-grid" size={14} class="ctx-ico" />
 						<select
 							class="ctx-select"
 							aria-label="Workspace"
@@ -166,7 +168,8 @@
 					<span class="text-[var(--gw-color-text-muted)]">{data.rigs[0].name}</span>
 				{:else if data.rigs.length > 1}
 					<span class="text-[var(--gw-color-border)]">·</span>
-					<div class="ctx-wrap">
+					<div class="ctx-wrap has-ico">
+						<Icon icon="lucide:git-branch" size={14} class="ctx-ico" />
 						<select
 							class="ctx-select"
 							aria-label="Rig"
@@ -222,6 +225,7 @@
 <style>
 	/* Context selects (workspace / rig) — pill-shaped, minimal */
 	.ctx-wrap {
+		position: relative;
 		border-radius: 9999px;
 		border: 1px solid var(--gw-color-border);
 		background: var(--gw-color-surface-2);
@@ -229,6 +233,17 @@
 	}
 	.ctx-wrap:focus-within {
 		border-color: var(--gw-color-primary);
+	}
+	/* Leading glyph (workspace / rig) — sits inside the pill; the <select> gets
+	   matching left padding via `.has-ico` so the value never overlaps it. The
+	   icon renders from a child component, so reach it with :global. */
+	.ctx-wrap :global(.ctx-ico) {
+		position: absolute;
+		top: 50%;
+		left: 0.65rem;
+		transform: translateY(-50%);
+		color: var(--gw-color-text-muted);
+		pointer-events: none;
 	}
 	.ctx-select {
 		display: block;
@@ -240,6 +255,9 @@
 		color: var(--gw-color-text);
 		cursor: pointer;
 		border-radius: 9999px;
+	}
+	.ctx-wrap.has-ico .ctx-select {
+		padding-left: 1.85rem;
 	}
 
 	/* Logout — ghost pill */
