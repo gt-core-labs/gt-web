@@ -230,7 +230,7 @@
 >
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 	<div
-		class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-[1.25rem] border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] shadow-2xl"
+		class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-[1.25rem] border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] shadow-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl"
 		role="dialog"
 		aria-modal="true"
 		aria-label="Card detail"
