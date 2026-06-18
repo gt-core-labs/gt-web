@@ -101,6 +101,36 @@ export interface OnboardComplete {
 	config_dir: string;
 }
 
+/**
+ * Per-account credential health (gtcore-3cab31 / gtcore-1fe9b4). Distinct from quota *usage*:
+ * an account can be quota-`Healthy` while its keychain credential is dead (no refresh token, or
+ * the config dir never completed onboarding), which is the silent-401 hole this surfaces.
+ * `id` is the account email, matching {@link QuotaAccount.id}.
+ */
+export interface CredHealth {
+	id: string;
+	/** A refresh token is stored in the dir's `.credentials.json`. */
+	refresh_present: boolean;
+	/** Unix epoch the stored credential expires; null = unknown. */
+	expires_at_secs: number | null;
+	/** The dir carries `oauthAccount` + `hasCompletedOnboarding` (consumable by the sling pre-authed). */
+	onboarding_complete: boolean;
+	/** Backend-computed flag: the account needs an operator relogin to become usable. */
+	needs_relogin: boolean;
+}
+
+/** `POST /api/v1/quota/relogin/start` response — the OAuth URL to visit + the session to resume. */
+export interface ReloginStart {
+	session_id: string;
+	url: string;
+}
+
+/** `POST /api/v1/quota/relogin/complete` response — the refreshed account + its new expiry. */
+export interface ReloginComplete {
+	account: string;
+	expires_at_secs?: number | null;
+}
+
 const JSON_POST = { method: 'POST', headers: { 'content-type': 'application/json' } } as const;
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -170,6 +200,33 @@ export function admin(doFetch: Fetcher) {
 		async onboardComplete(sessionId: string, code: string): Promise<OnboardComplete> {
 			return unwrap<OnboardComplete>(
 				await doFetch('/api/v1/quota/onboard/complete', {
+					...JSON_POST,
+					body: JSON.stringify({ session_id: sessionId, code })
+				})
+			);
+		},
+		// Per-account credential health (gtcore-1fe9b4). The keychain dirs live on the gt-orch-server
+		// host, so — like onboarding — this is served by the daemon behind Traefik, not gt-mcp-server:
+		// use the BROWSER fetcher. Degrades to an empty list if the route is not yet deployed.
+		async quotaHealth(): Promise<CredHealth[]> {
+			const j = await unwrap<{ accounts: CredHealth[] }>(await doFetch('/api/v1/quota/health'));
+			return j.accounts ?? [];
+		},
+		// Relogin lifecycle (gtcore-1fe9b4): re-runs `claude /login` against the account's existing
+		// keychain dir and reseeds onboarding-complete so the sling consumes it pre-authed. Mirrors the
+		// onboard flow (start → human visits URL → complete with the OOB code); daemon route, browser
+		// fetcher. The account rides in the `start` body and is carried by the returned session.
+		async reloginStart(account: string): Promise<ReloginStart> {
+			return unwrap<ReloginStart>(
+				await doFetch('/api/v1/quota/relogin/start', {
+					...JSON_POST,
+					body: JSON.stringify({ account })
+				})
+			);
+		},
+		async reloginComplete(sessionId: string, code: string): Promise<ReloginComplete> {
+			return unwrap<ReloginComplete>(
+				await doFetch('/api/v1/quota/relogin/complete', {
 					...JSON_POST,
 					body: JSON.stringify({ session_id: sessionId, code })
 				})

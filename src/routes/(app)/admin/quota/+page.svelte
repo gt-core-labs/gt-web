@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { browserAdmin, type QuotaWindow, type WindowReset, type TokenSample } from '$lib/api/admin';
+	import {
+		browserAdmin,
+		type QuotaWindow,
+		type WindowReset,
+		type TokenSample,
+		type CredHealth
+	} from '$lib/api/admin';
 	import EChart from '$lib/components/EChart.svelte';
 	import { hasScope } from '$lib/api/auth';
 	import { TrackerError } from '$lib/api/tracker';
@@ -75,6 +81,94 @@
 	}
 
 	const fmtTime = (secs: number) => new Date(secs * 1000).toLocaleString();
+
+	// ── Credential health (gtcore-3cab31) ────────────────────────────────────
+	// Quota *usage* (the table's Status/Usage) and credential *validity* are orthogonal: an
+	// account can be quota-Healthy while its keychain credential is dead (no refresh token, or the
+	// dir never finished onboarding) → polecats slung on it 401 silently. The daemon exposes health
+	// per account; we fetch it client-side (keychain lives on the orch host, not the SSR backend)
+	// and merge by id. Tolerates the route being absent until the backend sibling deploys.
+	let health = $state<Record<string, CredHealth>>({});
+
+	async function loadHealth() {
+		try {
+			const rows = await api.quotaHealth();
+			const next: Record<string, CredHealth> = {};
+			for (const h of rows) next[h.id] = h;
+			health = next;
+		} catch {
+			// Endpoint not deployed yet (or transient): leave prior health, degrade to "unknown".
+		}
+	}
+
+	/** True only when the backend positively reports the account needs a relogin. */
+	const needsRelogin = (id: string): boolean => health[id]?.needs_relogin === true;
+
+	/** Relative expiry label for a stored credential: "in 3d", "in 5h", "expired", or "—". */
+	const expiryLabel = (secs: number | null | undefined, now: number): string => {
+		if (secs == null) return '—';
+		const d = secs - now;
+		if (d <= 0) return 'expired';
+		if (d < 3600) return `in ${Math.floor(d / 60)}m`;
+		if (d < 86400) return `in ${Math.floor(d / 3600)}h`;
+		return `in ${Math.floor(d / 86400)}d`;
+	};
+
+	// ── Per-account relogin flow (gtcore-1fe9b4) ─────────────────────────────
+	// Mirrors the "Add account" onboarding flow but re-authorizes an EXISTING keychain dir: the
+	// daemon re-runs `claude /login` against that account's CLAUDE_CONFIG_DIR and reseeds the
+	// onboarding-complete state. Rendered as a focused modal so it works from any table row.
+	let reAcct = $state('');
+	let reStep = $state<Step>('idle');
+	let reUrl = $state('');
+	let reSession = $state('');
+	let reCode = $state('');
+	let reErr = $state('');
+	let reCopied = $state(false);
+
+	async function startRelogin(account: string) {
+		reAcct = account;
+		reErr = '';
+		reCode = '';
+		reStep = 'starting';
+		try {
+			const { session_id, url } = await api.reloginStart(account);
+			reSession = session_id;
+			reUrl = url;
+			reStep = 'await';
+		} catch (e) {
+			reErr = errText(e);
+			reStep = 'idle';
+		}
+	}
+
+	async function completeRelogin() {
+		if (!reCode.trim()) { reErr = 'Paste the code from the login page.'; return; }
+		reErr = '';
+		reStep = 'completing';
+		try {
+			await api.reloginComplete(reSession, reCode.trim());
+			cancelRelogin();
+			await Promise.all([loadHealth(), invalidateAll()]);
+		} catch (e) {
+			reErr = errText(e);
+			reStep = 'await';
+		}
+	}
+
+	function cancelRelogin() {
+		reAcct = ''; reStep = 'idle'; reUrl = ''; reSession = ''; reCode = ''; reErr = ''; reCopied = false;
+	}
+
+	async function copyReloginLink() {
+		try {
+			await navigator.clipboard.writeText(reUrl);
+			reCopied = true;
+			setTimeout(() => (reCopied = false), 2000);
+		} catch {
+			reErr = 'Could not copy — select the link and copy manually.';
+		}
+	}
 
 	/** Relative "X ago" label for probe freshness. */
 	const probeAge = (last: number | null | undefined, now: number): string => {
@@ -171,9 +265,11 @@
 	// Cooldown/Limited/Blocked → Healthy) reach the pills without a manual reload.
 	let nowSecs = $state(Math.floor(Date.now() / 1000));
 	$effect(() => {
+		void loadHealth(); // initial cred-health snapshot alongside the SSR-loaded usage
 		const t = setInterval(() => {
 			nowSecs = Math.floor(Date.now() / 1000);
 			void invalidateAll();
+			void loadHealth();
 		}, 30_000);
 		return () => clearInterval(t);
 	});
@@ -580,6 +676,41 @@
 		color: oklch(42% 0.12 190); font-size: 10px; font-weight: 600;
 		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
 	}
+	/* Credential-dead signal — orthogonal to quota status (an account can be quota-Healthy
+	   yet need a relogin). Deliberately the loudest badge: a wedged sling is silent otherwise. */
+	.badge-relogin {
+		display: inline-flex; align-items: center; gap: 4px; border-radius: 9999px;
+		background-color: oklch(95% 0.06 25); border: 1px solid oklch(80% 0.14 25);
+		color: oklch(48% 0.22 25); font-size: 10px; font-weight: 600;
+		padding: 2px 7px; text-transform: uppercase; letter-spacing: 0.06em;
+	}
+
+	/* Credential health chips (refresh / onboarding presence) */
+	.cred-chip {
+		display: inline-flex; align-items: center; gap: 3px;
+		font-family: var(--gw-font-mono); font-size: 10px; font-weight: 600;
+	}
+	.cred-ok   { color: oklch(45% 0.14 150); }
+	.cred-bad  { color: var(--gw-color-error); }
+	.cred-unknown { color: var(--gw-color-text-muted); }
+
+	/* Relogin modal overlay */
+	.modal-backdrop {
+		position: fixed; inset: 0; z-index: 50;
+		display: flex; align-items: center; justify-content: center;
+		padding: var(--gw-space-4);
+		background-color: oklch(20% 0.02 270 / 0.45);
+		backdrop-filter: blur(2px);
+		animation: fade-up-in 200ms cubic-bezier(0.32, 0.72, 0, 1) both;
+	}
+	.modal-card {
+		width: 100%; max-width: 32rem;
+		border-radius: var(--gw-radius-2xl);
+		border: 1px solid var(--gw-color-border-subtle);
+		background-color: var(--gw-color-surface);
+		box-shadow: 0 24px 60px -12px oklch(20% 0.02 270 / 0.4);
+		padding: var(--gw-space-6);
+	}
 
 
 	/* Onboard flow */
@@ -981,6 +1112,8 @@
 								</button>
 							</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
+								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Credential</th>
+							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] sm:table-cell">Window</th>
 							<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold
 								uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] sm:table-cell">Probe</th>
@@ -1018,34 +1151,85 @@
 									</span>
 								</td>
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
-									{#if acct.status === 'Disabled'}
-										<span class="badge-disabled">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{acct.status}
-										</span>
-									{:else if acct.status === 'Healthy' && maxWarnPct >= 90}
-										<span class="badge-warn">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{acct.status}
-										</span>
-									{:else if acct.status === 'Healthy'}
-										<span class="badge-healthy">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{acct.status}
-										</span>
-									{:else if allExpired}
-										<!-- Every known window already reset: the block/cooldown is stale and the
-										     account is merely awaiting the re-probe that lifts it to Healthy
-										     (mirrors the domain's is_genuinely_blocked freshness rule). -->
-										<span class="badge-reset" title="{acct.status} — window reset, awaiting re-probe">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											Resetting
-										</span>
+									<span class="flex flex-col items-start gap-[var(--gw-space-1)]">
+										{#if acct.status === 'Disabled'}
+											<span class="badge-disabled">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{acct.status}
+											</span>
+										{:else if acct.status === 'Healthy' && maxWarnPct >= 90}
+											<span class="badge-warn">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{acct.status}
+											</span>
+										{:else if acct.status === 'Healthy'}
+											<span class="badge-healthy">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{acct.status}
+											</span>
+										{:else if allExpired}
+											<!-- Every known window already reset: the block/cooldown is stale and the
+											     account is merely awaiting the re-probe that lifts it to Healthy
+											     (mirrors the domain's is_genuinely_blocked freshness rule). -->
+											<span class="badge-reset" title="{acct.status} — window reset, awaiting re-probe">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												Resetting
+											</span>
+										{:else}
+											<span class="badge-warn">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{acct.status}
+											</span>
+										{/if}
+										<!-- Credential-dead signal, independent of quota status. -->
+										{#if needsRelogin(acct.id)}
+											<span class="badge-relogin" title="Credential needs an operator relogin">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												Needs relogin
+											</span>
+										{/if}
+									</span>
+								</td>
+								<!-- Credential health: refresh token + expiry + onboarding presence -->
+								<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] md:table-cell">
+									{#if health[acct.id]}
+										{@const h = health[acct.id]}
+										<div class="flex min-h-[2.25rem] flex-col justify-center gap-[2px]">
+											<span class="cred-chip {h.refresh_present ? 'cred-ok' : 'cred-bad'}">
+												{#if h.refresh_present}
+													<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+														stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+														<polyline points="20 6 9 17 4 12"/>
+													</svg>
+												{:else}
+													<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+														stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+														<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+													</svg>
+												{/if}
+												refresh
+											</span>
+											<span class="cred-chip cred-unknown" title="Credential expiry">
+												{expiryLabel(h.expires_at_secs, nowSecs)}
+											</span>
+											<span class="cred-chip {h.onboarding_complete ? 'cred-ok' : 'cred-bad'}"
+												title="Config dir onboarding-complete (consumable by the sling)">
+												{#if h.onboarding_complete}
+													<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+														stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+														<polyline points="20 6 9 17 4 12"/>
+													</svg>
+												{:else}
+													<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+														stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+														<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+													</svg>
+												{/if}
+												onboarding
+											</span>
+										</div>
 									{:else}
-										<span class="badge-warn">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{acct.status}
-										</span>
+										<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 									{/if}
 								</td>
 								<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] sm:table-cell">
@@ -1153,6 +1337,15 @@
 								{#if canWrite}
 									<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 										<span class="flex items-center justify-end gap-[var(--gw-space-2)]">
+											<!-- Relogin: re-authorize the account's existing keychain dir (cred + onboarding). -->
+											<button
+												type="button"
+												class="btn-ghost"
+												onclick={() => startRelogin(acct.id)}
+												disabled={saving || reStep !== 'idle'}
+											>
+												Relogin
+											</button>
 											<form
 												method="POST"
 												action="?/rotate"
@@ -1198,5 +1391,124 @@
 			{/if}
 		</div>
 	</section>
+
+	<!-- ── Relogin modal (per-account) ──────────────────────────────────────── -->
+	{#if reAcct}
+		<div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Relogin account">
+			<div class="modal-card space-y-[var(--gw-space-4)]">
+				<div class="flex items-start justify-between gap-[var(--gw-space-4)]">
+					<div class="space-y-[2px]">
+						<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
+							Relogin account
+						</h2>
+						<p class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]
+							text-[var(--gw-color-text-muted)]">{reAcct}</p>
+					</div>
+					<button
+						type="button"
+						class="btn-ghost flex-shrink-0"
+						onclick={cancelRelogin}
+						disabled={reStep === 'completing'}
+					>
+						Close
+					</button>
+				</div>
+
+				<!-- Step: starting -->
+				{#if reStep === 'starting'}
+					<div class="flex items-center gap-[var(--gw-space-2)]">
+						<svg class="h-4 w-4 animate-spin text-[var(--gw-color-text-muted)]" viewBox="0 0 24 24" fill="none">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+						</svg>
+						<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">Starting login…</p>
+					</div>
+				{/if}
+
+				<!-- Steps: await + completing -->
+				{#if reStep === 'await' || reStep === 'completing'}
+					<div class="space-y-[var(--gw-space-4)]">
+						<p class="warn-callout">
+							<strong>Note:</strong> This re-authorizes the credential dir for
+							<strong>{reAcct}</strong>. Make sure claude.ai is signed in as that account —
+							open the link in an <strong>incognito / private window</strong> if a different
+							account is currently signed in (claude.ai offers no account chooser).
+						</p>
+
+						<!-- Step 1 -->
+						<div class="onboard-step space-y-[var(--gw-space-3)]">
+							<p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+								Step 1 — Open the login page
+							</p>
+							<code class="url-code">{reUrl}</code>
+							<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
+								<a href={reUrl} target="_blank" rel="noopener noreferrer" class="btn-ghost">
+									<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+										stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+										<polyline points="15 3 21 3 21 9"/>
+										<line x1="10" y1="14" x2="21" y2="3"/>
+									</svg>
+									Open link
+								</a>
+								<button type="button" class="btn-ghost" onclick={copyReloginLink}>
+									{#if reCopied}
+										<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+											stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+											<polyline points="20 6 9 17 4 12"/>
+										</svg>
+										Copied
+									{:else}
+										<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+											stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+											<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+											<path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+										</svg>
+										Copy link
+									{/if}
+								</button>
+							</div>
+						</div>
+
+						<!-- Step 2 -->
+						<div class="onboard-step space-y-[var(--gw-space-3)]">
+							<p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">
+								Step 2 — Paste the code
+							</p>
+							<div class="flex flex-wrap items-center gap-[var(--gw-space-2)]">
+								<input
+									bind:value={reCode}
+									placeholder="Code from the login page"
+									class="gw-input max-w-xs"
+									disabled={reStep === 'completing'}
+								/>
+								<button
+									type="button"
+									class="cta flex-shrink-0"
+									onclick={completeRelogin}
+									disabled={reStep === 'completing'}
+								>
+									{#if reStep === 'completing'}
+										<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+										</svg>
+										<span>Finishing…</span>
+									{:else}
+										<span>Finish</span>
+										<span class="cta-arrow" aria-hidden="true">→</span>
+									{/if}
+								</button>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				{#if reErr}
+					<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-error)]">{reErr}</p>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 </div>
