@@ -555,6 +555,7 @@
 		createdBy={data.user?.sub ?? 'gt-web'}
 		rig={data.rig}
 		workspace={data.boardWorkspace}
+		domainOptions={data.domainOptions}
 		epics={epics
 			.filter((e) => e.status !== 'closed')
 			.map((e) => ({ id: e.id, title: e.title }))}

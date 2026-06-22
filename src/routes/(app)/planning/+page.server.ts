@@ -1,5 +1,5 @@
 import { listUsers } from '$lib/api/auth';
-import { serverTracker } from '$lib/server/api';
+import { serverTracker, serverMeta } from '$lib/server/api';
 import { backendFetch } from '$lib/server/backend';
 import { attachParent, resolveParentMap } from '$lib/server/relations';
 import type { PageServerLoad } from './$types';
@@ -26,15 +26,27 @@ export const load: PageServerLoad = async (event) => {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	const tr = serverTracker(event);
 	const fetcher = (path: string, init?: RequestInit) => backendFetch(path, cookie, init);
-	const [page, users] = await Promise.all([
+	const [page, users, domainOptions] = await Promise.all([
 		tr.list({ rig, workspace, limit: 1000 }),
 		listUsers((input, init) => backendFetch(String(input), cookie, init))
 			.then((u) => u.map((x) => x.email))
+			.catch(() => [] as string[]),
+		// Closed Domain set for the New-bead modal selector (gtweb-186fbf); sourced
+		// from gt-meta, [] when the session lacks `meta.read` (free-text fallback).
+		serverMeta(event)
+			.domains()
 			.catch(() => [] as string[])
 	]);
 	// child_of refactor (@3d6ea41): the list rows don't inline the epic, so
 	// resolve the parent map (one query per epic) and stitch parent_id on.
 	const epicIds = page.rows.filter((r) => r.issue_type === 'epic').map((r) => r.id);
 	const parents = await resolveParentMap(fetcher, { rig, workspace }, epicIds);
-	return { rows: attachParent(page.rows, parents), rig, boardWorkspace: workspace, users, archived };
+	return {
+		rows: attachParent(page.rows, parents),
+		rig,
+		boardWorkspace: workspace,
+		users,
+		domainOptions,
+		archived
+	};
 };
