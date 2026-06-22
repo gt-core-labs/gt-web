@@ -9,15 +9,26 @@
  * and understates each band. `normalizeModel` collapses those variants to a single
  * canonical id so the charts aggregate correctly.
  *
- * Forms folded together (all → `claude-opus-4-8`):
- *   - `claude-opus-4-8`                         (bare)
+ * Canonical id = the model FAMILY (`opus` / `sonnet` / `haiku`). This deliberately
+ * matches the quota source (`gtcore-1f5112`), which already normalizes `quota.sample`
+ * to the short family before it lands as a `tokens_sampled.v1` event. The render side
+ * must agree with the source or the same model splits across two legend buckets: the
+ * family-normalized `opus` (new samples) and the raw legacy `claude-opus-4-8` (older
+ * samples) would otherwise stack as separate bands. The chart groups by family, not by
+ * minor version — if `4-8` ever needs to be told apart from `4-7`, add that as a
+ * separate dimension rather than re-splitting the family.
+ *
+ * Forms folded together (all → `opus`):
+ *   - `opus`                                    (already family-normalized at source)
+ *   - `claude-opus-4-8`                         (bare, legacy raw)
  *   - `claude-opus-4-8-20260101`                (Anthropic dated snapshot)
  *   - `anthropic/claude-opus-4-8`               (OpenRouter / gateway routing)
  *   - `us.anthropic.claude-opus-4-8-v1:0`       (Bedrock, with region + version)
  *   - `claude-opus-4-8@20260101`                (Vertex)
  *
- * Non-Claude ids are handled the same way (prefix + date/version stripping) so the
- * function is safe to apply to every sample regardless of provider.
+ * Non-Claude ids (and Claude ids that don't match the `claude-<family>-…` shape) are
+ * left as their prefix/date-stripped form, so the function is safe to apply to every
+ * sample regardless of provider.
  */
 export function normalizeModel(raw: string | null | undefined): string {
 	let m = (raw ?? '').trim().toLowerCase();
@@ -43,6 +54,13 @@ export function normalizeModel(raw: string | null | undefined): string {
 	// Anthropic dated snapshots: trailing `-YYYYMMDD` (8 digits). Version segments like
 	// the `4-8` in `claude-opus-4-8` are short, so an 8-digit anchor never touches them.
 	m = m.replace(/-\d{8}$/, '');
+
+	// Collapse `claude-<family>-…` ids to the bare family (`opus`/`sonnet`/`haiku`) — the
+	// canonical the quota source already emits. This folds the legacy raw `claude-opus-4-8`
+	// into the same bucket as the new family-normalized `opus`, instead of charting them as
+	// two bands. Bare family ids (`opus`) and unknown models fall through unchanged.
+	const family = m.match(/^claude-(opus|sonnet|haiku)-/);
+	if (family) return family[1];
 
 	return m || 'unknown';
 }
