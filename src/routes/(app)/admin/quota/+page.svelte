@@ -380,17 +380,22 @@
 			sums[i].set(g, (sums[i].get(g) ?? 0) + tokensOf(s));
 		}
 
-		// Stacked area (gallery pick: area-stacked, gtweb-ce0f52): the band heights show the
-		// per-group share while the top edge tracks total burn. Buckets are aligned (every
-		// series emits a value per bucket), which stacking requires.
+		// SESSION/ACCOUNT (gallery pick: area-stacked, gtweb-ce0f52): stacked bands show the
+		// per-group share while the top edge tracks total burn — useful when several groups
+		// are comparable. MODEL is NOT stacked (gtweb-02c342): with a dominant model (e.g.
+		// opus ~100%), a stacked area makes the minority series' line trace the cumulative
+		// TOTAL, so a near-zero model (sonnet) appears to crown every peak and look like the
+		// leader. Drawing each model as its own un-stacked band makes the dominant model the
+		// prominent one in its own colour, and ~0 models sit flat at the bottom.
+		const stacked = burnBy !== 'model';
 		const series = groups.map((g, i) => ({
 			name: g,
 			type: 'line' as const,
-			stack: 'total',
+			...(stacked ? { stack: 'total' } : {}),
 			smooth: 0.2,
 			symbol: 'circle',
 			symbolSize: 5,
-			areaStyle: { opacity: 0.3 },
+			areaStyle: { opacity: stacked ? 0.3 : 0.2 },
 			color: g === 'other' ? '#a1a1aa' : CHART_PALETTE[i % CHART_PALETTE.length],
 			emphasis: { focus: 'series' as const },
 			data: sums.map((m, idx) => [
