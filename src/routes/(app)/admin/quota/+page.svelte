@@ -1337,15 +1337,19 @@
 								{#if canWrite}
 									<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 										<span class="flex items-center justify-end gap-[var(--gw-space-2)]">
-											<!-- Relogin: re-authorize the account's existing keychain dir (cred + onboarding). -->
-											<button
-												type="button"
-												class="btn-ghost"
-												onclick={() => startRelogin(acct.id)}
-												disabled={saving || reStep !== 'idle'}
-											>
-												Relogin
-											</button>
+											<!-- Relogin: re-authorize the account's existing keychain dir (cred + onboarding).
+											     Only shown when the backend reports the account needs a relogin,
+											     mirroring the "Needs relogin" badge condition above. -->
+											{#if needsRelogin(acct.id)}
+												<button
+													type="button"
+													class="btn-ghost"
+													onclick={() => startRelogin(acct.id)}
+													disabled={saving || reStep !== 'idle'}
+												>
+													Relogin
+												</button>
+											{/if}
 											<form
 												method="POST"
 												action="?/rotate"
