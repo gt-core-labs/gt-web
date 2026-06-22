@@ -401,6 +401,7 @@
 		createdBy={data.user?.sub ?? 'gt-web'}
 		rig={data.rig}
 		workspace={data.boardWorkspace}
+		domainOptions={data.domainOptions}
 		epics={columns
 			.flatMap((c) => c.cards)
 			.filter((r) => r.issue_type === 'epic' && r.status !== 'closed')

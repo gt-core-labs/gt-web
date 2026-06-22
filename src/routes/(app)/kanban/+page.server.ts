@@ -1,5 +1,5 @@
 import { listUsers } from '$lib/api/auth';
-import { serverBoard } from '$lib/server/api';
+import { serverBoard, serverMeta } from '$lib/server/api';
 import { backendFetch } from '$lib/server/backend';
 import { attachParent, resolveParentMap } from '$lib/server/relations';
 import type { PageServerLoad } from './$types';
@@ -29,7 +29,7 @@ export const load: PageServerLoad = async (event) => {
 	const epic = url.searchParams.get('epic');
 
 	const cookie = event.request.headers.get('cookie') ?? '';
-	const [snapshot, users] = await Promise.all([
+	const [snapshot, users, domainOptions] = await Promise.all([
 		// NB: the `epic` filter is applied client-side off the resolved parent_id
 		// (the board endpoint's legacy external_ref filter is dead post-refactor),
 		// so we fetch the full snapshot and never forward `epic` to the backend.
@@ -42,6 +42,12 @@ export const load: PageServerLoad = async (event) => {
 		// sessions without `users.read` degrade to [] (free-text input).
 		listUsers((input, init) => backendFetch(String(input), cookie, init))
 			.then((u) => u.map((x) => x.email))
+			.catch(() => [] as string[]),
+		// Closed Domain set for the New-bead modal selector (gtweb-186fbf). Sourced
+		// from gt-meta so a typo can't be submitted; sessions without `meta.read`
+		// degrade to [] and the modal falls back to a free-text CSV input.
+		serverMeta(event)
+			.domains()
 			.catch(() => [] as string[])
 	]);
 	// child_of refactor (@3d6ea41): the board cards no longer carry the epic
@@ -67,6 +73,7 @@ export const load: PageServerLoad = async (event) => {
 		groupBy: group_by ?? '',
 		epic: epic ?? '',
 		users,
+		domainOptions,
 		archived
 	};
 };

@@ -10,15 +10,25 @@
 		workspace?: string;
 		/** The scope's epics for the Epic ref select (NN-16: required on non-epics). */
 		epics?: { id: string; title: string }[];
+		/**
+		 * The closed Domain set (gt-meta, sourced server-side). When non-empty the
+		 * field renders a multi-select so an out-of-set value can't be submitted
+		 * (gtweb-186fbf). Empty ⇒ the session lacked `meta.read`; degrade to a
+		 * free-text CSV input so the modal still works.
+		 */
+		domainOptions?: string[];
 		onclose: () => void;
 	}
 
-	let { createdBy, rig, workspace = 'default', epics = [], onclose }: Props = $props();
+	let { createdBy, rig, workspace = 'default', epics = [], domainOptions = [], onclose }: Props =
+		$props();
 
 	let title = $state('');
 	let issueType = $state('task');
 	let parentId = $state('');
-	let domain = $state('fe.web');
+	// Selected domains (closed-set picker) + a CSV fallback string for the no-catalog path.
+	let selectedDomains = $state<Set<string>>(new Set());
+	let domainText = $state('');
 	let priority = $state(2);
 	let description = $state('');
 	let error = $state('');
@@ -26,8 +36,64 @@
 
 	const isEpic = $derived(issueType === 'epic');
 
+	// Render the closed-set picker when the backend gave us a catalog; otherwise free text.
+	const useSelect = $derived(domainOptions.length > 0);
+
+	// Display order for the dotted-name tiers; unknown tiers sort to the end, alphabetically.
+	const TIER_ORDER = [
+		'kernel',
+		'lifecycle',
+		'orch',
+		'platform',
+		'role',
+		'bin',
+		'store',
+		'fe',
+		'deploy',
+		'docs',
+		'meta'
+	];
+	const tierRank = (t: string) => {
+		const i = TIER_ORDER.indexOf(t);
+		return i === -1 ? TIER_ORDER.length : i;
+	};
+
+	// Group the closed set by tier (segment before the first dot) for the picker.
+	const groupedDomains = $derived.by(() => {
+		const m = new Map<string, string[]>();
+		for (const d of [...domainOptions].sort()) {
+			const tier = d.split('.')[0];
+			if (!m.has(tier)) m.set(tier, []);
+			m.get(tier)!.push(d);
+		}
+		return [...m.entries()].sort((a, b) => tierRank(a[0]) - tierRank(b[0]) || a[0].localeCompare(b[0]));
+	});
+
+	function toggleDomain(d: string) {
+		const next = new Set(selectedDomains);
+		if (next.has(d)) next.delete(d);
+		else next.add(d);
+		selectedDomains = next;
+	}
+
+	// The domains to submit, from whichever input is active.
+	const domainList = $derived(
+		useSelect
+			? [...selectedDomains]
+			: domainText
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+	);
+	// NN: a non-epic needs ≥1 domain; epics may have none.
+	const domainValid = $derived(isEpic || domainList.length > 0);
+
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
+		if (!domainValid) {
+			error = 'Pick at least one domain.';
+			return;
+		}
 		saving = true;
 		error = '';
 		try {
@@ -39,10 +105,7 @@
 				created_by: createdBy,
 				// child_of relation (NN-16 requires a parent epic for non-epics).
 				parent_id: isEpic ? undefined : parentId,
-				domain: domain
-					.split(',')
-					.map((s) => s.trim())
-					.filter(Boolean),
+				domain: domainList,
 				priority: Number(priority),
 				description: description.trim() || undefined
 			});
@@ -130,26 +193,65 @@
 						</div>
 					</div>
 
-					<div class="grid grid-cols-2 gap-3">
-						{#if !isEpic}
-							<div class="flex flex-col gap-1.5">
-								<label for="bead-epic" class="field-label">Epic</label>
-								<div class="field-wrap">
-									<select id="bead-epic" class="field-input" bind:value={parentId} required>
-										<option value="" disabled>— pick an epic —</option>
-										{#each epics as e (e.id)}
-											<option value={e.id}>{e.title} ({e.id})</option>
-										{/each}
-									</select>
-								</div>
-							</div>
-						{/if}
-						<div class="flex flex-col gap-1.5" class:col-span-2={isEpic}>
-							<label for="bead-domain" class="field-label">Domain <span class="normal-case tracking-normal opacity-60">csv</span></label>
+					{#if !isEpic}
+						<div class="flex flex-col gap-1.5">
+							<label for="bead-epic" class="field-label">Epic</label>
 							<div class="field-wrap">
-								<input id="bead-domain" class="field-input" bind:value={domain} required />
+								<select id="bead-epic" class="field-input" bind:value={parentId} required>
+									<option value="" disabled>— pick an epic —</option>
+									{#each epics as e (e.id)}
+										<option value={e.id}>{e.title} ({e.id})</option>
+									{/each}
+								</select>
 							</div>
 						</div>
+					{/if}
+
+					<div class="flex flex-col gap-1.5">
+						<div class="flex items-baseline justify-between">
+							<span class="field-label">Domain</span>
+							{#if useSelect}
+								<span class="field-label normal-case tracking-normal opacity-60">
+									{selectedDomains.size} selected{isEpic ? '' : ' · ≥1 required'}
+								</span>
+							{:else}
+								<span class="field-label normal-case tracking-normal opacity-60">csv</span>
+							{/if}
+						</div>
+						{#if useSelect}
+							<!-- Closed-set picker (gt-meta): only listed domains can be chosen/submitted. -->
+							<div class="domain-box" role="group" aria-label="Domain">
+								{#each groupedDomains as [tier, vals] (tier)}
+									<div class="domain-group">
+										<div class="domain-tier">{tier}</div>
+										<div class="domain-chips">
+											{#each vals as v (v)}
+												<button
+													type="button"
+													class="chip"
+													class:chip-on={selectedDomains.has(v)}
+													aria-pressed={selectedDomains.has(v)}
+													onclick={() => toggleDomain(v)}
+												>
+													{v}
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<!-- Fallback when the session lacks `meta.read`: validated free-text CSV. -->
+							<div class="field-wrap">
+								<input
+									id="bead-domain"
+									class="field-input"
+									bind:value={domainText}
+									placeholder="fe.web, fe.docs"
+									required={!isEpic}
+								/>
+							</div>
+						{/if}
 					</div>
 
 					<div class="flex flex-col gap-1.5">
@@ -180,7 +282,7 @@
 						<!-- Button-in-Button -->
 						<button
 							type="submit"
-							disabled={saving}
+							disabled={saving || !domainValid}
 							class="group flex items-center gap-2 rounded-full bg-[var(--gw-color-primary)] px-5 py-2 text-sm font-medium text-white
 								transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
 								hover:opacity-90 active:scale-[0.98]
@@ -237,5 +339,62 @@
 	}
 	.field-input::placeholder {
 		color: color-mix(in oklch, var(--gw-color-text-muted) 50%, transparent);
+	}
+
+	/* Closed-set Domain picker (gtweb-186fbf): tier-grouped, scrollable chip list. */
+	.domain-box {
+		display: flex;
+		flex-direction: column;
+		gap: 0.625rem;
+		max-height: 11rem;
+		overflow-y: auto;
+		border-radius: 0.75rem;
+		border: 1px solid var(--gw-color-border);
+		background: var(--gw-color-surface-2);
+		padding: 0.625rem 0.75rem;
+	}
+	.domain-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+	}
+	.domain-tier {
+		font-size: 9px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.14em;
+		color: color-mix(in oklch, var(--gw-color-text-muted) 80%, transparent);
+	}
+	.domain-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+	}
+	.chip {
+		border-radius: 9999px;
+		border: 1px solid var(--gw-color-border);
+		background: transparent;
+		padding: 0.2rem 0.6rem;
+		font-size: 0.75rem;
+		line-height: 1.1;
+		color: var(--gw-color-text-muted);
+		cursor: pointer;
+		transition:
+			border-color 0.2s cubic-bezier(0.32, 0.72, 0, 1),
+			background 0.2s cubic-bezier(0.32, 0.72, 0, 1),
+			color 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.chip:hover {
+		border-color: var(--gw-color-text-muted);
+		color: var(--gw-color-text);
+	}
+	.chip:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--gw-color-primary) 20%, transparent);
+	}
+	.chip-on {
+		border-color: var(--gw-color-primary);
+		background: color-mix(in oklch, var(--gw-color-primary) 16%, transparent);
+		color: var(--gw-color-text);
 	}
 </style>
