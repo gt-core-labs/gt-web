@@ -94,7 +94,7 @@
 		try {
 			const rows = await api.quotaHealth();
 			const next: Record<string, CredHealth> = {};
-			for (const h of rows) next[h.id] = h;
+			for (const h of rows) next[h.account] = h;
 			health = next;
 		} catch {
 			// Endpoint not deployed yet (or transient): leave prior health, degrade to "unknown".
@@ -1200,8 +1200,8 @@
 									{#if health[acct.id]}
 										{@const h = health[acct.id]}
 										<div class="flex min-h-[2.25rem] flex-col justify-center gap-[2px]">
-											<span class="cred-chip {h.refresh_present ? 'cred-ok' : 'cred-bad'}">
-												{#if h.refresh_present}
+											<span class="cred-chip {h.refresh ? 'cred-ok' : 'cred-bad'}">
+												{#if h.refresh}
 													<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
 														stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 														<polyline points="20 6 9 17 4 12"/>
