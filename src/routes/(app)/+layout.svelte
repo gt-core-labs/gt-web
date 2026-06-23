@@ -199,6 +199,31 @@
 
 		</header>
 
+		<!-- ── Persistent relogin notice (gtweb-a3a05b) ───────────────────────────
+		     Shown whenever ≥1 claude account needs an operator relogin/revision
+		     (count from the SSR layout load). It is NOT dismissable: it reflects
+		     server state, so it stays while count>0 and vanishes once all are healthy
+		     on the next load/navigation. The whole bar links to /admin/quota. -->
+		{#if (data.needsReloginCount ?? 0) > 0}
+			<a
+				href="/admin/quota"
+				class="relogin-banner"
+				aria-label="{data.needsReloginCount} claude account{data.needsReloginCount === 1 ? '' : 's'} need re-login — open Quota admin"
+			>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+					stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+					<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+				</svg>
+				<span>
+					<strong>{data.needsReloginCount}</strong>
+					claude account{data.needsReloginCount === 1 ? '' : 's'}
+					{data.needsReloginCount === 1 ? 'needs' : 'need'} re-login — review in Quota
+				</span>
+				<span class="relogin-banner-arrow" aria-hidden="true">→</span>
+			</a>
+		{/if}
+
 		<!-- ── Main content ───────────────────────────────────────────────────── -->
 		<main class="flex-1 overflow-auto p-6 xl:p-8 2xl:p-10">
 			{@render children()}
@@ -282,5 +307,39 @@
 	.logout-btn:focus-visible {
 		outline: none;
 		box-shadow: 0 0 0 2px var(--gw-color-primary-focus);
+	}
+
+	/* Persistent relogin notice (gtweb-a3a05b) — amber, matches the quota page's
+	   warn palette. A full-width bar under the header; the whole bar is the link. */
+	.relogin-banner {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 0.5rem;
+		border-bottom: 1px solid oklch(88% 0.1 80);
+		background-color: oklch(97% 0.04 80);
+		color: oklch(48% 0.18 80);
+		font-size: var(--gw-text-xs);
+		font-weight: 500;
+		padding: 0.4375rem 1.25rem;
+		text-decoration: none;
+		transition: background-color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.relogin-banner:hover {
+		background-color: oklch(95% 0.05 80);
+	}
+	.relogin-banner svg {
+		flex-shrink: 0;
+	}
+	.relogin-banner strong {
+		font-weight: 700;
+	}
+	.relogin-banner-arrow {
+		margin-left: auto;
+		font-size: var(--gw-text-sm);
+		transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	.relogin-banner:hover .relogin-banner-arrow {
+		transform: translateX(2px);
 	}
 </style>
