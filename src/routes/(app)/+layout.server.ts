@@ -26,13 +26,23 @@ export const load: LayoutServerLoad = async (event) => {
 	const wsFetch = (input: RequestInfo | URL, init?: RequestInit) =>
 		backendFetch(String(input), cookie, init);
 
-	const [workspaces, rigs] = await Promise.all([
+	const [workspaces, rigs, needsReloginCount] = await Promise.all([
 		listWorkspaces(wsFetch),
 		hasScope(locals.user.scopes, 'rig.read')
 			? serverAdmin(event)
 					.rigs()
 					.catch(() => [])
-			: Promise.resolve([])
+			: Promise.resolve([]),
+		// Persistent relogin notice (gtweb-a3a05b): count accounts whose credential dir is
+		// dead/unonboarded (cred-health enumerates them all since e09320). Only quota.read
+		// holders can read it; everyone else gets 0 ⇒ no banner. Degrades to 0 if the route
+		// is unreachable so the shell never fails on it.
+		hasScope(locals.user.scopes, 'quota.read')
+			? serverAdmin(event)
+					.quotaHealth()
+					.then((h) => h.filter((a) => a.needs_relogin).length)
+					.catch(() => 0)
+			: Promise.resolve(0)
 	]);
 
 	const selected = cookies.get(RIG_COOKIE) ?? '';
@@ -46,5 +56,5 @@ export const load: LayoutServerLoad = async (event) => {
 				? selected
 				: '';
 
-	return { user: locals.user, workspaces, rigs, activeRig };
+	return { user: locals.user, workspaces, rigs, activeRig, needsReloginCount };
 };
