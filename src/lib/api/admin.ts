@@ -209,7 +209,7 @@ export function admin(doFetch: Fetcher) {
 		// host, so — like onboarding — this is served by the daemon behind Traefik, not gt-mcp-server:
 		// use the BROWSER fetcher. Degrades to an empty list if the route is not yet deployed.
 		async quotaHealth(): Promise<CredHealth[]> {
-			const j = await unwrap<{ accounts: CredHealth[] }>(await doFetch('/api/v1/quota/health'));
+			const j = await unwrap<{ accounts: CredHealth[] }>(await doFetch('/api/v1/quota/cred-health'));
 			return j.accounts ?? [];
 		},
 		// Relogin lifecycle (gtcore-1fe9b4): re-runs `claude /login` against the account's existing
