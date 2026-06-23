@@ -105,12 +105,15 @@ export interface OnboardComplete {
  * Per-account credential health (gtcore-3cab31 / gtcore-1fe9b4). Distinct from quota *usage*:
  * an account can be quota-`Healthy` while its keychain credential is dead (no refresh token, or
  * the config dir never completed onboarding), which is the silent-401 hole this surfaces.
- * `id` is the account email, matching {@link QuotaAccount.id}.
+ * `account` is the account email, matching {@link QuotaAccount.id}.
+ * Field names mirror the backend JSON exactly (GET /api/v1/quota/cred-health).
  */
 export interface CredHealth {
-	id: string;
+	account: string;
+	/** Credential read state: "Valid" | "Expired" | "Unreadable". */
+	credential: string;
 	/** A refresh token is stored in the dir's `.credentials.json`. */
-	refresh_present: boolean;
+	refresh: boolean;
 	/** Unix epoch the stored credential expires; null = unknown. */
 	expires_at_secs: number | null;
 	/** The dir carries `oauthAccount` + `hasCompletedOnboarding` (consumable by the sling pre-authed). */
