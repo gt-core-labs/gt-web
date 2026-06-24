@@ -30,6 +30,10 @@ export interface Session {
 	skills?: string[];
 	/** Hook kinds loaded into the agent (hq-orch-sessions.2). */
 	hooks?: string[];
+	/** Whether the reconciler expects periodic heartbeats from this session. */
+	maintains_heartbeat?: boolean;
+	/** Unix seconds of the most recent supervisor-tick heartbeat, or absent when none received. */
+	last_heartbeat_at?: number;
 }
 
 /** The flat role a user picks in the spawn form (hq-orch-sessions.1). */

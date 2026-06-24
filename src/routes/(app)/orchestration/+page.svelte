@@ -189,6 +189,19 @@
 		}
 	};
 
+	// Infrastructure roles: long-running daemons that don't send periodic heartbeats.
+	const INFRA_ROLES = new Set(['refinery', 'mayor', 'sheriff', 'witness', 'deacon']);
+	const isInfra = (s: { role: string; maintains_heartbeat?: boolean }) =>
+		INFRA_ROLES.has(s.role) || s.maintains_heartbeat === false;
+
+	function relativeHb(secs: number | undefined | null, now: number): string {
+		if (secs == null) return '—';
+		const d = now - secs;
+		if (d < 90) return `${d}s ago`;
+		if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+		return `${Math.floor(d / 3600)}h ago`;
+	}
+
 	// The tick also re-runs the load so server-side quota status lifts reach the pills live.
 	let nowSecs = $state(Math.floor(Date.now() / 1000));
 	$effect(() => {
@@ -283,6 +296,11 @@
 	}
 	.premium-row:hover {
 		background-color: var(--gw-color-surface-3);
+	}
+
+	/* Infra daemon rows (refinery/mayor/sheriff/witness/deacon) get a subtle left accent. */
+	.infra-row td:first-child {
+		border-left: 2px solid color-mix(in oklch, var(--gw-color-primary) 40%, transparent);
 	}
 
 	.badge-healthy {
@@ -466,17 +484,19 @@
 					<div class="bezel-inner-overflow">
 						<table class="table">
 							<thead>
-								<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>Skills</th><th>Hooks</th><th>State</th><th></th></tr>
+								<tr><th>Session</th><th>Rig</th><th>Role</th><th>Crew</th><th>Skills</th><th>Hooks</th><th>Last HB</th><th>State</th><th></th></tr>
 							</thead>
 							<tbody>
 								{#each sessions as s (s.id)}
 									{@const cfg = agentSkills(s)}
-									<tr class="premium-row">
+									{@const infra = isInfra(s)}
+									<tr class="premium-row {infra ? 'infra-row' : ''}">
 										<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)]">{s.id}</td>
 										<td>{rigOf(s.rig)}</td>
 										<td>
 											<span class="flex items-center gap-1">
 												{s.role}
+												{#if infra}<Badge variant="surface" class="text-[9px] opacity-70">infra</Badge>{/if}
 												{#if roleHasPrompt(s.role)}<Badge variant="primary" class="text-[9px]">prompt</Badge>{/if}
 											</span>
 										</td>
@@ -510,6 +530,13 @@
 													{#each s.hooks as hk (hk)}<Badge variant="surface">{hk}</Badge>{/each}
 												</span>
 											{:else}—{/if}
+										</td>
+										<td class="font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] tabular-nums text-[var(--gw-color-text-muted)]">
+											{#if infra && s.last_heartbeat_at == null}
+												<span title="Infra daemon — no heartbeat expected">N/A</span>
+											{:else}
+												{relativeHb(s.last_heartbeat_at, nowSecs)}
+											{/if}
 										</td>
 										<td><Badge variant={stateVariant(s.state)}>{s.state}</Badge></td>
 										<td>
