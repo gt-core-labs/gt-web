@@ -36,6 +36,11 @@
 	let saving = $state<string | null>(null);
 	const isDirty = (name: string, current: string | null | undefined) =>
 		(selected[name] ?? '') !== (current ?? '');
+
+	// Dispatch mode (rig-hold H4): `auto` default; a rig in `hold` is paused (dispatch + watchdogs).
+	const dispatchMode = (r: { dispatch_mode?: 'auto' | 'hold' }) => r.dispatch_mode ?? 'auto';
+	// The rig whose hold/resume toggle is in flight (disables its control + shows a spinner).
+	let toggling = $state<string | null>(null);
 </script>
 
 <div class="mx-auto max-w-4xl space-y-6">
@@ -70,7 +75,7 @@
 				<aside class="warn-banner" role="alert">Could not list this workspace's repos: {data.rigError}</aside>
 			{/if}
 			{#if form?.error}
-				<aside class="warn-banner" role="alert">Could not update connection: {form.error}</aside>
+				<aside class="warn-banner" role="alert">Could not update rig: {form.error}</aside>
 			{/if}
 
 			<!-- Repos table -->
@@ -84,11 +89,13 @@
 									<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Prefix</th>
 									<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] md:table-cell">Git URL</th>
 									<th class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)] lg:table-cell">Connection</th>
+									<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Dispatch</th>
 									<th class="px-[var(--gw-space-4)] py-[var(--gw-space-3)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gw-color-text-muted)]">Graph</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-[var(--gw-color-border-subtle)]">
 								{#each data.rigs as rig (rig.name)}
+									{@const mode = dispatchMode(rig)}
 									<tr class="data-row">
 										<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 											<span class="text-[var(--gw-text-sm)] font-medium text-[var(--gw-color-text)]">{rig.name}</span>
@@ -152,6 +159,59 @@
 											{:else}
 												<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
 											{/if}
+										</td>
+										<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
+											<div class="dispatch-cell">
+												<span
+													class="chip dispatch-badge"
+													class:held={mode === 'hold'}
+													title={mode === 'hold'
+														? 'Dispatch paused — the orchd will not sling or re-sling this rig'
+														: 'Dispatch active'}
+												>
+													<span class="dot" class:dot-built={mode === 'auto'} class:dot-stale={mode === 'hold'}></span>{mode}
+												</span>
+												{#if data.canWriteRig}
+													<!-- Toggle dispatch hold/resume (rig-hold H4, gtweb-6ab2fb). -->
+													<form
+														method="POST"
+														action="?/setDispatchMode"
+														class="dispatch-form"
+														use:enhance={() => {
+															toggling = rig.name;
+															return async ({ update }) => {
+																await update();
+																toggling = null;
+															};
+														}}
+													>
+														<input type="hidden" name="name" value={rig.name} />
+														<input type="hidden" name="mode" value={mode === 'hold' ? 'auto' : 'hold'} />
+														{#if mode === 'auto'}
+															<input
+																class="reason-input"
+																name="reason"
+																placeholder="reason (optional)"
+																disabled={toggling === rig.name}
+																aria-label={`Hold reason for ${rig.name}`}
+															/>
+														{/if}
+														<button
+															type="submit"
+															class="btn-refresh"
+															disabled={toggling === rig.name}
+															title={mode === 'hold' ? 'Resume dispatch' : 'Pause dispatch (hold)'}
+														>
+															{#if toggling === rig.name}
+																<Icon icon="lucide:loader-2" size={12} class="spin" />
+															{:else}
+																<Icon icon={mode === 'hold' ? 'lucide:play' : 'lucide:pause'} size={12} />
+															{/if}
+															{mode === 'hold' ? 'Resume' : 'Hold'}
+														</button>
+													</form>
+												{/if}
+											</div>
 										</td>
 										<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 											{#key data.graphCustody}
@@ -336,6 +396,37 @@
 	.conn-lost {
 		border-color: var(--gw-color-error);
 		color: var(--gw-color-error);
+	}
+	.dispatch-cell {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.dispatch-badge {
+		text-transform: uppercase;
+	}
+	.dispatch-badge.held {
+		color: var(--gw-color-error);
+		border-color: var(--gw-color-error);
+	}
+	.dispatch-form {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	.reason-input {
+		max-width: 140px;
+		border-radius: var(--gw-radius-lg);
+		border: 1px solid var(--gw-color-border);
+		background-color: var(--gw-color-surface-3);
+		color: var(--gw-color-text);
+		font-size: 11px;
+		padding: 3px 8px;
+		outline: none;
+	}
+	.reason-input:focus {
+		border-color: var(--gw-color-primary);
+		box-shadow: 0 0 0 3px oklch(60% 0.22 250 / 0.1);
 	}
 	.btn-refresh {
 		display: inline-flex;

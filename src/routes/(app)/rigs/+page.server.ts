@@ -75,5 +75,38 @@ export const actions: Actions = {
 			}
 			return fail(500, { error: String(err) });
 		}
+	},
+	/**
+	 * Toggle a rig's dispatch mode (rig-hold H4, gtweb-6ab2fb → `rig.hold`/`rig.resume`). The form
+	 * carries `name` and the desired `mode` (`hold`|`auto`); holding may carry a `reason` recorded on
+	 * `rig.held.v1`. Idempotent backend (no-op returns `changed:false`). Gated on `rig.write`.
+	 */
+	setDispatchMode: async (event) => {
+		if (!hasScope(event.locals.user?.scopes, 'rig.write')) {
+			return fail(403, { error: 'Requires rig.write' });
+		}
+		const form = await event.request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		const mode = String(form.get('mode') ?? '').trim();
+		const reason = String(form.get('reason') ?? '').trim();
+		if (!name) {
+			return fail(400, { error: 'A rig name is required.' });
+		}
+		if (mode !== 'hold' && mode !== 'auto') {
+			return fail(400, { error: 'mode must be hold or auto.' });
+		}
+		try {
+			if (mode === 'hold') {
+				await serverAdmin(event).holdRig(name, reason);
+			} else {
+				await serverAdmin(event).resumeRig(name);
+			}
+			return { ok: true, rig: name };
+		} catch (err) {
+			if (err instanceof TrackerError) {
+				return fail(err.status, { error: `${err.status}: ${err.message}` });
+			}
+			return fail(500, { error: String(err) });
+		}
 	}
 };
