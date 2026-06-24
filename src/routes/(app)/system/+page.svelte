@@ -2,12 +2,14 @@
 	import { invalidateAll } from '$app/navigation';
 	import { hasScope } from '$lib/api/auth';
 	import { browserSystem } from '$lib/api/system';
+	import { browserDomain, type DomainCatalogEntry } from '$lib/api/domain';
 	import { TrackerError } from '$lib/api/tracker';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const canWrite = $derived(hasScope(data.user?.scopes, 'system.write'));
+	const canWriteDomain = $derived(hasScope(data.user?.scopes, 'domain.write'));
 
 	let enabled = $state(data.config?.enabled ?? true);
 	let archiveAfterDays = $state(data.config?.archive_after_days ?? 30);
@@ -283,7 +285,62 @@
 		);
 	}
 
-	type Section = 'archive' | 'reports';
+	// ── Domain catalog (gtweb-855bac, UI half of H4) ──────────────────────
+	// CRUD against /api/v1/domain (domain.read to view, domain.write to edit).
+	// `meta.gap` is reserved: the backend rejects edit/delete, so the row locks
+	// its controls. invalidateAll() re-runs the loader to refresh data.domains.
+	let dNewKey = $state('');
+	let dNewLabel = $state('');
+	let dNewTier = $state('');
+	// Inline rename: the key being edited (null = none) + its draft label.
+	let dEditingKey = $state<string | null>(null);
+	let dEditLabel = $state('');
+
+	function addDomain() {
+		const key = dNewKey.trim();
+		if (!key) return;
+		run(async () => {
+			await browserDomain().add({
+				key,
+				label: dNewLabel.trim() || undefined,
+				tier: dNewTier.trim() || undefined
+			});
+			dNewKey = '';
+			dNewLabel = '';
+			dNewTier = '';
+		}, `Added domain ${key}.`);
+	}
+
+	function startEditDomain(d: DomainCatalogEntry) {
+		dEditingKey = d.key;
+		dEditLabel = d.label;
+	}
+
+	function cancelEditDomain() {
+		dEditingKey = null;
+		dEditLabel = '';
+	}
+
+	function saveDomainLabel(d: DomainCatalogEntry) {
+		const label = dEditLabel.trim();
+		run(async () => {
+			await browserDomain().patch(d.key, { label: label || d.key });
+			dEditingKey = null;
+		}, `Renamed ${d.key}.`);
+	}
+
+	function toggleDomain(d: DomainCatalogEntry, enabled: boolean) {
+		run(
+			() => browserDomain().patch(d.key, { enabled }),
+			enabled ? `Enabled ${d.key}.` : `Disabled ${d.key}.`
+		);
+	}
+
+	function deleteDomain(d: DomainCatalogEntry) {
+		run(() => browserDomain().remove(d.key), `Removed ${d.key}.`);
+	}
+
+	type Section = 'archive' | 'reports' | 'domains';
 	let section = $state<Section>('archive');
 </script>
 
@@ -536,6 +593,13 @@
 			aria-current={section === 'reports' ? 'page' : undefined}
 		>
 			Email Reports
+		</button>
+		<button
+			class="tab {section === 'domains' ? 'tab-active' : ''}"
+			onclick={() => (section = 'domains')}
+			aria-current={section === 'domains' ? 'page' : undefined}
+		>
+			Domains
 		</button>
 	</nav>
 
@@ -1152,6 +1216,170 @@
 					{:else if !data.reportError}
 						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
 							No subscribers yet.
+						</p>
+					{/if}
+
+				</div>
+			</div>
+
+		</div>
+	{/if}
+
+	<!-- ── Domains section (gtweb-855bac, UI half of H4) ──────────────────── -->
+	{#if section === 'domains'}
+		<div class="entry entry-3 max-w-2xl space-y-[var(--gw-space-4)]">
+
+			<!-- Catalog card -->
+			<div class="bezel">
+				<div class="bezel-core px-[var(--gw-space-6)] py-[var(--gw-space-5)]">
+
+					<div class="mb-[var(--gw-space-4)] flex items-center gap-[var(--gw-space-3)]">
+						<div
+							class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--gw-radius-lg)]
+								border border-[var(--gw-color-border-subtle)] bg-[var(--gw-color-surface-3)]"
+							aria-hidden="true"
+						>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+								stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+								style="color: var(--gw-color-text-muted)">
+								<path d="M3 7h18M3 12h18M3 17h18"/>
+							</svg>
+						</div>
+						<h2 class="text-[var(--gw-text-base)] font-semibold text-[var(--gw-color-text)]">
+							Domain Catalog
+						</h2>
+					</div>
+
+					<p class="mb-[var(--gw-space-4)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+						The semantic domains beads in this workspace may carry. Add, rename or disable them —
+						the New-bead selector lists the enabled ones. <code>meta.gap</code> is reserved by the
+						platform and can't be edited or removed.
+					</p>
+
+					{#if data.domainError}
+						<p class="warn-callout mb-[var(--gw-space-4)]">{data.domainError}</p>
+					{:else if data.domains === null}
+						<p class="warn-callout mb-[var(--gw-space-4)]">
+							Requires <code>domain.read</code> to view the catalog.
+						</p>
+					{/if}
+
+					{#if data.domains && data.domains.length > 0}
+						<div class="space-y-[var(--gw-space-1)]">
+							{#each data.domains as d (d.key)}
+								<div class="flex flex-wrap items-center justify-between gap-[var(--gw-space-2)]
+									rounded-[var(--gw-radius-lg)] border border-[var(--gw-color-border-subtle)]
+									bg-[var(--gw-color-surface-3)] px-[var(--gw-space-3)] py-[var(--gw-space-2)]">
+									<label class="flex min-w-0 items-center gap-[var(--gw-space-2)]"
+										class:cursor-pointer={canWriteDomain && !d.reserved}>
+										<input
+											type="checkbox"
+											class="gw-check"
+											checked={d.enabled}
+											disabled={!canWriteDomain || d.reserved || busy}
+											onchange={(e) => toggleDomain(d, e.currentTarget.checked)}
+										/>
+										<span class="min-w-0" class:opacity-50={!d.enabled}>
+											{#if dEditingKey === d.key}
+												<input
+													class="gw-input-num"
+													style="width: 14rem"
+													bind:value={dEditLabel}
+													disabled={busy}
+													aria-label="New label for {d.key}"
+												/>
+											{:else}
+												<span class="block truncate text-[var(--gw-text-xs)] font-semibold
+													text-[var(--gw-color-text)]">
+													{d.label}
+												</span>
+												<span class="block font-[family-name:var(--gw-font-mono)] text-[10px]
+													text-[var(--gw-color-text-muted)]">
+													{d.key}{#if d.tier} · {d.tier}{/if}
+												</span>
+											{/if}
+										</span>
+									</label>
+									<div class="flex items-center gap-[var(--gw-space-1)]">
+										{#if d.reserved}
+											<span class="badge-disabled">Reserved</span>
+										{:else if !d.enabled}
+											<span class="badge-disabled">Disabled</span>
+										{/if}
+										{#if canWriteDomain && !d.reserved}
+											{#if dEditingKey === d.key}
+												<button type="button" class="btn-ghost"
+													style="padding: 0.25rem 0.625rem; font-size: 11px"
+													disabled={busy} onclick={() => saveDomainLabel(d)}>
+													Save
+												</button>
+												<button type="button" class="btn-ghost"
+													style="padding: 0.25rem 0.625rem; font-size: 11px"
+													disabled={busy} onclick={cancelEditDomain}>
+													Cancel
+												</button>
+											{:else}
+												<button type="button" class="btn-ghost"
+													style="padding: 0.25rem 0.625rem; font-size: 11px"
+													disabled={busy} onclick={() => startEditDomain(d)}>
+													Rename
+												</button>
+												<button type="button" class="btn-ghost"
+													style="padding: 0.25rem 0.625rem; font-size: 11px"
+													disabled={busy} onclick={() => deleteDomain(d)}>
+													Delete
+												</button>
+											{/if}
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else if data.domains && data.domains.length === 0 && !data.domainError}
+						<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
+							No domains in this workspace's catalog yet.
+						</p>
+					{/if}
+
+					{#if canWriteDomain}
+						<div class="field-divider my-[var(--gw-space-4)]"></div>
+						<form
+							class="space-y-[var(--gw-space-4)]"
+							onsubmit={(e) => { e.preventDefault(); addDomain(); }}
+						>
+							<p class="text-[var(--gw-text-xs)] font-semibold text-[var(--gw-color-text)]">
+								Add domain
+							</p>
+							<div class="grid gap-[var(--gw-space-4)] sm:grid-cols-3">
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="dom-key" class="field-label">Key</label>
+									<input id="dom-key" class="gw-input-num" style="width: 100%" type="text"
+										placeholder="producto" bind:value={dNewKey} disabled={busy} required />
+								</div>
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="dom-label" class="field-label">Label (optional)</label>
+									<input id="dom-label" class="gw-input-num" style="width: 100%" type="text"
+										placeholder="Producto" bind:value={dNewLabel} disabled={busy} />
+								</div>
+								<div class="space-y-[var(--gw-space-1)]">
+									<label for="dom-tier" class="field-label">Tier (optional)</label>
+									<input id="dom-tier" class="gw-input-num" style="width: 100%" type="text"
+										placeholder="negocio" bind:value={dNewTier} disabled={busy} />
+								</div>
+							</div>
+							<button type="submit" class="cta" disabled={busy || !dNewKey.trim()}>
+								<span>Add</span>
+								<span class="cta-arrow" aria-hidden="true">→</span>
+							</button>
+						</form>
+					{/if}
+
+					{#if message}
+						<p
+							class="mt-[var(--gw-space-3)] text-[var(--gw-text-xs)]"
+							style="color: {isError ? 'var(--gw-color-error)' : 'oklch(42% 0.16 150)'}"
+						>
+							{message}
 						</p>
 					{/if}
 
