@@ -178,6 +178,19 @@ export function admin(doFetch: Fetcher) {
 		async removeRig(name: string): Promise<void> {
 			await unwrap(await doFetch(rigPath(name), { method: 'DELETE' }));
 		},
+		/**
+		 * (Re)bind or clear a rig's VCS connection (`rig.set-connection`, gtcore-103958) —
+		 * `POST /api/v1/rig/{name}/set-connection`. Pass a connection id to bind, or `null`/empty
+		 * to clear (back to the operator-mounted token path). Needs `rig.write`.
+		 */
+		async setRigConnection(name: string, gitConnectionRef: string | null): Promise<void> {
+			await unwrap(
+				await doFetch(`${rigPath(name)}/set-connection`, {
+					...JSON_POST,
+					body: JSON.stringify({ git_connection_ref: gitConnectionRef ?? '' })
+				})
+			);
+		},
 
 		// --- quota ----------------------------------------------------------------
 		async quotas(): Promise<QuotaAccount[]> {
