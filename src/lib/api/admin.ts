@@ -68,6 +68,12 @@ export interface Rig {
 	 * repo, or the legacy free-text URL).
 	 */
 	git_connection_ref?: string | null;
+	/**
+	 * Dispatch mode (rig-hold, gtcore-4b7d56): `auto` (default) ⇒ the orchd dispatches and
+	 * re-slings this rig's beads; `hold` ⇒ dispatch + watchdog re-sling are paused so an operator
+	 * can intervene (in-flight polecats drain). Absent ⇒ treat as `auto` (back-compat).
+	 */
+	dispatch_mode?: 'auto' | 'hold';
 }
 
 /** `POST /api/v1/workspace/` body. */
@@ -190,6 +196,26 @@ export function admin(doFetch: Fetcher) {
 					body: JSON.stringify({ git_connection_ref: gitConnectionRef ?? '' })
 				})
 			);
+		},
+		/**
+		 * Put a rig on dispatch hold (`rig.hold`, rig-hold) — `POST /api/v1/rig/{name}/hold`. Pauses
+		 * the orchd's dispatch + watchdog re-sling for the rig (in-flight polecats drain). `reason`
+		 * is recorded on `rig.held.v1`. Idempotent. Needs `rig.write`.
+		 */
+		async holdRig(name: string, reason: string): Promise<void> {
+			await unwrap(
+				await doFetch(`${rigPath(name)}/hold`, {
+					...JSON_POST,
+					body: JSON.stringify({ reason })
+				})
+			);
+		},
+		/**
+		 * Take a rig off dispatch hold (`rig.resume`, rig-hold) — `POST /api/v1/rig/{name}/resume`.
+		 * Restores orchd dispatch + watchdog re-sling. Idempotent. Needs `rig.write`.
+		 */
+		async resumeRig(name: string): Promise<void> {
+			await unwrap(await doFetch(`${rigPath(name)}/resume`, { ...JSON_POST, body: '{}' }));
 		},
 
 		// --- quota ----------------------------------------------------------------
