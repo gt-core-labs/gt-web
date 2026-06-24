@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { Icon } from '$lib/ui';
-	import type { PageData } from './$types';
+	import type { Connection } from '$lib/api/connection';
+	import type { ActionData, PageData } from './$types';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	// Read-only view: rigs of the active workspace. Manage (register/delete/refresh) lives in
-	// Add-ons → GitHub. The graph freshness chip is shown for context (no actions here).
+	// Rigs of the active workspace. (Re)connecting to a VCS connection is inline (when rig.write);
+	// registering/deleting still lives in Add-ons → GitHub. The graph freshness chip is for context.
 	type GraphChip = { state: 'built' | 'behind' | 'stale'; commit: string | null } | null;
 	function graphChip(rigName: string): GraphChip {
 		const c = data.graphCustody.find((g) => g.rig === rigName);
@@ -18,6 +20,22 @@
 	// A rig whose git_connection_ref points at a connection that no longer exists has "lost" it.
 	const connExists = (id: string | null | undefined) =>
 		!!id && data.connections.some((c) => c.id === id);
+
+	// Only active connections are bindable targets; label by account/org login.
+	const activeConnections = $derived(data.connections.filter((c) => c.status === 'active'));
+	const connLabel = (c: Connection) => (c.account_login ? `${c.account_login} (${c.id})` : c.id);
+
+	// The connection selected per rig in the picker — seeded from the server entry and re-synced
+	// whenever the load data changes (e.g. after a successful save reloads the page data).
+	let selected = $state<Record<string, string>>({});
+	$effect(() => {
+		selected = Object.fromEntries(data.rigs.map((r) => [r.name, r.git_connection_ref ?? '']));
+	});
+
+	// The rig whose save is in flight (disables its control + shows a spinner).
+	let saving = $state<string | null>(null);
+	const isDirty = (name: string, current: string | null | undefined) =>
+		(selected[name] ?? '') !== (current ?? '');
 </script>
 
 <div class="mx-auto max-w-4xl space-y-6">
@@ -51,6 +69,9 @@
 			{#if data.rigError}
 				<aside class="warn-banner" role="alert">Could not list this workspace's repos: {data.rigError}</aside>
 			{/if}
+			{#if form?.error}
+				<aside class="warn-banner" role="alert">Could not update connection: {form.error}</aside>
+			{/if}
 
 			<!-- Repos table -->
 			<div class="bezel-core-overflow border border-[var(--gw-color-border-subtle)]">
@@ -77,11 +98,56 @@
 											<span class="block max-w-[260px] truncate font-[family-name:var(--gw-font-mono)] text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]" title={rig.git_url}>{rig.git_url}</span>
 										</td>
 										<td class="hidden px-[var(--gw-space-4)] py-[var(--gw-space-3)] lg:table-cell">
-											{#if rig.git_connection_ref}
+											{#if data.canWriteRig}
+												<!-- Inline (re)connect: pick a connection (or "—" to clear) and save (gtcore-1ff551). -->
+												<form
+													method="POST"
+													action="?/setConnection"
+													class="conn-form"
+													use:enhance={() => {
+														saving = rig.name;
+														return async ({ update }) => {
+															await update();
+															saving = null;
+														};
+													}}
+												>
+													<input type="hidden" name="name" value={rig.name} />
+													<select
+														class="conn-select"
+														class:conn-lost={rig.git_connection_ref && !connExists(rig.git_connection_ref)}
+														name="git_connection_ref"
+														bind:value={selected[rig.name]}
+														disabled={saving === rig.name}
+														aria-label={`Connection for ${rig.name}`}
+													>
+														<option value="">— (unbound)</option>
+														{#if rig.git_connection_ref && !connExists(rig.git_connection_ref)}
+															<option value={rig.git_connection_ref}>⚠ {rig.git_connection_ref} (lost)</option>
+														{/if}
+														{#each activeConnections as c (c.id)}
+															<option value={c.id}>{connLabel(c)}</option>
+														{/each}
+													</select>
+													<button
+														type="submit"
+														class="btn-refresh"
+														disabled={saving === rig.name || !isDirty(rig.name, rig.git_connection_ref)}
+														title="Save connection"
+													>
+														{#if saving === rig.name}
+															<Icon icon="lucide:loader-2" size={12} class="spin" />
+														{:else}
+															<Icon icon="lucide:plug" size={12} />
+														{/if}
+														Save
+													</button>
+												</form>
+											{:else if rig.git_connection_ref}
 												{#if connExists(rig.git_connection_ref)}
 													<span class="chip" title="git_connection_ref">{rig.git_connection_ref}</span>
 												{:else}
-													<span class="chip chip-warn" title="Connection lost — reconnect in Add-ons → GitHub">⚠ {rig.git_connection_ref}</span>
+													<span class="chip chip-warn" title="Connection lost — needs rig.write to reconnect">⚠ {rig.git_connection_ref}</span>
 												{/if}
 											{:else}
 												<span class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">—</span>
@@ -245,6 +311,31 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.5rem;
+	}
+	.conn-form {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.conn-select {
+		max-width: 220px;
+		border-radius: var(--gw-radius-lg);
+		border: 1px solid var(--gw-color-border);
+		background-color: var(--gw-color-surface-3);
+		color: var(--gw-color-text);
+		font-family: var(--gw-font-mono);
+		font-size: 11px;
+		padding: 3px 8px;
+		outline: none;
+		cursor: pointer;
+	}
+	.conn-select:focus {
+		border-color: var(--gw-color-primary);
+		box-shadow: 0 0 0 3px oklch(60% 0.22 250 / 0.1);
+	}
+	.conn-lost {
+		border-color: var(--gw-color-error);
+		color: var(--gw-color-error);
 	}
 	.btn-refresh {
 		display: inline-flex;
