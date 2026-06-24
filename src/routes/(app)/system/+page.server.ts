@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
 import { hasScope } from '$lib/api/auth';
 import { TrackerError } from '$lib/api/tracker';
-import { serverSystemApi, serverAdmin, serverBoard } from '$lib/server/api';
+import { serverSystemApi, serverAdmin, serverBoard, serverDomain } from '$lib/server/api';
 import type { BoardScope } from '$lib/api/board';
+import type { DomainCatalogEntry } from '$lib/api/domain';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -86,6 +87,20 @@ export const load: PageServerLoad = async (event) => {
 		// non-fatal — selectors fall back to free-text inputs
 	}
 
+	// Domain catalog (gtweb-855bac, UI half of H4): the active workspace's
+	// editable domain set. Best-effort + scope-gated — only `domain.read` holders
+	// fetch it; everyone else gets a null list and the section shows a hint rather
+	// than a 403 error. Writes are gated separately in the page by `domain.write`.
+	let domains: DomainCatalogEntry[] | null = null;
+	let domainError: string | null = null;
+	if (hasScope(event.locals.user?.scopes, 'domain.read')) {
+		try {
+			domains = await serverDomain(event).list();
+		} catch (err) {
+			domainError = describe(err);
+		}
+	}
+
 	const sessionWorkspace = event.locals.user?.workspace ?? null;
-	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes, sessionWorkspace, activeRigPrefix };
+	return { config, configError, reportSchedules, reportKinds, reportSubscribers, reportError, rigs, workspaces, scopes, sessionWorkspace, activeRigPrefix, domains, domainError };
 };

@@ -7,6 +7,7 @@ import { admin } from '$lib/api/admin';
 import { skills, feed } from '$lib/api/knowledge';
 import { stats } from '$lib/api/stats';
 import { meta } from '$lib/api/meta';
+import { domainCatalog } from '$lib/api/domain';
 import { serverSystem } from '$lib/api/system';
 import { connection } from '$lib/api/connection';
 import { graphClient } from '$lib/api/graph';
@@ -61,6 +62,12 @@ export function serverStats(event: RequestEvent) {
 export function serverMeta(event: RequestEvent) {
 	const cookie = event.request.headers.get('cookie') ?? '';
 	return meta((path, init) => backendFetch(path, cookie, init));
+}
+
+/** Server-side domain-catalog client (domain.catalog.* CRUD) bound to the backend + cookie. */
+export function serverDomain(event: RequestEvent) {
+	const cookie = event.request.headers.get('cookie') ?? '';
+	return domainCatalog((path, init) => backendFetch(path, cookie, init));
 }
 
 /** Server-side system config client (archive daemon config) bound to the backend + cookie. */

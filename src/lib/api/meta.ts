@@ -10,6 +10,7 @@
  * same-origin cookies) or a server one (absolute backend + forwarded cookie).
  */
 import { TrackerError, type Fetcher } from './tracker';
+import { parseDomainCatalog, enabledDomainKeys } from './domain';
 
 /** A single entry in the help catalog. `inputSchema` is a raw JSON Schema. */
 export interface HelpTool {
@@ -38,36 +39,6 @@ export interface ScopesResponse {
 /** `GET /api/v1/meta/help` body. The catalog shape is dynamic — render defensively. */
 export interface HelpResponse {
 	tools: HelpTool[];
-}
-
-/**
- * Pull the closed Domain set out of a help catalog.
- *
- * The backend (gt-issues) models `domain` as a closed Rust enum and exposes it
- * in the `issues.create`/`issues.update` tool schemas as a JSON-Schema
- * `definitions.Domain` — a `oneOf` of single-value `enum` branches (one branch
- * per `#[serde(rename)]` variant; schemars splits documented variants into their
- * own branch). We union every branch's `enum`, so a newly-registered domain
- * appears in the picker with NO frontend edit — the whole point of sourcing the
- * set from the backend instead of hardcoding it (gtweb-186fbf). Returns `[]`
- * when the catalog doesn't carry the definition (e.g. caller lacks `meta.read`).
- */
-export function domainsFromCatalog(tools: HelpTool[]): string[] {
-	const out = new Set<string>();
-	const collect = (node: unknown) => {
-		if (!node || typeof node !== 'object') return;
-		const o = node as Record<string, unknown>;
-		if (Array.isArray(o.enum)) for (const v of o.enum) if (typeof v === 'string') out.add(v);
-		for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
-			if (Array.isArray(o[key])) for (const branch of o[key] as unknown[]) collect(branch);
-		}
-	};
-	for (const t of tools) {
-		const schema = t.inputSchema as { definitions?: Record<string, unknown> } | undefined;
-		const def = schema?.definitions?.Domain;
-		if (def) collect(def);
-	}
-	return [...out].sort();
 }
 
 /** `POST /api/v1/meta/report-gap` body. Only `operation` is required. */
@@ -107,15 +78,16 @@ export function meta(doFetch: Fetcher) {
 			return Array.isArray(j?.tools) ? j.tools : [];
 		},
 		/**
-		 * The closed Domain set for the bead `domain` field, derived from the help
-		 * catalog's `issues.create` schema (see {@link domainsFromCatalog}). Sourced
-		 * from the backend so the CreateIssueModal selector can't offer (or submit) an
-		 * out-of-set value. Requires scope `meta.read`; callers should treat a reject
-		 * as "no catalog" and degrade to a free-text fallback (gtweb-186fbf).
+		 * The ACTIVE workspace's enabled domain keys, for the CreateIssueModal selector
+		 * (gtweb-855bac). Sourced from the workspace's editable catalog via
+		 * `GET /api/v1/meta/domains` — NOT the closed Rust `Domain` enum — so a domain
+		 * added through the `/system` admin table shows up with no frontend edit, and a
+		 * disabled one is excluded (the backend's H2 validation would reject it anyway).
+		 * Requires scope `meta.read`; callers should treat a reject (or an un-seeded
+		 * workspace's empty list) as "no catalog" and degrade to a free-text fallback.
 		 */
 		async domains(): Promise<string[]> {
-			const j = await unwrap<HelpResponse>(await doFetch('/api/v1/meta/help'));
-			return domainsFromCatalog(Array.isArray(j?.tools) ? j.tools : []);
+			return enabledDomainKeys(parseDomainCatalog(await unwrap<unknown>(await doFetch('/api/v1/meta/domains'))));
 		},
 		/**
 		 * The grantable scope catalog (`hq-scope-catalog`): every `<namespace>.<verb>` scope a token
