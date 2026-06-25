@@ -4,6 +4,7 @@
 	import { hasScope } from '$lib/api/auth';
 	import { Input } from '$lib/ui';
 	import { Markdown, Spinner } from '$lib/components/ui';
+	import CommentThread from '$lib/components/CommentThread.svelte';
 	import OperatorBadge from '$lib/components/tracker/OperatorBadge.svelte';
 	import type { PageData } from './$types';
 
@@ -212,6 +213,14 @@
 	{@render body('Design', issue.design)}
 	{@render body('Acceptance criteria', issue.acceptance_criteria)}
 	{@render body('Notes', issue.notes)}
+
+	<!-- ── Comments ──────────────────────────────────────────────────────────── -->
+	<section class="flex flex-col gap-3">
+		<h2 class="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--gw-color-text-muted)]">Comentarios</h2>
+		<div class="rounded-2xl border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)] px-5 py-4">
+			<CommentThread targetKind="card" targetId={issue.id} />
+		</div>
+	</section>
 
 	<!-- ── Deps + surfaces ────────────────────────────────────────────────────── -->
 	{#if deps.length || surfaces.length}
