@@ -52,7 +52,10 @@
 	// Keep boardHref in sync as the user switches views via the ViewSwitcher.
 	afterNavigate(({ to }) => {
 		if (!to) return;
-		const p = to.url.pathname;
+		// `pathname` includes the base (`/app`); strip it so the route checks below
+		// stay base-agnostic (NAV hrefs / BOARD_ROUTES are kept root-relative).
+		const raw = to.url.pathname;
+		const p = raw.startsWith(base) ? raw.slice(base.length) || '/' : raw;
 		if (p.startsWith('/kanban')) boardHref = '/kanban';
 		else if (p.startsWith('/calendar')) boardHref = to.url.href.includes('mode=timeline') ? '/calendar?mode=timeline' : '/calendar?mode=month';
 		else if (p.startsWith('/planning')) boardHref = '/planning';

@@ -11,11 +11,14 @@
 
 	let { items, path }: Props = $props();
 
+	// `path` includes the base (`/app`); NAV hrefs are kept root-relative, so match
+	// against a base-stripped path.
+	const rel = $derived(path.startsWith(base) ? path.slice(base.length) || '/' : path);
 	// Segment-boundary match: `/rigs` must not light up for `/rigsomething`, and a
 	// sub-route (e.g. `/admin/users/123`) keeps its parent item active. Home is exact.
 	// matchPaths lets a single nav item cover multiple routes (e.g. the board section).
 	const segmentMatch = (href: string) =>
-		href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+		href === '/' ? rel === '/' : rel === href || rel.startsWith(href + '/');
 	const isActive = (item: NavItem) =>
 		item.matchPaths ? item.matchPaths.some(segmentMatch) : segmentMatch(item.href);
 
@@ -61,7 +64,7 @@
 		{#each mainItems as item (item.href)}
 			{@const active = isActive(item)}
 			<a
-				href={item.href}
+				href={base + item.href}
 				aria-current={active ? 'page' : undefined}
 				class="group relative flex items-center rounded-xl px-3 py-2.5 text-sm no-underline
 					transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
@@ -110,7 +113,7 @@
 			{#each adminItems as item (item.href)}
 				{@const active = isActive(item)}
 				<a
-					href={item.href}
+					href={base + item.href}
 					aria-current={active ? 'page' : undefined}
 					class="group relative flex items-center rounded-xl px-3 py-2.5 text-sm no-underline
 						transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]

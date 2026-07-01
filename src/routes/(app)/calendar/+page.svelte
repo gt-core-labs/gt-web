@@ -23,7 +23,7 @@
 			if (param !== null) {
 				localStorage.setItem('gt:calendar-mode', mode);
 			} else if (localStorage.getItem('gt:calendar-mode') === 'timeline') {
-				goto(`/calendar?mode=timeline`, { replaceState: true });
+				goto(`${base}/calendar?mode=timeline`, { replaceState: true });
 			}
 		} catch {
 			/* storage unavailable */

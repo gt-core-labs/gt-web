@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { IssueOperator } from '$lib/api/tracker';
+	import { base } from '$app/paths';
 
 	// The agent operating a bead (hq-agent-observability.4): role + session, plus the skills and
 	// hooks it has loaded, rendered as chips. Shown on a working bead's card + detail; absent when
@@ -28,7 +29,7 @@
 
 	<!-- Terminal link -->
 	<a
-		href={`/terminal?session=${encodeURIComponent(operator.session)}`}
+		href={`${base}/terminal?session=${encodeURIComponent(operator.session)}`}
 		class="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--gw-color-border)]
 			text-[var(--gw-color-text-muted)]
 			transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]

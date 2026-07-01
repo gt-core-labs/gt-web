@@ -448,7 +448,7 @@
 					{#each data.results as doc (doc.id)}
 						<li>
 							<a
-								href={`/knowledge/${doc.id}`}
+								href={`${base}/knowledge/${doc.id}`}
 								class="block rounded-[var(--gw-radius-2xl)] outline-none
 									focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)]"
 							>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { base } from '$app/paths';
 	import { invalidateAll } from '$app/navigation';
 	import { browserReport } from '$lib/api/board';
 	import { browserTracker, ISSUE_TYPES, TrackerError, parseJsonArray, type IssueRow } from '$lib/api/tracker';
@@ -326,7 +327,7 @@
 		>{#if reportBusy}<Spinner size={1} />{:else}<Icon icon="lucide:file-spreadsheet" size={16} />{/if}</button>
 		<a
 			class="rounded border border-[var(--gw-color-border)] p-1.5 hover:bg-[var(--gw-color-surface-2)] {data.archived ? 'bg-[var(--gw-color-surface-2)]' : ''}"
-			href={data.archived ? '/planning' : '/planning?archived=1'}
+			href={data.archived ? `${base}/planning` : `${base}/planning?archived=1`}
 			title={data.archived ? 'Back to planning' : 'View archived'}
 			aria-label={data.archived ? 'Back to planning' : 'View archived'}
 		><Icon icon={data.archived ? 'lucide:archive-restore' : 'lucide:archive'} size={16} /></a>

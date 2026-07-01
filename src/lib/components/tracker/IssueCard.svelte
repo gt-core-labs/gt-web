@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { IssueRow } from '$lib/api/tracker';
+	import { base } from '$app/paths';
 	import OperatorBadge from './OperatorBadge.svelte';
 
 	interface Props {
@@ -44,7 +45,7 @@
 	></div>
 
 	<a
-		href={`/tracker/${issue.id}`}
+		href={`${base}/tracker/${issue.id}`}
 		class="block space-y-2.5 pb-3 pl-5 pr-4 pt-4 no-underline
 			focus-visible:outline-none focus-visible:ring-2
 			focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"

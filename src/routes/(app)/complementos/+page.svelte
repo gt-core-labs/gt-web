@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { base } from '$app/paths';
 	import { hasScope } from '$lib/api/auth';
 	import { Card, Badge, Icon } from '$lib/ui';
 	import { COMPLEMENTOS, type ComplementoStatus } from '$lib/complementos/manifest';
@@ -32,7 +33,7 @@
 		{#each COMPLEMENTOS as c (c.slug)}
 			{@const locked = c.status === 'coming-soon' || !hasScope(scopes, c.scope)}
 			<a
-				href={locked ? undefined : `/complementos/${c.slug}`}
+				href={locked ? undefined : `${base}/complementos/${c.slug}`}
 				aria-disabled={locked || undefined}
 				class="block no-underline {locked ? 'pointer-events-none' : ''}"
 			>

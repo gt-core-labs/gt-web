@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { browserDocs, type DocOwnerType } from '$lib/api/documents';
 	import { TrackerError } from '$lib/api/tracker';
 	import { Button } from '$lib/ui';
@@ -32,7 +33,7 @@
 				created_by: createdBy
 			});
 			onclose();
-			await goto(`/knowledge/${encodeURIComponent(doc.id)}`);
+			await goto(`${base}/knowledge/${encodeURIComponent(doc.id)}`);
 		} catch (err) {
 			error = err instanceof TrackerError ? err.message : String(err);
 		} finally {

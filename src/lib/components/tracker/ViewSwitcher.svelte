@@ -9,6 +9,7 @@
 	 * with no intermediate state, effects, or timing races.
 	 */
 	import { page } from '$app/stores';
+	import { base } from '$app/paths';
 	import { Icon } from '$lib/ui';
 
 	/** Remember the chosen view (hq-039316) — pages restore it on bare loads. */
@@ -35,14 +36,17 @@
 >
 	{#each VIEWS as v (v.key)}
 		{@const timelineMode = $page.url.searchParams.get('mode') === 'timeline'}
-		{@const active = $page.url.pathname.startsWith('/calendar')
+		{@const rel = $page.url.pathname.startsWith(base)
+			? $page.url.pathname.slice(base.length) || '/'
+			: $page.url.pathname}
+		{@const active = rel.startsWith('/calendar')
 			? (timelineMode ? v.key === 'timeline' : v.key === 'calendar')
-			: $page.url.pathname.startsWith('/' + v.key)}
+			: rel.startsWith('/' + v.key)}
 		<a
 			class="flex items-center p-1.5 transition-colors {active
 				? 'bg-[var(--gw-color-primary)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]'
 				: 'text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)] hover:text-[var(--gw-color-text)]'} border-l border-[var(--gw-color-border)] first:border-l-0"
-			href={v.href}
+			href={base + v.href}
 			title={v.label}
 			aria-label="{v.label} view"
 			aria-current={active ? 'page' : undefined}
