@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -7,5 +8,5 @@ import type { PageServerLoad } from './$types';
  * analytics drill-downs and external links point there.
  */
 export const load: PageServerLoad = async () => {
-	throw redirect(308, '/kanban');
+	throw redirect(308, `${base}/kanban`);
 };

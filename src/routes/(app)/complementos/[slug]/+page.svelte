@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { base } from '$app/paths';
 	import { Card, Badge, Icon } from '$lib/ui';
 	import { findComplemento } from '$lib/complementos/manifest';
 
@@ -9,7 +10,7 @@
 
 <div class="mx-auto max-w-3xl">
 	<a
-		href="/complementos"
+		href="{base}/complementos"
 		class="mb-6 inline-flex items-center gap-1.5 text-sm text-[var(--gw-color-text-muted)]
 			no-underline transition-colors hover:text-[var(--gw-color-text)]"
 	>

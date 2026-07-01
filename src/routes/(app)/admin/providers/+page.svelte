@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { PRESET_KINDS, type ProviderKind } from '$lib/api/auth';
 	import type { ActionData, PageData } from './$types';
@@ -372,7 +373,7 @@
 							</p>
 						</div>
 					</div>
-					<a href="/admin/providers" class="btn-ghost flex-shrink-0">Cancel</a>
+					<a href="{base}/admin/providers" class="btn-ghost flex-shrink-0">Cancel</a>
 				</div>
 
 				<form
@@ -689,7 +690,7 @@
 								</td>
 								<td class="px-[var(--gw-space-4)] py-[var(--gw-space-3)]">
 									<span class="flex items-center justify-end gap-[var(--gw-space-2)]">
-										<a href="/admin/providers?edit={encodeURIComponent(p.id)}" class="btn-primary-sm">
+										<a href="{base}/admin/providers?edit={encodeURIComponent(p.id)}" class="btn-primary-sm">
 											Edit
 										</a>
 										<form

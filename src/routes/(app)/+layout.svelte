@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { afterNavigate, invalidateAll } from '$app/navigation';
 	import { hasScope, switchWorkspace } from '$lib/api/auth';
@@ -206,7 +207,7 @@
 		     on the next load/navigation. The whole bar links to /admin/quota. -->
 		{#if (data.needsReloginCount ?? 0) > 0}
 			<a
-				href="/admin/quota"
+				href="{base}/admin/quota"
 				class="relogin-banner"
 				aria-label="{data.needsReloginCount} claude account{data.needsReloginCount === 1 ? '' : 's'} need re-login — open Quota admin"
 			>

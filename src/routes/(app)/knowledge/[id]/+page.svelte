@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { browserDocs } from '$lib/api/documents';
 	import { TrackerError } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
@@ -51,7 +52,7 @@
 		error = '';
 		try {
 			await browserDocs().remove(doc.id, doc.version);
-			await goto('/knowledge');
+			await goto(`/knowledge`);
 		} catch (err) {
 			error = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
 			busy = false;
@@ -207,7 +208,7 @@
 
 	<!-- ── Back nav ───────────────────────────────────────────────────── -->
 	<a
-		href="/knowledge"
+		href="{base}/knowledge"
 		class="entry entry-1 inline-flex items-center gap-1.5 rounded-full
 			border border-[var(--gw-color-border-subtle)]
 			bg-[var(--gw-color-surface-3)]
