@@ -235,7 +235,7 @@
 								<a
 									class="font-mono text-sm text-[var(--gw-color-primary)] no-underline
 										transition-opacity duration-200 hover:opacity-75"
-									href={`/tracker/${d}`}
+									href={`${base}/tracker/${d}`}
 								>{d}</a>
 							</li>
 						{/each}

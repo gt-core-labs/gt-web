@@ -52,7 +52,7 @@
 		error = '';
 		try {
 			await browserDocs().remove(doc.id, doc.version);
-			await goto(`/knowledge`);
+			await goto(`${base}/knowledge`);
 		} catch (err) {
 			error = err instanceof TrackerError ? `${err.status}: ${err.message}` : String(err);
 			busy = false;
