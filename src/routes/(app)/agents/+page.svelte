@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
 	import { Markdown } from '$lib/components/ui';
@@ -289,7 +290,7 @@
 			{#if section === 'skills'}
 				{#if library.length === 0}
 					<p class="text-[var(--gw-text-sm)] text-[var(--gw-color-text-muted)]">
-						No skills in the library. Author them in <a class="underline" href="/knowledge">Knowledge</a>.
+						No skills in the library. Author them in <a class="underline" href="{base}/knowledge">Knowledge</a>.
 					</p>
 				{:else}
 					<div class="bezel">

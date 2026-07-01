@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import { hasScope, listWorkspaces } from '$lib/api/auth';
 import { serverAdmin } from '$lib/server/api';
 import { backendFetch } from '$lib/server/backend';
@@ -19,7 +20,7 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async (event) => {
 	const { locals, url, cookies } = event;
 	if (!locals.user) {
-		throw redirect(302, `/login?next=${encodeURIComponent(url.pathname + url.search)}`);
+		throw redirect(302, `${base}/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 	}
 
 	const cookie = event.request.headers.get('cookie') ?? '';

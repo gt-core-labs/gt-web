@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -6,5 +7,5 @@ import type { PageServerLoad } from './$types';
  * over the same board projection this page used to aggregate (hq-562fbd).
  */
 export const load: PageServerLoad = async () => {
-	throw redirect(308, '/analytics');
+	throw redirect(308, `${base}/analytics`);
 };

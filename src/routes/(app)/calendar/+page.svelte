@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { hasScope } from '$lib/api/auth';
 	import { type IssueRow } from '$lib/api/tracker';
@@ -22,7 +23,7 @@
 			if (param !== null) {
 				localStorage.setItem('gt:calendar-mode', mode);
 			} else if (localStorage.getItem('gt:calendar-mode') === 'timeline') {
-				goto('/calendar?mode=timeline', { replaceState: true });
+				goto(`/calendar?mode=timeline`, { replaceState: true });
 			}
 		} catch {
 			/* storage unavailable */
@@ -167,7 +168,7 @@
 					Tasks by due date (start date fallback) — click a task to open its card.
 				{/if}
 				{#if unscheduled > 0}
-					<a class="text-[var(--gw-color-primary)] hover:underline" href="/planning">{unscheduled} unscheduled →</a>
+					<a class="text-[var(--gw-color-primary)] hover:underline" href="{base}/planning">{unscheduled} unscheduled →</a>
 				{/if}
 			</p>
 		</div>

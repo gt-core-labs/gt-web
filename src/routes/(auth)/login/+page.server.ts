@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import { backendFetch } from '$lib/server/backend';
 import { relaySetCookies } from '$lib/server/cookies';
 import type { Provider } from '$lib/api/auth';
@@ -16,9 +17,9 @@ async function loadProviders(): Promise<Provider[]> {
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	if (locals.user) throw redirect(302, '/');
+	if (locals.user) throw redirect(302, `${base}/`);
 	return {
-		next: url.searchParams.get('next') ?? '/',
+		next: url.searchParams.get('next') ?? `${base}/`,
 		providers: await loadProviders()
 	};
 };
@@ -28,8 +29,8 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const email = String(form.get('email') ?? '').trim();
 		const password = String(form.get('password') ?? '');
-		const nextRaw = String(form.get('next') ?? '/');
-		const next = nextRaw.startsWith('/') ? nextRaw : '/';
+		const nextRaw = String(form.get('next') ?? `${base}/`);
+		const next = nextRaw.startsWith('/') ? nextRaw : `${base}/`;
 
 		if (!email || !password) {
 			return fail(400, { error: 'Email and password are required.', email });

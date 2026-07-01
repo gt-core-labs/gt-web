@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	/**
 	 * depends_on editor (hq-039316): chips with ✕ to drop an edge + a combobox
 	 * (id / title substring filter) to add one. Emits the FULL list — the backend
@@ -93,7 +94,7 @@
 				class="inline-flex items-center gap-1 rounded bg-[var(--gw-color-surface-2)] px-1.5 py-0.5 font-mono text-[11px]"
 				title={options.find((o) => o.id === id)?.title ?? id}
 			>
-				<a class="hover:text-[var(--gw-color-primary)] hover:underline" href="/tracker/{id}">{id}</a>
+				<a class="hover:text-[var(--gw-color-primary)] hover:underline" href="{base}/tracker/{id}">{id}</a>
 				{#if !disabled}
 					<button
 						class="text-[var(--gw-color-text-muted)] hover:text-[var(--gw-color-danger)]"

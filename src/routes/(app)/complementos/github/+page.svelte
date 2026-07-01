@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { hasScope } from '$lib/api/auth';
@@ -379,7 +380,7 @@
 <div class="mx-auto max-w-4xl space-y-6">
 	<!-- ── Back + header ─────────────────────────────────────────────────────── -->
 	<a
-		href="/complementos"
+		href="{base}/complementos"
 		class="inline-flex items-center gap-1.5 text-sm text-[var(--gw-color-text-muted)]
 			no-underline transition-colors hover:text-[var(--gw-color-text)]"
 	>
@@ -475,7 +476,7 @@
 						</button>
 					</div>
 					<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
-						After installing, register repos on the <strong><a href="/rigs" class="underline">Rigs</a></strong> page (pick the connection → repo dropdown).
+						After installing, register repos on the <strong><a href="{base}/rigs" class="underline">Rigs</a></strong> page (pick the connection → repo dropdown).
 					</p>
 				{:else}
 					<form method="POST" action="?/saveGithubApp" use:enhance={enhancer} class="space-y-[var(--gw-space-3)]">
@@ -664,7 +665,7 @@
 				</div>
 				<p class="text-[var(--gw-text-xs)] text-[var(--gw-color-text-muted)]">
 					Pick a connection → a repo → the target workspace. The rig is created in that workspace and
-					listed under <a href="/rigs" class="underline">Rigs</a>.
+					listed under <a href="{base}/rigs" class="underline">Rigs</a>.
 				</p>
 
 				{#if formScope === 'rig' && fv.error}

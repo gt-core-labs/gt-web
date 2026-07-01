@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { browserTracker, parseJsonArray, TrackerError, type IssueStatus } from '$lib/api/tracker';
 	import { hasScope } from '$lib/api/auth';
 	import { Input } from '$lib/ui';
@@ -50,7 +51,7 @@
 
 	<!-- ── Back link ──────────────────────────────────────────────────────────── -->
 	<a
-		href="/tracker"
+		href="{base}/tracker"
 		class="group inline-flex w-fit items-center gap-1.5 rounded-full border border-[var(--gw-color-border)] px-3 py-1.5
 			text-xs text-[var(--gw-color-text-muted)] no-underline
 			transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]

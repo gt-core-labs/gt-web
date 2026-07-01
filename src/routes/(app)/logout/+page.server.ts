@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import { backendFetch } from '$lib/server/backend';
 import { relaySetCookies } from '$lib/server/cookies';
 import type { Actions } from './$types';
@@ -11,6 +12,6 @@ export const actions: Actions = {
 		relaySetCookies(res.headers.getSetCookie(), cookies);
 		cookies.delete('gt_web_token', { path: '/' });
 		cookies.delete('gt_refresh', { path: '/auth' });
-		throw redirect(303, '/login');
+		throw redirect(303, `${base}/login`);
 	}
 };

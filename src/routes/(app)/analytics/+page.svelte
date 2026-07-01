@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import type { Slice } from '$lib/api/analytics';
 	import EChart from '$lib/components/EChart.svelte';
@@ -257,7 +258,7 @@
 						<p class="mt-2 mb-1 font-medium text-[var(--gw-color-text-muted)]">Overdue cards</p>
 						<ul class="max-h-32 space-y-0.5 overflow-y-auto font-mono">
 							{#each s.retrasos.overdue_ids as id (id)}
-								<li><a class="hover:underline" href="/tracker/{id}">{id}</a></li>
+								<li><a class="hover:underline" href="{base}/tracker/{id}">{id}</a></li>
 							{/each}
 						</ul>
 					{/if}

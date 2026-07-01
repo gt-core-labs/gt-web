@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { base } from '$app/paths';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -8,5 +9,5 @@ import type { PageServerLoad } from './$types';
  * surface, and the standalone "Rigs" nav item is gone.
  */
 export const load: PageServerLoad = async () => {
-	redirect(308, '/complementos/github');
+	redirect(308, `${base}/complementos/github`);
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Icon } from '$lib/ui';
+	import { base } from '$app/paths';
 
 	type NavItem = { href: string; label: string; scope: string | null; icon?: string; matchPaths?: string[] };
 
@@ -37,7 +38,7 @@
 
 	<!-- Brand mark -->
 	<a
-		href="/"
+		href="{base}/"
 		class="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--gw-color-border)] px-4 no-underline
 			transition-opacity duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:opacity-80
 			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gw-color-primary-focus)] focus-visible:ring-offset-1"

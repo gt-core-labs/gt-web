@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { hasScope } from '$lib/api/auth';
 	import { Badge, Button } from '$lib/ui';
 	import { Markdown } from '$lib/components/ui';
@@ -755,7 +756,7 @@
 											<p class="text-xs text-[var(--gw-color-text-muted)]">No SKILL.md body.</p>
 										{/if}
 										<p class="text-[10px] text-[var(--gw-color-text-muted)]">
-											Enable this skill for a role in <a class="underline" href="/agents">Agents</a>.
+											Enable this skill for a role in <a class="underline" href="{base}/agents">Agents</a>.
 										</p>
 									</div>
 								{/if}

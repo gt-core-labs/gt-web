@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { base } from '$app/paths';
 	import { Icon } from '$lib/ui';
 	import type { Connection } from '$lib/api/connection';
 	import type { ActionData, PageData } from './$types';
@@ -56,7 +57,7 @@
 			<p class="mt-1 text-sm text-[var(--gw-color-text-muted)]">
 				Repos registered in the active workspace (switch workspace in the header to view another).
 				Register, delete or refresh them under
-				<a href="/complementos/github" class="underline">Add-ons → GitHub</a>.
+				<a href="{base}/complementos/github" class="underline">Add-ons → GitHub</a>.
 			</p>
 		</div>
 	</header>
