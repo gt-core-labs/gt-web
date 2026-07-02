@@ -11,6 +11,7 @@
 	 * notification and creates a new tracker issue via POST /api/v1/issues.
 	 */
 	import { onMount, onDestroy } from 'svelte';
+	import { base } from '$app/paths';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { browserNotifications, type Notification } from '$lib/api/notifications';
@@ -39,8 +40,8 @@
 		try {
 			items = await client.list(false);
 			unreadCount = items.filter((n) => n.read_at === null).length;
-		} catch {
-			// silently ignore - auth may not be ready
+		} catch (e) {
+			handlePollError(e);
 		}
 	}
 
@@ -48,8 +49,8 @@
 		try {
 			const unread = await client.list(true);
 			unreadCount = unread.length;
-		} catch {
-			// silently ignore
+		} catch (e) {
+			handlePollError(e);
 		}
 	}
 
@@ -168,6 +169,43 @@
 
 	let sse: EventSource | null = null;
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+	// Once set, the session has expired and we've already bounced to login — used
+	// to make the redirect fire exactly once (gtweb-9d49f5).
+	let sessionExpired = false;
+
+	/** Stop the 5 s poll and drop the SSE subscription. */
+	function teardown() {
+		if (pollTimer) {
+			clearInterval(pollTimer);
+			pollTimer = null;
+		}
+		if (sse) {
+			sse.close();
+			sse = null;
+		}
+	}
+
+	/**
+	 * React to a failed notifications poll. A 401 means the session expired (the
+	 * backend logs these as `actor=anonymous`): stop polling and redirect to
+	 * login so the bell no longer hammers the audit trail every 5 s with anonymous
+	 * requests (gtweb-9d49f5). The redirect goes through `base` so it lands on
+	 * `/app/login` once the console moves under `/app` (epic gtdocs-5d4b24).
+	 *
+	 * A 403 (missing `notifications.read` scope) or any transient/network error is
+	 * left alone — a logged-in operator without that scope must never be trapped in
+	 * a redirect loop.
+	 */
+	function handlePollError(e: unknown) {
+		if (sessionExpired) return;
+		if (e instanceof TrackerError && e.status === 401) {
+			sessionExpired = true;
+			teardown();
+			const next = encodeURIComponent(window.location.pathname + window.location.search);
+			window.location.assign(`${base}/login?next=${next}`);
+		}
+	}
 
 	onMount(() => {
 		// Initial count
