@@ -102,6 +102,12 @@ export interface IssueRow {
 	estimated_hours?: number | null;
 	start_date?: string | null;
 	due_date?: string | null;
+	/**
+	 * RAW own dispatch policy (gtcore-1acbcf C1) — `null`/absent means the
+	 * effective policy is inherited from the parent epic chain (bottoming out
+	 * at `manual`); the read API does not resolve the chain on the row.
+	 */
+	dispatch?: 'auto' | 'manual' | null;
 }
 
 /** A full issue (list row + the heavy text bodies), from GET /api/v1/issues/{id}. */
@@ -193,6 +199,12 @@ export interface UpdateIssueBody {
 	/** `YYYY-MM-DD`; empty string clears. */
 	start_date?: string;
 	due_date?: string;
+	/**
+	 * Dispatch policy (gtcore-1acbcf C1) — whether an agent may claim the bead.
+	 * `'auto' | 'manual'` overwrites; `''` clears the own value back to
+	 * inherit-from-parent (same clear sentinel as `assignee`).
+	 */
+	dispatch?: 'auto' | 'manual' | '';
 }
 
 export interface CloseIssueBody {

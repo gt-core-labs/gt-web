@@ -347,6 +347,10 @@
 									<span class="flex items-center gap-2">
 										<span class="h-1.5 w-1.5 shrink-0 rounded-full {PRIORITY_DOT[card.priority] ?? PRIORITY_DOT[2]}"></span>
 										<span class="truncate font-mono text-[11px] text-[var(--gw-color-text-muted)]">{card.id}</span>
+										<!-- Own dispatch=auto (gtcore-1acbcf C1): agent-claimable, worth a glance. -->
+										{#if card.dispatch === 'auto'}
+											<span class="shrink-0 rounded bg-emerald-500/15 px-1 text-[10px] font-semibold text-emerald-500">auto</span>
+										{/if}
 										{#if card.estimated_hours != null}
 											<span class="ml-auto shrink-0 text-[11px] text-[var(--gw-color-text-muted)]">{card.estimated_hours}h</span>
 										{/if}
