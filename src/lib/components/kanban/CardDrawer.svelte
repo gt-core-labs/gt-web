@@ -331,6 +331,19 @@
 				>
 					{#each typeOptions as t (t)}<option value={t}>{t}</option>{/each}
 				</select>
+				<!-- Own dispatch policy (gtcore-1acbcf C1): '' = inherit from the
+				     parent epic chain (manual when the chain yields nothing). -->
+				<select
+					class={editCls}
+					value={detail.dispatch ?? ''}
+					aria-label="Dispatch policy"
+					onchange={(e) =>
+						patch({ dispatch: (e.currentTarget as HTMLSelectElement).value as 'auto' | 'manual' | '' })}
+				>
+					<option value="">dispatch: inherit</option>
+					<option value="auto">dispatch: auto</option>
+					<option value="manual">dispatch: manual</option>
+				</select>
 				<AssigneeSelect
 					class="{editCls} max-w-36"
 					value={detail.assignee ?? ''}
@@ -368,6 +381,7 @@
 				<span class={chipCls}>{card.status}</span>
 				<span class={chipCls}>{PRIORITY[card.priority] ?? `P${card.priority}`}</span>
 				<span class={chipCls}>{card.issue_type}</span>
+				{#if card.dispatch}<span class={chipCls}>dispatch {card.dispatch}</span>{/if}
 				{#if card.assignee}<span class={chipCls}>@{card.assignee}</span>{/if}
 				{#if card.parent_id}
 					{#if parentCard && onNavigate}
