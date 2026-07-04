@@ -8,6 +8,7 @@
 	import { Alert, EmptyState } from '$lib/components/ui';
 	import LiveFeed from '$lib/components/orchestration/LiveFeed.svelte';
 	import MessageDrawer from '$lib/components/orchestration/MessageDrawer.svelte';
+	import TranscriptDrawer from '$lib/components/orchestration/TranscriptDrawer.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -19,6 +20,11 @@
 
 	// A2A message drawer state — null when closed, session id when open.
 	let drawerSession = $state<string | null>(null);
+
+	// Ended-session history view (gtweb-b3fe6b): a done/killed session has no live process, so
+	// its Terminal action loads the stored transcript instead of spawning a fresh agent.
+	let transcriptSession = $state<string | null>(null);
+	const isEnded = (state: string) => state === 'done' || state === 'killed';
 
 	const canAgent = $derived(hasScope(data.user?.scopes, 'agent.write'));
 	const canTerminal = $derived(hasScope(data.user?.scopes, 'terminal.exec'));
@@ -542,7 +548,9 @@
 										<td>
 											<div class="flex flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
 												<Button variant="tonal" class="btn-sm" onclick={() => (drawerSession = s.id)}>Msg</Button>
-												{#if canTerminal}
+												{#if isEnded(s.state)}
+													<Button variant="tonal" class="btn-sm" onclick={() => (transcriptSession = s.id)}>Terminal</Button>
+												{:else if canTerminal}
 													<Button variant="tonal" class="btn-sm" onclick={() => openTerminal(s.id)}>Terminal</Button>
 												{/if}
 												{#if canAgent}
@@ -814,4 +822,8 @@
 
 {#if drawerSession !== null}
 	<MessageDrawer session={drawerSession || null} onclose={() => (drawerSession = null)} />
+{/if}
+
+{#if transcriptSession !== null}
+	<TranscriptDrawer session={transcriptSession} onclose={() => (transcriptSession = null)} />
 {/if}
