@@ -125,8 +125,27 @@ async function unwrap<T>(res: Response): Promise<T> {
 	return (await res.json()) as T;
 }
 
+/** One turn of a stored session conversation (gtweb-b3fe6b / gt-core#189). */
+export interface TranscriptTurn {
+	role: string;
+	text: string;
+	tools?: string[];
+	at?: string;
+}
+
+/** An ended session's stored conversation, served by GET /api/v1/agent/:id/transcript. */
+export interface Transcript {
+	session: string;
+	turns: TranscriptTurn[];
+}
+
 export function orch(doFetch: Fetcher) {
 	return {
+		async transcript(id: string): Promise<Transcript> {
+			return unwrap<Transcript>(
+				await doFetch(`/api/v1/agent/${encodeURIComponent(id)}/transcript`)
+			);
+		},
 		async agents(rig?: string): Promise<Session[]> {
 			const url = rig ? `/api/v1/agent?rig=${encodeURIComponent(rig)}` : '/api/v1/agent';
 			const j = await unwrap<{ sessions: Session[] }>(await doFetch(url));
