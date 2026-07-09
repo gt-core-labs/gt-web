@@ -121,6 +121,7 @@
 		// links straight to it. /admin/rigs is a legacy 308 redirect to the same place.
 		{ href: '/admin/quota', label: 'Quota', scope: 'quota.read', icon: 'lucide:gauge' },
 		{ href: '/admin/providers', label: 'Providers', scope: '*', icon: 'lucide:plug' },
+		{ href: '/admin/clients', label: 'Clients', scope: '*', icon: 'lucide:key-round' },
 		{ href: '/system', label: 'System', scope: 'system.read', icon: 'lucide:cpu' },
 		{ href: '/help', label: 'Help', scope: 'meta.read', icon: 'lucide:circle-help' }
 	];
