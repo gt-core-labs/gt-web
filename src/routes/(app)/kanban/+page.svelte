@@ -157,8 +157,10 @@
 
 		const target = col(status);
 		if (!target) return;
-		// Neighbors AROUND the insertion point, excluding the moving card itself.
-		const others = target.cards.filter((c) => c.id !== card.id);
+		// Use the VISIBLE cards (epics excluded, epic filter applied) for neighbor
+		// lookup — the hint index comes from the visible list, not the raw column.
+		const visible = laneCards(target.cards);
+		const others = visible.filter((c) => c.id !== card.id);
 		const idx = Math.min(hint.index, others.length);
 		const after = idx > 0 ? others[idx - 1]?.id : undefined;
 		const before = idx < others.length ? others[idx]?.id : undefined;
@@ -321,15 +323,28 @@
 								{laneLabel(lane.key)}
 							</p>
 							{#each lane.cards as card (card.id)}
-								<button
-									class="block w-full rounded-lg border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] p-2 text-left text-sm hover:border-[var(--gw-color-primary)]"
-									onclick={() => (selected = card)}
+								{@const flatIndex = visible.findIndex((c) => c.id === card.id)}
+								{#if dropHint && dropHint.status === status && dropHint.index === flatIndex && dragged && dragged.id !== card.id}
+									<div class="h-1 rounded bg-[var(--gw-color-primary)]"></div>
+								{/if}
+								<div
+									class="cursor-grab rounded-lg border border-[var(--gw-color-border)] bg-[var(--gw-color-surface)] p-2 text-sm hover:border-[var(--gw-color-primary)] {dragged?.id === card.id ? 'opacity-40' : ''}"
+									draggable={canWrite}
+									role="listitem"
+									ondragstart={() => (dragged = card)}
+									ondragend={() => { dragged = null; dropHint = null; }}
+									ondragover={(e) => dragOverCard(e, status, flatIndex)}
 								>
-									<span class="font-mono text-[11px] text-[var(--gw-color-text-muted)]">{card.id}</span>
-									<span class="block break-words">{card.title}</span>
-								</button>
+									<button class="block w-full text-left" onclick={() => (selected = card)}>
+										<span class="font-mono text-[11px] text-[var(--gw-color-text-muted)]">{card.id}</span>
+										<span class="block break-words">{card.title}</span>
+									</button>
+								</div>
 							{/each}
 						{/each}
+						{#if dropHint && dropHint.status === status && dropHint.index === visible.length && dragged}
+							<div class="h-1 rounded bg-[var(--gw-color-primary)]"></div>
+						{/if}
 					{:else}
 						{#each visible as card, index (card.id)}
 							{#if dropHint && dropHint.status === status && dropHint.index === index && dragged && dragged.id !== card.id}
