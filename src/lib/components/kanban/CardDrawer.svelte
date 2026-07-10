@@ -49,7 +49,7 @@
 	// Inline text-field editing (gtweb-f5b7ae): title / description / acceptance
 	// criteria. The chips above cover metadata; these three free-text columns were
 	// read-only. Same patch() PATCH underneath — only one field edits at a time.
-	type TextField = 'title' | 'description' | 'acceptance_criteria';
+	type TextField = 'title' | 'description' | 'acceptance_criteria' | 'design' | 'notes';
 	let editing = $state<TextField | null>(null);
 	let draft = $state('');
 
@@ -409,7 +409,7 @@
 			<!-- Free-text columns (gtweb-f5b7ae): read-only Markdown, or a textarea
 			     when the operator (issues.write) clicks ✎. Shown even when empty so an
 			     editor can fill them in. -->
-			{#snippet textSection(label: string, field: 'description' | 'acceptance_criteria', value: string)}
+			{#snippet textSection(label: string, field: TextField, value: string)}
 				{#if value || canWrite}
 					<section>
 						<div class="mb-1 flex items-center justify-between gap-2">
@@ -445,7 +445,9 @@
 			{/snippet}
 
 			{@render textSection('Description', 'description', detail.description)}
+			{@render textSection('Design', 'design', detail.design)}
 			{@render textSection('Acceptance criteria', 'acceptance_criteria', detail.acceptance_criteria)}
+			{@render textSection('Notes', 'notes', detail.notes)}
 
 			{#if card.issue_type === 'epic'}
 				<section>
