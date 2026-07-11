@@ -52,6 +52,7 @@
 	type TextField = 'title' | 'description' | 'acceptance_criteria' | 'design' | 'notes';
 	let editing = $state<TextField | null>(null);
 	let draft = $state('');
+	let showPreview = $state(false);
 
 	function startEdit(field: TextField) {
 		if (!detail) return;
@@ -61,6 +62,7 @@
 	function cancelEdit() {
 		editing = null;
 		draft = '';
+		showPreview = false;
 	}
 	async function saveEdit() {
 		if (!editing || !detail) return;
@@ -424,16 +426,30 @@
 							{/if}
 						</div>
 						{#if editing === field}
-							<textarea
-								class="{editCls} min-h-32 w-full font-mono leading-relaxed"
-								value={draft}
-								aria-label="Edit {label.toLowerCase()}"
-								oninput={(e) => (draft = (e.currentTarget as HTMLTextAreaElement).value)}
-								onkeydown={(e) => e.key === 'Escape' && cancelEdit()}
-							></textarea>
-							<div class="mt-1.5 flex gap-2">
+							{#if showPreview}
+								<div class="min-h-32 rounded border border-[var(--gw-color-border)] bg-[var(--gw-color-surface-2)] p-3">
+									{#if draft.trim()}
+										<Markdown text={draft} />
+									{:else}
+										<p class="text-sm italic text-[var(--gw-color-text-muted)]">Nothing to preview.</p>
+									{/if}
+								</div>
+							{:else}
+								<textarea
+									class="{editCls} min-h-32 w-full font-mono leading-relaxed"
+									value={draft}
+									aria-label="Edit {label.toLowerCase()}"
+									oninput={(e) => (draft = (e.currentTarget as HTMLTextAreaElement).value)}
+									onkeydown={(e) => e.key === 'Escape' && cancelEdit()}
+								></textarea>
+							{/if}
+							<div class="mt-1.5 flex items-center gap-2">
 								<button class="rounded bg-[var(--gw-color-primary)] px-2.5 py-1 text-xs text-white hover:opacity-90" onclick={saveEdit}>Save</button>
 								<button class="rounded border border-[var(--gw-color-border)] px-2.5 py-1 text-xs text-[var(--gw-color-text-muted)] hover:bg-[var(--gw-color-surface-2)]" onclick={cancelEdit}>Cancel</button>
+								<button
+									class="ml-auto rounded border border-[var(--gw-color-border)] px-2.5 py-1 text-xs hover:bg-[var(--gw-color-surface-2)] {showPreview ? 'text-[var(--gw-color-primary)]' : 'text-[var(--gw-color-text-muted)]'}"
+									onclick={() => (showPreview = !showPreview)}
+								>{showPreview ? 'Edit' : 'Preview'}</button>
 							</div>
 						{:else if value}
 							<Markdown text={value} />
