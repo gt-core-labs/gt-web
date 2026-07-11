@@ -162,6 +162,20 @@
 	font-weight: var(--gw-font-semibold);
 }
 
+/* ── Mermaid diagrams ────────────────────────────────────────────────────── */
+.gw-prose pre.mermaid {
+	background: var(--gw-color-surface-2);
+	border: 1px solid var(--gw-color-border-subtle);
+	border-radius: var(--gw-radius-lg);
+	padding: var(--gw-space-4);
+	overflow-x: auto;
+	text-align: center;
+}
+.gw-prose pre.mermaid svg {
+	max-width: 100%;
+	height: auto;
+}
+
 /* ── Media ────────────────────────────────────────────────────────────────── */
 .gw-prose img {
 	max-width: 100%;
