@@ -29,6 +29,7 @@
 		'/admin/rigs',
 		'/admin/quota',
 		'/admin/providers',
+		'/admin/clients',
 		'/system',
 		'/help'
 	]);
